@@ -1,0 +1,55 @@
+start_run:
+  name: Start run
+  description: Start a new plant run.
+  fields:
+    run_name:
+      name: Run name
+      description: Friendly run title.
+      required: true
+      selector:
+        text:
+
+end_run:
+  name: End run
+  description: End an active run.
+  fields:
+    run_id:
+      name: Run ID
+      description: Unique run identifier.
+      required: true
+      selector:
+        text:
+
+set_phase:
+  name: Set phase
+  description: Set the phase of a run.
+  fields:
+    run_id:
+      name: Run ID
+      required: true
+      selector:
+        text:
+    phase:
+      name: Phase
+      required: true
+      selector:
+        select:
+          options:
+            - growth
+            - flower
+            - harvest_ready
+
+add_note:
+  name: Add note
+  description: Add a note/event to a run.
+  fields:
+    run_id:
+      name: Run ID
+      required: true
+      selector:
+        text:
+    note:
+      name: Note
+      required: true
+      selector:
+        text:

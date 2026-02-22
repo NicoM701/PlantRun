@@ -1,0 +1,10 @@
+{
+  "domain": "plantrun",
+  "name": "PlantRun",
+  "version": "0.1.0",
+  "documentation": "https://github.com/nico/plantrun",
+  "issue_tracker": "https://github.com/nico/plantrun/issues",
+  "codeowners": ["@nico"],
+  "requirements": [],
+  "iot_class": "local_polling"
+}
