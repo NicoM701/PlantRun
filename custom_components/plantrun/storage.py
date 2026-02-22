@@ -24,6 +24,19 @@ class PlantRunStorage:
         if isinstance(stored, dict):
             merged = deepcopy(DEFAULT_DATA)
             merged.update(stored)
+
+            runs = merged.get("runs", {})
+            if isinstance(runs, dict):
+                for run in runs.values():
+                    run.setdefault("notes", [])
+                    run.setdefault("phase_history", [])
+                    run.setdefault("metrics", {
+                        "energy_kwh": None,
+                        "energy_cost": None,
+                        "soil_moisture": None,
+                        "air_humidity": None,
+                    })
+                    run.setdefault("media", [])
             self.data = merged
 
     async def async_save(self) -> None:

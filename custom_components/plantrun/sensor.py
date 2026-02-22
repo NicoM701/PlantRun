@@ -7,7 +7,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import DOMAIN, SIGNAL_DATA_UPDATED
+from .const import DATA_STORAGE, DOMAIN, SIGNAL_DATA_UPDATED
 
 
 async def async_setup_platform(
@@ -38,7 +38,7 @@ class PlantRunBaseSensor(SensorEntity):
 
     @property
     def storage(self) -> dict:
-        return self.hass.data[DOMAIN]["storage"].data
+        return self.hass.data[DOMAIN][DATA_STORAGE].data
 
     async def async_added_to_hass(self) -> None:
         self.async_on_remove(

@@ -2,6 +2,8 @@
 
 DOMAIN = "plantrun"
 PLATFORMS = ["sensor"]
+DATA_STORAGE = "storage"
+DATA_MANAGER = "manager"
 STORAGE_KEY = DOMAIN
 STORAGE_VERSION = 1
 
