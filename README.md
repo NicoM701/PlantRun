@@ -1,5 +1,9 @@
 # PlantRun
 
+<p align="center">
+  <img src="assets/plantrun-logo.svg" alt="PlantRun Logo" width="220" />
+</p>
+
 Track every grow run — sensors, notes, photos, timelapse.
 
 PlantRun is a Home Assistant custom integration project for documenting plant cultivation runs with structured metrics and a clean run history.
