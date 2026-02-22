@@ -1,0 +1,8 @@
+{
+  "name": "PlantRun",
+  "content_in_root": false,
+  "domains": ["plantrun"],
+  "country": ["DE"],
+  "homeassistant": "2024.1.0",
+  "render_readme": true
+}

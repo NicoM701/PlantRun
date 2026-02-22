@@ -13,31 +13,43 @@ PlantRun is a Home Assistant custom integration project for documenting plant cu
 - Generate per-run media timelines
 - Later: optional timelapse generation from camera snapshots
 
-## Planned MVP (v0.1)
+## MVP status (v0.1.1)
 
-- Custom integration scaffold (`custom_components/plantrun`)
-- Run entity + phase state (`growth`, `flower`, `harvest_ready`)
+Implemented now:
+
+- HACS metadata (`hacs.json`)
+- Persistent run storage (`homeassistant.helpers.storage`)
 - Service calls:
   - `plantrun.start_run`
   - `plantrun.end_run`
   - `plantrun.set_phase`
   - `plantrun.add_note`
-- Basic persistent run log
-- Dashboard starter cards (manual setup)
 
-## Repository Structure
+Run model currently stores:
+
+- `id`, `name`
+- `phase` + `phase_history`
+- `started_at`, `ended_at`
+- `notes[]`
+
+## Repository structure
 
 ```text
 custom_components/plantrun/
   __init__.py
-  manifest.json
   const.py
+  manifest.json
   services.yaml
+  storage.py
+hacs.json
 ```
 
-## Status
+## Next steps
 
-🚧 Early bootstrap phase.
+- Add entities (active run state, current phase, counts)
+- Link external sensors (energy, humidity, soil moisture)
+- Add photo references/events
+- Add Lovelace starter dashboard
 
 ## License
 
