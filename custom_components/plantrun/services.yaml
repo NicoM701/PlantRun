@@ -69,6 +69,12 @@ search_cultivar:
       required: false
       selector:
         text:
+    prefer_automatic:
+      name: Prefer automatic variants
+      description: Prioritize 'Auto/Automatic' matches in ambiguous cultivar names.
+      required: false
+      selector:
+        boolean:
 
 attach_cultivar_to_run:
   name: Attach cultivar to run

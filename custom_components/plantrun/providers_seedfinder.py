@@ -18,24 +18,33 @@ def _norm(value: str) -> str:
     return " ".join(value.strip().lower().split())
 
 
-def _score_match(query_species: str, row_species: str) -> int:
+def _score_match(query_species: str, row_species: str, prefer_automatic: bool = False) -> int:
     q = _norm(query_species)
     r = _norm(row_species)
     if not q or not r:
         return 0
-    if q == r:
-        return 100
-    if q in r or r in q:
-        return 70
 
-    q_tokens = set(q.split())
-    r_tokens = set(r.split())
-    overlap = len(q_tokens & r_tokens)
-    return overlap * 10
+    if q == r:
+        base = 100
+    elif q in r or r in q:
+        base = 70
+    else:
+        q_tokens = set(q.split())
+        r_tokens = set(r.split())
+        overlap = len(q_tokens & r_tokens)
+        base = overlap * 10
+
+    if prefer_automatic and ("auto" in r or "automatic" in r):
+        base += 35
+
+    return base
 
 
 async def fetch_cultivar_profile(
-    session: ClientSession, species: str, breeder: str
+    session: ClientSession,
+    species: str,
+    breeder: str,
+    prefer_automatic: bool = False,
 ) -> dict[str, Any]:
     """Fetch cultivar details from seedfinder breeder + strain pages."""
     species = species.strip()
@@ -74,7 +83,11 @@ async def fetch_cultivar_profile(
         anchor = cells[0].find("a")
         if not anchor:
             continue
-        score = _score_match(species, anchor.get_text(strip=True))
+        score = _score_match(
+            species,
+            anchor.get_text(strip=True),
+            prefer_automatic=prefer_automatic,
+        )
         if score > 0:
             scored_rows.append((score, cells, anchor))
 

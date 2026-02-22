@@ -33,6 +33,7 @@ ATTR_BREEDER = "breeder"
 ATTR_CULTIVAR_ID = "cultivar_id"
 ATTR_BINDING_KEY = "binding_key"
 ATTR_ENTITY_ID = "entity_id"
+ATTR_PREFER_AUTOMATIC = "prefer_automatic"
 
 BINDABLE_SENSOR_KEYS = [
     "temperature",

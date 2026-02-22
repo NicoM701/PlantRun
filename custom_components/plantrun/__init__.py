@@ -16,6 +16,7 @@ from .const import (
     ATTR_ENTITY_ID,
     ATTR_NOTE,
     ATTR_PHASE,
+    ATTR_PREFER_AUTOMATIC,
     ATTR_RUN_ID,
     ATTR_RUN_NAME,
     ATTR_SPECIES,
@@ -74,10 +75,16 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
         """Try online SeedFinder first, fallback to local fuzzy cache."""
         species = call.data[ATTR_SPECIES]
         breeder = call.data.get(ATTR_BREEDER, "")
+        prefer_automatic = bool(call.data.get(ATTR_PREFER_AUTOMATIC, False))
 
         try:
             session = async_get_clientsession(hass)
-            profile = await fetch_cultivar_profile(session, species, breeder)
+            profile = await fetch_cultivar_profile(
+                session,
+                species,
+                breeder,
+                prefer_automatic=prefer_automatic,
+            )
             stored = await manager.upsert_cultivar(profile)
             _LOGGER.info("Upserted cultivar %s", stored.get("cultivar_id"))
             return {"result": stored, "source": "seedfinder"}
