@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Mapping
+from copy import deepcopy
 from typing import Any
 
 from homeassistant.core import HomeAssistant
@@ -31,6 +32,12 @@ class PlantRunManager:
             raise HomeAssistantError(f"Unknown run_id: {run_id}")
         return run
 
+    def get_cultivar_or_raise(self, cultivar_id: str) -> dict[str, Any]:
+        cultivar = self.data.get("cultivars", {}).get(cultivar_id)
+        if not cultivar:
+            raise HomeAssistantError(f"Unknown cultivar_id: {cultivar_id}")
+        return cultivar
+
     async def _save_and_signal(
         self,
         event_type: str,
@@ -42,6 +49,15 @@ class PlantRunManager:
             "run_id": run_id,
             "at": self.storage.utc_now_iso(),
             **(dict(details) if details else {}),
+        }
+        await self.storage.async_save()
+        async_dispatcher_send(self.hass, SIGNAL_DATA_UPDATED)
+
+    async def _save_global_event(self, event_type: str, details: Mapping[str, Any]) -> None:
+        self.data["last_event"] = {
+            "type": event_type,
+            "at": self.storage.utc_now_iso(),
+            **dict(details),
         }
         await self.storage.async_save()
         async_dispatcher_send(self.hass, SIGNAL_DATA_UPDATED)
@@ -76,6 +92,8 @@ class PlantRunManager:
                 "air_humidity": None,
             },
             "media": [],
+            "cultivar_id": None,
+            "cultivar_snapshot": None,
         }
         self.data["active_run_id"] = run_id
 
@@ -116,3 +134,35 @@ class PlantRunManager:
         run.setdefault("notes", []).append({"at": self.storage.utc_now_iso(), "text": note})
 
         await self._save_and_signal("add_note", run_id, {"note": note})
+
+    async def upsert_cultivar(self, cultivar: Mapping[str, Any]) -> dict[str, Any]:
+        cultivar_id = str(cultivar.get("cultivar_id") or "").strip()
+        if not cultivar_id:
+            raise HomeAssistantError("cultivar_id missing in cultivar data")
+
+        merged = {
+            **dict(cultivar),
+            "updated_at": self.storage.utc_now_iso(),
+        }
+        self.data["cultivars"][cultivar_id] = merged
+        await self._save_global_event(
+            "upsert_cultivar",
+            {"cultivar_id": cultivar_id, "species": merged.get("species")},
+        )
+        return merged
+
+    async def attach_cultivar_to_run(self, run_id: str, cultivar_id: str) -> None:
+        run = self.get_run_or_raise(run_id)
+        cultivar = self.get_cultivar_or_raise(cultivar_id)
+        run["cultivar_id"] = cultivar_id
+        run["cultivar_snapshot"] = deepcopy(cultivar)
+
+        await self._save_and_signal(
+            "attach_cultivar",
+            run_id,
+            {
+                "cultivar_id": cultivar_id,
+                "species": cultivar.get("species"),
+                "breeder": cultivar.get("breeder"),
+            },
+        )

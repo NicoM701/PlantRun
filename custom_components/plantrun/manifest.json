@@ -1,10 +1,10 @@
 {
   "domain": "plantrun",
   "name": "PlantRun",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "documentation": "https://github.com/NicoM701/PlantRun",
   "issue_tracker": "https://github.com/NicoM701/PlantRun/issues",
   "codeowners": ["@NicoM701"],
-  "requirements": [],
+  "requirements": ["beautifulsoup4>=4.12.0"],
   "iot_class": "local_polling"
 }

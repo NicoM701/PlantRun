@@ -28,6 +28,9 @@ Implemented now:
   - `plantrun.end_run`
   - `plantrun.set_phase`
   - `plantrun.add_note`
+  - `plantrun.search_cultivar` (SeedFinder provider, v0.1)
+  - `plantrun.attach_cultivar_to_run`
+  - `plantrun.refresh_cultivar`
 - Live sensors:
   - `sensor.plantrun_active_run`
   - `sensor.plantrun_active_phase`

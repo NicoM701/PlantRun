@@ -53,3 +53,43 @@ add_note:
       required: true
       selector:
         text:
+
+search_cultivar:
+  name: Search cultivar (SeedFinder)
+  description: Fetch cultivar profile from SeedFinder using species + breeder.
+  fields:
+    species:
+      name: Species / Strain
+      required: true
+      selector:
+        text:
+    breeder:
+      name: Breeder
+      required: true
+      selector:
+        text:
+
+attach_cultivar_to_run:
+  name: Attach cultivar to run
+  description: Link a stored cultivar profile to a run.
+  fields:
+    run_id:
+      name: Run ID
+      required: true
+      selector:
+        text:
+    cultivar_id:
+      name: Cultivar ID
+      required: true
+      selector:
+        text:
+
+refresh_cultivar:
+  name: Refresh cultivar
+  description: Refresh an already stored cultivar from SeedFinder.
+  fields:
+    cultivar_id:
+      name: Cultivar ID
+      required: true
+      selector:
+        text:

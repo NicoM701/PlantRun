@@ -10,6 +10,13 @@ from homeassistant.helpers.storage import Store
 
 from .const import DEFAULT_DATA, STORAGE_KEY, STORAGE_VERSION
 
+DEFAULT_METRICS = {
+    "energy_kwh": None,
+    "energy_cost": None,
+    "soil_moisture": None,
+    "air_humidity": None,
+}
+
 
 class PlantRunStorage:
     """Persistent storage for run data."""
@@ -30,13 +37,15 @@ class PlantRunStorage:
                 for run in runs.values():
                     run.setdefault("notes", [])
                     run.setdefault("phase_history", [])
-                    run.setdefault("metrics", {
-                        "energy_kwh": None,
-                        "energy_cost": None,
-                        "soil_moisture": None,
-                        "air_humidity": None,
-                    })
+                    run.setdefault("metrics", deepcopy(DEFAULT_METRICS))
                     run.setdefault("media", [])
+                    run.setdefault("cultivar_id", None)
+                    run.setdefault("cultivar_snapshot", None)
+
+            cultivars = merged.get("cultivars", {})
+            if not isinstance(cultivars, dict):
+                merged["cultivars"] = {}
+
             self.data = merged
 
     async def async_save(self) -> None:
