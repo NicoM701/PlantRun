@@ -1,0 +1,29 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "PlantRun setup",
+        "description": "Configure PlantRun basics.",
+        "data": {
+          "name": "Name",
+          "electricity_price_per_kwh": "Electricity price per kWh",
+          "backup_mode": "Backup mode"
+        }
+      }
+    },
+    "abort": {
+      "single_instance_allowed": "Only one PlantRun instance is supported."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "PlantRun options",
+        "data": {
+          "electricity_price_per_kwh": "Electricity price per kWh",
+          "backup_mode": "Backup mode"
+        }
+      }
+    }
+  }
+}
