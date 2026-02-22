@@ -8,27 +8,80 @@ start_run:
       required: true
       selector:
         text:
+    started_at:
+      name: Start datetime (ISO)
+      description: Optional backdated start timestamp, e.g. 2026-02-22T12:00:00+00:00
+      required: false
+      selector:
+        text:
+    phase:
+      name: Initial phase
+      required: false
+      selector:
+        select:
+          options:
+            - growth
+            - flower
+            - harvest_ready
+
+import_run:
+  name: Import run
+  description: Add an already-running or historical run with explicit start date.
+  fields:
+    run_name:
+      name: Run name
+      required: true
+      selector:
+        text:
+    started_at:
+      name: Start datetime (ISO)
+      required: true
+      selector:
+        text:
+    ended_at:
+      name: End datetime (ISO)
+      description: Optional. If set, run is imported as historical/finished.
+      required: false
+      selector:
+        text:
+    phase:
+      name: Initial phase
+      required: false
+      selector:
+        select:
+          options:
+            - growth
+            - flower
+            - harvest_ready
+
+list_runs:
+  name: List runs
+  description: Return all runs with display IDs for easy selection.
 
 end_run:
   name: End run
-  description: End an active run.
+  description: End a run by id/name or active run.
   fields:
     run_id:
       name: Run ID
-      description: Unique run identifier.
-      required: true
+      required: false
       selector:
         text:
+    run_name:
+      name: Run name
+      required: false
+      selector:
+        text:
+    use_active_run:
+      name: Use active run
+      required: false
+      selector:
+        boolean:
 
 set_phase:
   name: Set phase
-  description: Set the phase of a run.
+  description: Set phase for selected run (or active run by default).
   fields:
-    run_id:
-      name: Run ID
-      required: true
-      selector:
-        text:
     phase:
       name: Phase
       required: true
@@ -38,21 +91,46 @@ set_phase:
             - growth
             - flower
             - harvest_ready
+    run_id:
+      name: Run ID
+      required: false
+      selector:
+        text:
+    run_name:
+      name: Run name
+      required: false
+      selector:
+        text:
+    use_active_run:
+      name: Use active run
+      required: false
+      selector:
+        boolean:
 
 add_note:
   name: Add note
   description: Add a note/event to a run.
   fields:
-    run_id:
-      name: Run ID
-      required: true
-      selector:
-        text:
     note:
       name: Note
       required: true
       selector:
         text:
+    run_id:
+      name: Run ID
+      required: false
+      selector:
+        text:
+    run_name:
+      name: Run name
+      required: false
+      selector:
+        text:
+    use_active_run:
+      name: Use active run
+      required: false
+      selector:
+        boolean:
 
 search_cultivar:
   name: Search cultivar (SeedFinder)
@@ -80,16 +158,26 @@ attach_cultivar_to_run:
   name: Attach cultivar to run
   description: Link a stored cultivar profile to a run.
   fields:
-    run_id:
-      name: Run ID
-      required: true
-      selector:
-        text:
     cultivar_id:
       name: Cultivar ID
       required: true
       selector:
         text:
+    run_id:
+      name: Run ID
+      required: false
+      selector:
+        text:
+    run_name:
+      name: Run name
+      required: false
+      selector:
+        text:
+    use_active_run:
+      name: Use active run
+      required: false
+      selector:
+        boolean:
 
 refresh_cultivar:
   name: Refresh cultivar
@@ -105,34 +193,68 @@ bind_sensor_to_run:
   name: Bind sensor/camera to run
   description: Attach or update a sensor binding at any point during a run.
   fields:
-    run_id:
-      name: Run ID
-      required: true
-      selector:
-        text:
     binding_key:
       name: Binding key
       description: One of temperature, air_humidity, soil_moisture, energy, camera, water.
       required: true
       selector:
-        text:
+        select:
+          options:
+            - temperature
+            - air_humidity
+            - soil_moisture
+            - energy
+            - camera
+            - water
     entity_id:
       name: Entity ID
       required: true
       selector:
         text:
+    run_id:
+      name: Run ID
+      required: false
+      selector:
+        text:
+    run_name:
+      name: Run name
+      required: false
+      selector:
+        text:
+    use_active_run:
+      name: Use active run
+      required: false
+      selector:
+        boolean:
 
 unbind_sensor_from_run:
   name: Unbind sensor/camera from run
   description: Remove a sensor binding while keeping run history.
   fields:
-    run_id:
-      name: Run ID
-      required: true
-      selector:
-        text:
     binding_key:
       name: Binding key
       required: true
       selector:
+        select:
+          options:
+            - temperature
+            - air_humidity
+            - soil_moisture
+            - energy
+            - camera
+            - water
+    run_id:
+      name: Run ID
+      required: false
+      selector:
         text:
+    run_name:
+      name: Run name
+      required: false
+      selector:
+        text:
+    use_active_run:
+      name: Use active run
+      required: false
+      selector:
+        boolean:

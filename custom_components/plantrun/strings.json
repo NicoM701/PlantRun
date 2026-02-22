@@ -7,7 +7,17 @@
         "data": {
           "name": "Name",
           "electricity_price_per_kwh": "Electricity price per kWh",
-          "backup_mode": "Backup mode"
+          "backup_mode": "Backup mode",
+          "setup_mode": "Initial run setup"
+        }
+      },
+      "initial_run": {
+        "title": "Initial run (optional)",
+        "description": "Create or import your first run now. {{started_help}}",
+        "data": {
+          "initial_run_name": "Run name",
+          "initial_started_at": "Start datetime (ISO)",
+          "initial_phase": "Initial phase"
         }
       }
     },
@@ -21,9 +31,27 @@
         "title": "PlantRun options",
         "data": {
           "electricity_price_per_kwh": "Electricity price per kWh",
-          "backup_mode": "Backup mode"
+          "backup_mode": "Backup mode",
+          "open_binding_wizard": "Open sensor binding wizard"
+        }
+      },
+      "bindings": {
+        "title": "Bind sensors to run",
+        "description": "Select a run and assign entities for one or multiple sensor types.",
+        "data": {
+          "run_id": "Run",
+          "temperature": "Temperature entity",
+          "air_humidity": "Air humidity entity",
+          "soil_moisture": "Soil moisture entity",
+          "energy": "Energy entity",
+          "camera": "Camera entity",
+          "water": "Water entity"
         }
       }
+    },
+    "abort": {
+      "not_ready": "PlantRun is not ready yet.",
+      "no_runs": "No runs available. Create/import a run first."
     }
   }
 }

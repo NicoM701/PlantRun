@@ -75,7 +75,9 @@ class PlantRunActiveRunSensor(PlantRunBaseSensor):
         run = self.active_run()
         return {
             "run_id": active_run_id,
+            "display_id": run.get("display_id") if run else None,
             "started_at": run.get("started_at") if run else None,
+            "bindings": run.get("bindings") if run else None,
         }
 
 

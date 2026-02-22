@@ -8,6 +8,7 @@ STORAGE_KEY = DOMAIN
 STORAGE_VERSION = 1
 
 SERVICE_START_RUN = "start_run"
+SERVICE_IMPORT_RUN = "import_run"
 SERVICE_END_RUN = "end_run"
 SERVICE_SET_PHASE = "set_phase"
 SERVICE_ADD_NOTE = "add_note"
@@ -16,6 +17,7 @@ SERVICE_ATTACH_CULTIVAR_TO_RUN = "attach_cultivar_to_run"
 SERVICE_REFRESH_CULTIVAR = "refresh_cultivar"
 SERVICE_BIND_SENSOR_TO_RUN = "bind_sensor_to_run"
 SERVICE_UNBIND_SENSOR_FROM_RUN = "unbind_sensor_from_run"
+SERVICE_LIST_RUNS = "list_runs"
 
 SIGNAL_DATA_UPDATED = f"{DOMAIN}_data_updated"
 
@@ -34,6 +36,9 @@ ATTR_CULTIVAR_ID = "cultivar_id"
 ATTR_BINDING_KEY = "binding_key"
 ATTR_ENTITY_ID = "entity_id"
 ATTR_PREFER_AUTOMATIC = "prefer_automatic"
+ATTR_STARTED_AT = "started_at"
+ATTR_ENDED_AT = "ended_at"
+ATTR_USE_ACTIVE_RUN = "use_active_run"
 
 BINDABLE_SENSOR_KEYS = [
     "temperature",

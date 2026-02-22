@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import re
 import uuid
 from collections.abc import Mapping
 from copy import deepcopy
+from datetime import UTC, datetime
 from typing import Any
 
 from homeassistant.exceptions import HomeAssistantError
@@ -22,6 +24,24 @@ def _norm(value: str) -> str:
     return " ".join(value.strip().lower().split())
 
 
+def _slug(value: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", value.strip().lower()).strip("-") or "run"
+
+
+def _parse_iso(value: str | None) -> str:
+    if not value:
+        return datetime.now(UTC).isoformat()
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=UTC)
+        return parsed.astimezone(UTC).isoformat()
+    except ValueError as exc:
+        raise HomeAssistantError(
+            f"Invalid datetime '{value}'. Use ISO format, e.g. 2026-02-22T12:00:00+00:00"
+        ) from exc
+
+
 class PlantRunManager:
     """Owns run lifecycle operations and persistence."""
 
@@ -32,11 +52,44 @@ class PlantRunManager:
     def data(self) -> dict[str, Any]:
         return self.storage.data
 
+    def list_runs(self) -> list[dict[str, Any]]:
+        runs = list(self.data.get("runs", {}).values())
+        runs.sort(key=lambda x: x.get("started_at", ""), reverse=True)
+        return runs
+
     def get_run_or_raise(self, run_id: str) -> dict[str, Any]:
         run = self.data.get("runs", {}).get(run_id)
         if not run:
             raise HomeAssistantError(f"Unknown run_id: {run_id}")
         return run
+
+    def resolve_run_or_raise(
+        self,
+        run_id: str | None = None,
+        run_name: str | None = None,
+        use_active_run: bool = False,
+    ) -> dict[str, Any]:
+        if run_id:
+            return self.get_run_or_raise(run_id)
+
+        if run_name:
+            needle = _norm(run_name)
+            matches = [r for r in self.data.get("runs", {}).values() if _norm(str(r.get("name") or "")) == needle]
+            if len(matches) == 1:
+                return matches[0]
+            if len(matches) > 1:
+                raise HomeAssistantError(
+                    f"Multiple runs match name '{run_name}'. Use run_id instead."
+                )
+            raise HomeAssistantError(f"No run found with name '{run_name}'.")
+
+        if use_active_run:
+            active_id = self.data.get("active_run_id")
+            if not active_id:
+                raise HomeAssistantError("No active run available.")
+            return self.get_run_or_raise(active_id)
+
+        raise HomeAssistantError("Provide run_id, run_name, or set use_active_run=true")
 
     def get_cultivar_or_raise(self, cultivar_id: str) -> dict[str, Any]:
         cultivar = self.data.get("cultivars", {}).get(cultivar_id)
@@ -96,29 +149,19 @@ class PlantRunManager:
         await self.storage.async_save()
         async_dispatcher_send(self.storage.hass, SIGNAL_DATA_UPDATED)
 
-    async def start_run(self, run_name: str) -> str:
-        run_name = run_name.strip()
-        if not run_name:
-            raise HomeAssistantError("run_name cannot be empty")
-
-        active_run_id = self.data.get("active_run_id")
-        if active_run_id:
-            active_run = self.data.get("runs", {}).get(active_run_id)
-            active_name = active_run.get("name") if active_run else active_run_id
-            raise HomeAssistantError(
-                f"Run already active ({active_name}). End it before starting a new one."
-            )
-
+    def _build_run(self, run_name: str, started_at: str, phase: str) -> tuple[str, dict[str, Any]]:
         run_id = uuid.uuid4().hex[:12]
-        now = self.storage.utc_now_iso()
-        self.data["runs"][run_id] = {
+        slug = _slug(run_name)
+        run = {
             "id": run_id,
+            "slug": slug,
             "name": run_name,
-            "phase": PHASE_GROWTH,
-            "started_at": now,
+            "display_id": f"{slug}-{run_id[:4]}",
+            "phase": phase,
+            "started_at": started_at,
             "ended_at": None,
             "notes": [],
-            "phase_history": [{"phase": PHASE_GROWTH, "at": now}],
+            "phase_history": [{"phase": phase, "at": started_at}],
             "metrics": {
                 "energy_kwh": None,
                 "energy_cost": None,
@@ -130,45 +173,113 @@ class PlantRunManager:
             "cultivar_snapshot": None,
             "bindings": _default_bindings(),
         }
-        self.data["active_run_id"] = run_id
+        return run_id, run
 
-        await self._save_and_signal(
-            "start_run", run_id, {"run_name": run_name, "phase": PHASE_GROWTH}
-        )
-        return run_id
-
-    async def end_run(self, run_id: str) -> None:
-        run = self.get_run_or_raise(run_id)
-        if run.get("ended_at"):
-            raise HomeAssistantError(f"Run already ended: {run_id}")
-
-        run["ended_at"] = self.storage.utc_now_iso()
-        if self.data.get("active_run_id") == run_id:
-            self.data["active_run_id"] = None
-
-        await self._save_and_signal("end_run", run_id, {"run_name": run.get("name")})
-
-    async def set_phase(self, run_id: str, phase: str) -> None:
+    async def start_run(
+        self,
+        run_name: str,
+        started_at: str | None = None,
+        phase: str = PHASE_GROWTH,
+    ) -> str:
+        run_name = run_name.strip()
+        if not run_name:
+            raise HomeAssistantError("run_name cannot be empty")
         if phase not in PHASES:
             raise HomeAssistantError(f"Invalid phase: {phase}")
 
-        run = self.get_run_or_raise(run_id)
+        active_run_id = self.data.get("active_run_id")
+        if active_run_id:
+            active_run = self.data.get("runs", {}).get(active_run_id)
+            active_name = active_run.get("name") if active_run else active_run_id
+            raise HomeAssistantError(
+                f"Run already active ({active_name}). End it before starting a new one."
+            )
+
+        started = _parse_iso(started_at)
+        run_id, run = self._build_run(run_name, started, phase)
+        self.data["runs"][run_id] = run
+        self.data["active_run_id"] = run_id
+
+        await self._save_and_signal(
+            "start_run", run_id, {"run_name": run_name, "phase": phase, "started_at": started}
+        )
+        return run_id
+
+    async def import_run(
+        self,
+        run_name: str,
+        started_at: str,
+        phase: str = PHASE_GROWTH,
+        ended_at: str | None = None,
+    ) -> str:
+        run_name = run_name.strip()
+        if not run_name:
+            raise HomeAssistantError("run_name cannot be empty")
+        if phase not in PHASES:
+            raise HomeAssistantError(f"Invalid phase: {phase}")
+
+        started = _parse_iso(started_at)
+        ended = _parse_iso(ended_at) if ended_at else None
+
+        run_id, run = self._build_run(run_name, started, phase)
+        run["ended_at"] = ended
+
+        self.data["runs"][run_id] = run
+
+        if ended is None and not self.data.get("active_run_id"):
+            self.data["active_run_id"] = run_id
+
+        await self._save_and_signal(
+            "import_run",
+            run_id,
+            {"run_name": run_name, "phase": phase, "started_at": started, "ended_at": ended},
+        )
+        return run_id
+
+    async def end_run(self, run_id: str | None = None, run_name: str | None = None, use_active_run: bool = True) -> None:
+        run = self.resolve_run_or_raise(run_id=run_id, run_name=run_name, use_active_run=use_active_run)
+        if run.get("ended_at"):
+            raise HomeAssistantError(f"Run already ended: {run.get('id')}")
+
+        run["ended_at"] = self.storage.utc_now_iso()
+        if self.data.get("active_run_id") == run.get("id"):
+            self.data["active_run_id"] = None
+
+        await self._save_and_signal("end_run", run["id"], {"run_name": run.get("name")})
+
+    async def set_phase(
+        self,
+        phase: str,
+        run_id: str | None = None,
+        run_name: str | None = None,
+        use_active_run: bool = True,
+    ) -> None:
+        if phase not in PHASES:
+            raise HomeAssistantError(f"Invalid phase: {phase}")
+
+        run = self.resolve_run_or_raise(run_id=run_id, run_name=run_name, use_active_run=use_active_run)
         run["phase"] = phase
         run.setdefault("phase_history", []).append(
             {"phase": phase, "at": self.storage.utc_now_iso()}
         )
 
-        await self._save_and_signal("set_phase", run_id, {"phase": phase})
+        await self._save_and_signal("set_phase", run["id"], {"phase": phase})
 
-    async def add_note(self, run_id: str, note: str) -> None:
+    async def add_note(
+        self,
+        note: str,
+        run_id: str | None = None,
+        run_name: str | None = None,
+        use_active_run: bool = True,
+    ) -> None:
         note = note.strip()
         if not note:
             raise HomeAssistantError("note cannot be empty")
 
-        run = self.get_run_or_raise(run_id)
+        run = self.resolve_run_or_raise(run_id=run_id, run_name=run_name, use_active_run=use_active_run)
         run.setdefault("notes", []).append({"at": self.storage.utc_now_iso(), "text": note})
 
-        await self._save_and_signal("add_note", run_id, {"note": note})
+        await self._save_and_signal("add_note", run["id"], {"note": note})
 
     async def upsert_cultivar(self, cultivar: Mapping[str, Any]) -> dict[str, Any]:
         cultivar_id = str(cultivar.get("cultivar_id") or "").strip()
@@ -186,15 +297,21 @@ class PlantRunManager:
         )
         return merged
 
-    async def attach_cultivar_to_run(self, run_id: str, cultivar_id: str) -> None:
-        run = self.get_run_or_raise(run_id)
+    async def attach_cultivar_to_run(
+        self,
+        cultivar_id: str,
+        run_id: str | None = None,
+        run_name: str | None = None,
+        use_active_run: bool = True,
+    ) -> None:
+        run = self.resolve_run_or_raise(run_id=run_id, run_name=run_name, use_active_run=use_active_run)
         cultivar = self.get_cultivar_or_raise(cultivar_id)
         run["cultivar_id"] = cultivar_id
         run["cultivar_snapshot"] = deepcopy(cultivar)
 
         await self._save_and_signal(
             "attach_cultivar",
-            run_id,
+            run["id"],
             {
                 "cultivar_id": cultivar_id,
                 "species": cultivar.get("species"),
@@ -202,7 +319,14 @@ class PlantRunManager:
             },
         )
 
-    async def bind_sensor_to_run(self, run_id: str, binding_key: str, entity_id: str) -> None:
+    async def bind_sensor_to_run(
+        self,
+        binding_key: str,
+        entity_id: str,
+        run_id: str | None = None,
+        run_name: str | None = None,
+        use_active_run: bool = True,
+    ) -> None:
         if binding_key not in BINDABLE_SENSOR_KEYS:
             raise HomeAssistantError(
                 f"Invalid binding_key: {binding_key}. Allowed: {', '.join(BINDABLE_SENSOR_KEYS)}"
@@ -210,24 +334,30 @@ class PlantRunManager:
         if not entity_id.strip():
             raise HomeAssistantError("entity_id cannot be empty")
 
-        run = self.get_run_or_raise(run_id)
+        run = self.resolve_run_or_raise(run_id=run_id, run_name=run_name, use_active_run=use_active_run)
         run.setdefault("bindings", _default_bindings())
         run["bindings"][binding_key] = entity_id.strip()
 
         await self._save_and_signal(
             "bind_sensor",
-            run_id,
+            run["id"],
             {"binding_key": binding_key, "entity_id": entity_id.strip()},
         )
 
-    async def unbind_sensor_from_run(self, run_id: str, binding_key: str) -> None:
+    async def unbind_sensor_from_run(
+        self,
+        binding_key: str,
+        run_id: str | None = None,
+        run_name: str | None = None,
+        use_active_run: bool = True,
+    ) -> None:
         if binding_key not in BINDABLE_SENSOR_KEYS:
             raise HomeAssistantError(
                 f"Invalid binding_key: {binding_key}. Allowed: {', '.join(BINDABLE_SENSOR_KEYS)}"
             )
 
-        run = self.get_run_or_raise(run_id)
+        run = self.resolve_run_or_raise(run_id=run_id, run_name=run_name, use_active_run=use_active_run)
         run.setdefault("bindings", _default_bindings())
         run["bindings"][binding_key] = None
 
-        await self._save_and_signal("unbind_sensor", run_id, {"binding_key": binding_key})
+        await self._save_and_signal("unbind_sensor", run["id"], {"binding_key": binding_key})

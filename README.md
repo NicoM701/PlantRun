@@ -18,6 +18,8 @@ PlantRun is a Home Assistant custom integration project for documenting cultivat
 ## ✨ Features (current)
 
 - Run lifecycle tracking (`start`, `phase`, `end`)
+- Backdated run start support (`started_at`) + run import for ongoing/historical runs
+- Human-friendly run labels (`display_id`) + list service for easier selection
 - Notes and event history per run
 - SeedFinder-based cultivar lookup (with local fallback)
 - Attach cultivar profiles to runs
@@ -52,14 +54,18 @@ PlantRun is a Home Assistant custom integration project for documenting cultivat
 
 ## 🚀 Quick start
 
-1. Start a run via service:
-   - `plantrun.start_run` with `run_name`
-2. (Optional) Lookup cultivar:
+1. Start or import a run:
+   - `plantrun.start_run` with `run_name` (optional `started_at`, `phase`)
+   - or `plantrun.import_run` for already running/historical runs
+2. Optional: inspect run list with friendly IDs:
+   - `plantrun.list_runs`
+3. (Optional) Lookup cultivar:
    - `plantrun.search_cultivar` with `species` (+ optional `breeder`)
 3. Attach cultivar to run:
    - `plantrun.attach_cultivar_to_run` with `run_id`, `cultivar_id`
 4. Bind sensors/camera (any time during run):
    - `plantrun.bind_sensor_to_run`
+   - or open Integration **Options** and toggle **Open sensor binding wizard**
 5. Update phase and notes as needed:
    - `plantrun.set_phase`
    - `plantrun.add_note`
@@ -71,6 +77,8 @@ PlantRun is a Home Assistant custom integration project for documenting cultivat
 ## 🧩 Services
 
 - `plantrun.start_run`
+- `plantrun.import_run`
+- `plantrun.list_runs`
 - `plantrun.end_run`
 - `plantrun.set_phase`
 - `plantrun.add_note`

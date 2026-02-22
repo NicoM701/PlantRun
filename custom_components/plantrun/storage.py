@@ -42,6 +42,11 @@ class PlantRunStorage:
                     run.setdefault("media", [])
                     run.setdefault("cultivar_id", None)
                     run.setdefault("cultivar_snapshot", None)
+                    if not run.get("slug"):
+                        name = str(run.get("name") or "run")
+                        slug = "-".join(name.lower().split()) or "run"
+                        run["slug"] = slug
+                    run.setdefault("display_id", f"{run.get('slug','run')}-{str(run.get('id',''))[:4]}")
                     run.setdefault(
                         "bindings",
                         {
