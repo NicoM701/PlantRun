@@ -8,6 +8,8 @@ import uuid
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers import discovery
+from homeassistant.helpers.dispatcher import async_dispatcher_send
 
 from .const import (
     ATTR_NOTE,
@@ -21,6 +23,7 @@ from .const import (
     SERVICE_END_RUN,
     SERVICE_SET_PHASE,
     SERVICE_START_RUN,
+    SIGNAL_DATA_UPDATED,
 )
 from .storage import PlantRunStorage
 
@@ -34,6 +37,16 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     storage = PlantRunStorage(hass)
     await storage.async_load()
     hass.data[DOMAIN]["storage"] = storage
+
+    async def _save_and_broadcast(event_type: str, run_id: str, details: dict) -> None:
+        storage.data["last_event"] = {
+            "type": event_type,
+            "run_id": run_id,
+            "at": storage.utc_now_iso(),
+            **details,
+        }
+        await storage.async_save()
+        async_dispatcher_send(hass, SIGNAL_DATA_UPDATED)
 
     async def handle_start_run(call: ServiceCall) -> None:
         run_name = call.data[ATTR_RUN_NAME].strip()
@@ -49,9 +62,18 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
             "started_at": now,
             "ended_at": None,
             "notes": [],
+            "phase_history": [{"phase": PHASE_GROWTH, "at": now}],
         }
         storage.data["active_run_id"] = run_id
-        await storage.async_save()
+
+        await _save_and_broadcast(
+            "start_run",
+            run_id,
+            {
+                "run_name": run_name,
+                "phase": PHASE_GROWTH,
+            },
+        )
         _LOGGER.info("Started run %s (%s)", run_name, run_id)
 
     async def handle_end_run(call: ServiceCall) -> None:
@@ -63,7 +85,8 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
         run["ended_at"] = storage.utc_now_iso()
         if storage.data.get("active_run_id") == run_id:
             storage.data["active_run_id"] = None
-        await storage.async_save()
+
+        await _save_and_broadcast("end_run", run_id, {"run_name": run.get("name")})
         _LOGGER.info("Ended run %s", run_id)
 
     async def handle_set_phase(call: ServiceCall) -> None:
@@ -79,7 +102,8 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
         run.setdefault("phase_history", []).append(
             {"phase": phase, "at": storage.utc_now_iso()}
         )
-        await storage.async_save()
+
+        await _save_and_broadcast("set_phase", run_id, {"phase": phase})
         _LOGGER.info("Run %s phase set to %s", run_id, phase)
 
     async def handle_add_note(call: ServiceCall) -> None:
@@ -91,16 +115,17 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
         if not note:
             raise HomeAssistantError("note cannot be empty")
 
-        run.setdefault("notes", []).append(
-            {"at": storage.utc_now_iso(), "text": note}
-        )
-        await storage.async_save()
+        run.setdefault("notes", []).append({"at": storage.utc_now_iso(), "text": note})
+
+        await _save_and_broadcast("add_note", run_id, {"note": note})
         _LOGGER.info("Added note to run %s", run_id)
 
     hass.services.async_register(DOMAIN, SERVICE_START_RUN, handle_start_run)
     hass.services.async_register(DOMAIN, SERVICE_END_RUN, handle_end_run)
     hass.services.async_register(DOMAIN, SERVICE_SET_PHASE, handle_set_phase)
     hass.services.async_register(DOMAIN, SERVICE_ADD_NOTE, handle_add_note)
+
+    await discovery.async_load_platform(hass, "sensor", DOMAIN, {}, config)
 
     return True
 

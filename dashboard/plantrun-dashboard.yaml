@@ -1,0 +1,30 @@
+title: PlantRun
+views:
+  - title: Overview
+    path: plantrun
+    icon: mdi:sprout
+    cards:
+      - type: entities
+        title: Active Run
+        entities:
+          - entity: sensor.plantrun_active_run
+            name: Active run
+          - entity: sensor.plantrun_active_phase
+            name: Active phase
+          - entity: sensor.plantrun_last_event
+            name: Last event
+
+      - type: entities
+        title: Run Stats
+        entities:
+          - entity: sensor.plantrun_total_runs
+            name: Total runs
+
+      - type: markdown
+        title: Next KPI hookups
+        content: |
+          Add these entity IDs once available:
+          - Energy kWh + Cost per run
+          - Soil moisture (Xiaomi plant sensor)
+          - Air humidity
+          - Photo/timelapse events

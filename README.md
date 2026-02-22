@@ -28,6 +28,11 @@ Implemented now:
   - `plantrun.end_run`
   - `plantrun.set_phase`
   - `plantrun.add_note`
+- Live sensors:
+  - `sensor.plantrun_active_run`
+  - `sensor.plantrun_active_phase`
+  - `sensor.plantrun_total_runs`
+  - `sensor.plantrun_last_event`
 
 Run model currently stores:
 
@@ -43,8 +48,11 @@ custom_components/plantrun/
   __init__.py
   const.py
   manifest.json
+  sensor.py
   services.yaml
   storage.py
+dashboard/
+  plantrun-dashboard.yaml
 hacs.json
 ```
 
