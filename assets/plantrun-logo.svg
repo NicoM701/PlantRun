@@ -1,0 +1,46 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="140" y1="100" x2="900" y2="920" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0F172A"/>
+      <stop offset="1" stop-color="#111827"/>
+    </linearGradient>
+    <linearGradient id="ring" x1="250" y1="250" x2="800" y2="800" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#34D399"/>
+      <stop offset="1" stop-color="#10B981"/>
+    </linearGradient>
+    <linearGradient id="leaf" x1="440" y1="340" x2="650" y2="720" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#A7F3D0"/>
+      <stop offset="1" stop-color="#34D399"/>
+    </linearGradient>
+    <filter id="shadow" x="0" y="0" width="1024" height="1024" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="16" stdDeviation="18" flood-color="#000000" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+
+  <rect width="1024" height="1024" rx="220" fill="url(#bg)"/>
+
+  <!-- Circular run-ring -->
+  <g filter="url(#shadow)">
+    <circle cx="512" cy="512" r="280" stroke="url(#ring)" stroke-width="52" stroke-linecap="round" stroke-dasharray="1220 520" transform="rotate(-28 512 512)"/>
+  </g>
+
+  <!-- Timeline ticks -->
+  <g stroke="#6EE7B7" stroke-width="14" stroke-linecap="round" opacity="0.9">
+    <line x1="266" y1="512" x2="228" y2="512"/>
+    <line x1="328" y1="328" x2="301" y2="301"/>
+    <line x1="512" y1="266" x2="512" y2="228"/>
+    <line x1="696" y1="328" x2="723" y2="301"/>
+    <line x1="758" y1="512" x2="796" y2="512"/>
+  </g>
+
+  <!-- Abstract universal plant sprout (not cannabis-specific) -->
+  <g filter="url(#shadow)">
+    <path d="M512 706C512 640 512 590 512 540" stroke="#D1FAE5" stroke-width="24" stroke-linecap="round"/>
+    <path d="M512 560C468 530 432 490 432 438C484 438 528 468 552 520" fill="url(#leaf)"/>
+    <path d="M512 560C556 530 592 490 592 438C540 438 496 468 472 520" fill="url(#leaf)"/>
+    <path d="M512 628C552 612 590 580 602 536C560 536 524 554 496 592" fill="#6EE7B7" opacity="0.85"/>
+  </g>
+
+  <!-- subtle PR initials monogram -->
+  <text x="512" y="850" text-anchor="middle" fill="#A7F3D0" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="88" font-weight="700" letter-spacing="2">PR</text>
+</svg>
