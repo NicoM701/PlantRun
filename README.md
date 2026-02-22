@@ -17,7 +17,7 @@ PlantRun is a Home Assistant custom integration project for documenting plant cu
 - Generate per-run media timelines
 - Later: optional timelapse generation from camera snapshots
 
-## MVP status (v0.1.1)
+## MVP status (v0.1.3)
 
 Implemented now:
 
@@ -31,9 +31,14 @@ Implemented now:
   - `plantrun.search_cultivar` (SeedFinder provider, v0.1)
   - `plantrun.attach_cultivar_to_run`
   - `plantrun.refresh_cultivar`
+  - `plantrun.bind_sensor_to_run`
+  - `plantrun.unbind_sensor_from_run`
 - Live sensors:
   - `sensor.plantrun_active_run`
   - `sensor.plantrun_active_phase`
+  - `sensor.plantrun_active_cultivar_name`
+  - `sensor.plantrun_active_cultivar_breeder`
+  - `sensor.plantrun_active_cultivar_flower_window`
   - `sensor.plantrun_total_runs`
   - `sensor.plantrun_last_event`
 
@@ -50,7 +55,9 @@ Run model currently stores:
 custom_components/plantrun/
   __init__.py
   const.py
+  manager.py
   manifest.json
+  providers_seedfinder.py
   sensor.py
   services.yaml
   storage.py
@@ -61,10 +68,10 @@ hacs.json
 
 ## Next steps
 
-- Add entities (active run state, current phase, counts)
-- Link external sensors (energy, humidity, soil moisture)
-- Add photo references/events
-- Add Lovelace starter dashboard
+- Add metric ingestion from bound entity IDs (energy/humidity/soil)
+- Add photo references/events + camera snapshot hooks
+- Add timelapse job pipeline for completed runs
+- Add Config Flow UI for binding setup
 
 ## License
 

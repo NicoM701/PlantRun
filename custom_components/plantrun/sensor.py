@@ -23,6 +23,9 @@ async def async_setup_platform(
             PlantRunActivePhaseSensor(hass),
             PlantRunTotalRunsSensor(hass),
             PlantRunLastEventSensor(hass),
+            PlantRunActiveCultivarNameSensor(hass),
+            PlantRunActiveCultivarBreederSensor(hass),
+            PlantRunActiveCultivarFlowerWindowSensor(hass),
         ],
         True,
     )
@@ -40,6 +43,12 @@ class PlantRunBaseSensor(SensorEntity):
     def storage(self) -> dict:
         return self.hass.data[DOMAIN][DATA_STORAGE].data
 
+    def active_run(self) -> dict | None:
+        active_run_id = self.storage.get("active_run_id")
+        if not active_run_id:
+            return None
+        return self.storage.get("runs", {}).get(active_run_id)
+
     async def async_added_to_hass(self) -> None:
         self.async_on_remove(
             async_dispatcher_connect(
@@ -55,16 +64,15 @@ class PlantRunActiveRunSensor(PlantRunBaseSensor):
 
     @property
     def native_value(self) -> str | None:
-        active_run_id = self.storage.get("active_run_id")
-        if not active_run_id:
+        run = self.active_run()
+        if not run:
             return None
-        run = self.storage.get("runs", {}).get(active_run_id)
-        return run.get("name") if run else active_run_id
+        return run.get("name")
 
     @property
     def extra_state_attributes(self) -> dict:
         active_run_id = self.storage.get("active_run_id")
-        run = self.storage.get("runs", {}).get(active_run_id) if active_run_id else None
+        run = self.active_run()
         return {
             "run_id": active_run_id,
             "started_at": run.get("started_at") if run else None,
@@ -78,11 +86,50 @@ class PlantRunActivePhaseSensor(PlantRunBaseSensor):
 
     @property
     def native_value(self) -> str | None:
-        active_run_id = self.storage.get("active_run_id")
-        if not active_run_id:
-            return None
-        run = self.storage.get("runs", {}).get(active_run_id)
+        run = self.active_run()
         return run.get("phase") if run else None
+
+
+class PlantRunActiveCultivarNameSensor(PlantRunBaseSensor):
+    _attr_name = "PlantRun Active Cultivar"
+    _attr_unique_id = "plantrun_active_cultivar_name"
+    _attr_icon = "mdi:leaf"
+
+    @property
+    def native_value(self) -> str | None:
+        run = self.active_run()
+        if not run:
+            return None
+        snapshot = run.get("cultivar_snapshot") or {}
+        return snapshot.get("species")
+
+
+class PlantRunActiveCultivarBreederSensor(PlantRunBaseSensor):
+    _attr_name = "PlantRun Active Cultivar Breeder"
+    _attr_unique_id = "plantrun_active_cultivar_breeder"
+    _attr_icon = "mdi:domain"
+
+    @property
+    def native_value(self) -> str | None:
+        run = self.active_run()
+        if not run:
+            return None
+        snapshot = run.get("cultivar_snapshot") or {}
+        return snapshot.get("breeder")
+
+
+class PlantRunActiveCultivarFlowerWindowSensor(PlantRunBaseSensor):
+    _attr_name = "PlantRun Active Cultivar Flower Window"
+    _attr_unique_id = "plantrun_active_cultivar_flower_window"
+    _attr_icon = "mdi:calendar-clock"
+
+    @property
+    def native_value(self) -> str | None:
+        run = self.active_run()
+        if not run:
+            return None
+        snapshot = run.get("cultivar_snapshot") or {}
+        return snapshot.get("flower_time")
 
 
 class PlantRunTotalRunsSensor(PlantRunBaseSensor):

@@ -56,7 +56,7 @@ add_note:
 
 search_cultivar:
   name: Search cultivar (SeedFinder)
-  description: Fetch cultivar profile from SeedFinder using species + breeder.
+  description: Fetch cultivar profile from SeedFinder using species + breeder (fuzzy tolerant). Falls back to local cultivar cache when provider fails.
   fields:
     species:
       name: Species / Strain
@@ -65,7 +65,8 @@ search_cultivar:
         text:
     breeder:
       name: Breeder
-      required: true
+      description: Optional but recommended for SeedFinder lookup precision.
+      required: false
       selector:
         text:
 
@@ -90,6 +91,42 @@ refresh_cultivar:
   fields:
     cultivar_id:
       name: Cultivar ID
+      required: true
+      selector:
+        text:
+
+bind_sensor_to_run:
+  name: Bind sensor/camera to run
+  description: Attach or update a sensor binding at any point during a run.
+  fields:
+    run_id:
+      name: Run ID
+      required: true
+      selector:
+        text:
+    binding_key:
+      name: Binding key
+      description: One of temperature, air_humidity, soil_moisture, energy, camera, water.
+      required: true
+      selector:
+        text:
+    entity_id:
+      name: Entity ID
+      required: true
+      selector:
+        text:
+
+unbind_sensor_from_run:
+  name: Unbind sensor/camera from run
+  description: Remove a sensor binding while keeping run history.
+  fields:
+    run_id:
+      name: Run ID
+      required: true
+      selector:
+        text:
+    binding_key:
+      name: Binding key
       required: true
       selector:
         text:

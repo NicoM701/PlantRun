@@ -7,19 +7,25 @@ from collections.abc import Mapping
 from copy import deepcopy
 from typing import Any
 
-from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 
-from .const import PHASES, PHASE_GROWTH, SIGNAL_DATA_UPDATED
+from .const import BINDABLE_SENSOR_KEYS, PHASES, PHASE_GROWTH, SIGNAL_DATA_UPDATED
 from .storage import PlantRunStorage
+
+
+def _default_bindings() -> dict[str, str | None]:
+    return {key: None for key in BINDABLE_SENSOR_KEYS}
+
+
+def _norm(value: str) -> str:
+    return " ".join(value.strip().lower().split())
 
 
 class PlantRunManager:
     """Owns run lifecycle operations and persistence."""
 
-    def __init__(self, hass: HomeAssistant, storage: PlantRunStorage) -> None:
-        self.hass = hass
+    def __init__(self, storage: PlantRunStorage) -> None:
         self.storage = storage
 
     @property
@@ -38,6 +44,34 @@ class PlantRunManager:
             raise HomeAssistantError(f"Unknown cultivar_id: {cultivar_id}")
         return cultivar
 
+    def search_local_cultivars(self, species: str, breeder: str | None = None) -> list[dict[str, Any]]:
+        """Fuzzy local fallback over cached cultivars."""
+        species_n = _norm(species)
+        breeder_n = _norm(breeder or "")
+
+        scored: list[tuple[int, dict[str, Any]]] = []
+        for cultivar in self.data.get("cultivars", {}).values():
+            c_species = _norm(str(cultivar.get("species") or ""))
+            c_breeder = _norm(str(cultivar.get("breeder") or ""))
+
+            score = 0
+            if c_species == species_n:
+                score += 100
+            elif species_n and (species_n in c_species or c_species in species_n):
+                score += 70
+
+            if breeder_n:
+                if c_breeder == breeder_n:
+                    score += 30
+                elif breeder_n in c_breeder or c_breeder in breeder_n:
+                    score += 15
+
+            if score > 0:
+                scored.append((score, cultivar))
+
+        scored.sort(key=lambda x: x[0], reverse=True)
+        return [item for _, item in scored]
+
     async def _save_and_signal(
         self,
         event_type: str,
@@ -51,7 +85,7 @@ class PlantRunManager:
             **(dict(details) if details else {}),
         }
         await self.storage.async_save()
-        async_dispatcher_send(self.hass, SIGNAL_DATA_UPDATED)
+        async_dispatcher_send(self.storage.hass, SIGNAL_DATA_UPDATED)
 
     async def _save_global_event(self, event_type: str, details: Mapping[str, Any]) -> None:
         self.data["last_event"] = {
@@ -60,7 +94,7 @@ class PlantRunManager:
             **dict(details),
         }
         await self.storage.async_save()
-        async_dispatcher_send(self.hass, SIGNAL_DATA_UPDATED)
+        async_dispatcher_send(self.storage.hass, SIGNAL_DATA_UPDATED)
 
     async def start_run(self, run_name: str) -> str:
         run_name = run_name.strip()
@@ -94,6 +128,7 @@ class PlantRunManager:
             "media": [],
             "cultivar_id": None,
             "cultivar_snapshot": None,
+            "bindings": _default_bindings(),
         }
         self.data["active_run_id"] = run_id
 
@@ -166,3 +201,33 @@ class PlantRunManager:
                 "breeder": cultivar.get("breeder"),
             },
         )
+
+    async def bind_sensor_to_run(self, run_id: str, binding_key: str, entity_id: str) -> None:
+        if binding_key not in BINDABLE_SENSOR_KEYS:
+            raise HomeAssistantError(
+                f"Invalid binding_key: {binding_key}. Allowed: {', '.join(BINDABLE_SENSOR_KEYS)}"
+            )
+        if not entity_id.strip():
+            raise HomeAssistantError("entity_id cannot be empty")
+
+        run = self.get_run_or_raise(run_id)
+        run.setdefault("bindings", _default_bindings())
+        run["bindings"][binding_key] = entity_id.strip()
+
+        await self._save_and_signal(
+            "bind_sensor",
+            run_id,
+            {"binding_key": binding_key, "entity_id": entity_id.strip()},
+        )
+
+    async def unbind_sensor_from_run(self, run_id: str, binding_key: str) -> None:
+        if binding_key not in BINDABLE_SENSOR_KEYS:
+            raise HomeAssistantError(
+                f"Invalid binding_key: {binding_key}. Allowed: {', '.join(BINDABLE_SENSOR_KEYS)}"
+            )
+
+        run = self.get_run_or_raise(run_id)
+        run.setdefault("bindings", _default_bindings())
+        run["bindings"][binding_key] = None
+
+        await self._save_and_signal("unbind_sensor", run_id, {"binding_key": binding_key})

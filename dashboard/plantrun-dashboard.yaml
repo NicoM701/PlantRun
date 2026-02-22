@@ -15,16 +15,29 @@ views:
             name: Last event
 
       - type: entities
+        title: Active Cultivar
+        entities:
+          - entity: sensor.plantrun_active_cultivar_name
+            name: Cultivar
+          - entity: sensor.plantrun_active_cultivar_breeder
+            name: Breeder
+          - entity: sensor.plantrun_active_cultivar_flower_window
+            name: Flower window
+
+      - type: entities
         title: Run Stats
         entities:
           - entity: sensor.plantrun_total_runs
             name: Total runs
 
       - type: markdown
-        title: Next KPI hookups
+        title: Sensor binding actions (service calls)
         content: |
-          Add these entity IDs once available:
-          - Energy kWh + Cost per run
-          - Soil moisture (Xiaomi plant sensor)
-          - Air humidity
-          - Photo/timelapse events
+          You can attach sensors/camera at any point during a run:
+          - `plantrun.bind_sensor_to_run`
+            - run_id
+            - binding_key: `temperature|air_humidity|soil_moisture|energy|camera|water`
+            - entity_id
+          - `plantrun.unbind_sensor_from_run`
+            - run_id
+            - binding_key

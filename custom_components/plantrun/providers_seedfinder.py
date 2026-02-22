@@ -14,6 +14,26 @@ def _slug(value: str) -> str:
     return re.sub(r"[^a-z0-9]+", "_", value.strip().lower()).strip("_")
 
 
+def _norm(value: str) -> str:
+    return " ".join(value.strip().lower().split())
+
+
+def _score_match(query_species: str, row_species: str) -> int:
+    q = _norm(query_species)
+    r = _norm(row_species)
+    if not q or not r:
+        return 0
+    if q == r:
+        return 100
+    if q in r or r in q:
+        return 70
+
+    q_tokens = set(q.split())
+    r_tokens = set(r.split())
+    overlap = len(q_tokens & r_tokens)
+    return overlap * 10
+
+
 async def fetch_cultivar_profile(
     session: ClientSession, species: str, breeder: str
 ) -> dict[str, Any]:
@@ -24,19 +44,29 @@ async def fetch_cultivar_profile(
         raise HomeAssistantError("species and breeder are required")
 
     breeder_slug = _slug(breeder)
-    breeder_url = f"https://seedfinder.eu/en/database/breeder/{breeder_slug}/"
+    breeder_urls = [
+        f"https://seedfinder.eu/en/database/breeder/{breeder_slug}/",
+        f"https://seedfinder.eu/de/database/breeder/{breeder_slug}/",
+    ]
 
-    async with session.get(breeder_url, timeout=20) as response:
-        if response.status != 200:
-            raise HomeAssistantError(f"SeedFinder breeder page failed ({response.status})")
-        breeder_html = await response.text()
+    breeder_html = None
+    last_status = None
+    for breeder_url in breeder_urls:
+        async with session.get(breeder_url, timeout=20) as response:
+            last_status = response.status
+            if response.status == 200:
+                breeder_html = await response.text()
+                break
+
+    if not breeder_html:
+        raise HomeAssistantError(f"SeedFinder breeder page failed ({last_status})")
 
     breeder_soup = BeautifulSoup(breeder_html, "html.parser")
     table = breeder_soup.find("table", class_="table")
     if not table or not table.find("tbody"):
         raise HomeAssistantError(f"No strain table found for breeder {breeder}")
 
-    target_row = None
+    scored_rows: list[tuple[int, list, Any]] = []
     for row in table.find("tbody").find_all("tr"):
         cells = row.find_all("td")
         if not cells:
@@ -44,15 +74,16 @@ async def fetch_cultivar_profile(
         anchor = cells[0].find("a")
         if not anchor:
             continue
-        strain_name = anchor.get_text(strip=True)
-        if strain_name.lower() == species.lower():
-            target_row = (cells, anchor)
-            break
+        score = _score_match(species, anchor.get_text(strip=True))
+        if score > 0:
+            scored_rows.append((score, cells, anchor))
 
-    if not target_row:
+    if not scored_rows:
         raise HomeAssistantError(f"Strain '{species}' not found for breeder '{breeder}'")
 
-    cells, anchor = target_row
+    scored_rows.sort(key=lambda item: item[0], reverse=True)
+    _, cells, anchor = scored_rows[0]
+
     detail_url = anchor.get("href")
     if not detail_url:
         raise HomeAssistantError("SeedFinder detail URL missing")
@@ -78,7 +109,7 @@ async def fetch_cultivar_profile(
             break
 
     return {
-        "cultivar_id": f"seedfinder:{_slug(breeder)}:{_slug(species)}",
+        "cultivar_id": f"seedfinder:{_slug(breeder)}:{_slug(anchor.get_text(strip=True))}",
         "provider": "seedfinder",
         "species": anchor.get_text(strip=True),
         "breeder": cells[1].get_text(strip=True) if len(cells) > 1 else breeder,

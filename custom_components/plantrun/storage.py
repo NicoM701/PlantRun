@@ -22,6 +22,7 @@ class PlantRunStorage:
     """Persistent storage for run data."""
 
     def __init__(self, hass: HomeAssistant) -> None:
+        self.hass = hass
         self._store = Store[dict](hass, STORAGE_VERSION, STORAGE_KEY)
         self.data: dict = deepcopy(DEFAULT_DATA)
 
@@ -41,6 +42,17 @@ class PlantRunStorage:
                     run.setdefault("media", [])
                     run.setdefault("cultivar_id", None)
                     run.setdefault("cultivar_snapshot", None)
+                    run.setdefault(
+                        "bindings",
+                        {
+                            "temperature": None,
+                            "air_humidity": None,
+                            "soil_moisture": None,
+                            "energy": None,
+                            "camera": None,
+                            "water": None,
+                        },
+                    )
 
             cultivars = merged.get("cultivars", {})
             if not isinstance(cultivars, dict):

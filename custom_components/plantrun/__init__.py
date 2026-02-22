@@ -10,8 +10,10 @@ from homeassistant.helpers import discovery
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .const import (
+    ATTR_BINDING_KEY,
     ATTR_BREEDER,
     ATTR_CULTIVAR_ID,
+    ATTR_ENTITY_ID,
     ATTR_NOTE,
     ATTR_PHASE,
     ATTR_RUN_ID,
@@ -22,11 +24,13 @@ from .const import (
     DOMAIN,
     SERVICE_ADD_NOTE,
     SERVICE_ATTACH_CULTIVAR_TO_RUN,
+    SERVICE_BIND_SENSOR_TO_RUN,
     SERVICE_END_RUN,
     SERVICE_REFRESH_CULTIVAR,
     SERVICE_SEARCH_CULTIVAR,
     SERVICE_SET_PHASE,
     SERVICE_START_RUN,
+    SERVICE_UNBIND_SENSOR_FROM_RUN,
 )
 from .manager import PlantRunManager
 from .providers_seedfinder import fetch_cultivar_profile
@@ -42,7 +46,7 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     storage = PlantRunStorage(hass)
     await storage.async_load()
 
-    manager = PlantRunManager(hass, storage)
+    manager = PlantRunManager(storage)
     hass.data[DOMAIN][DATA_STORAGE] = storage
     hass.data[DOMAIN][DATA_MANAGER] = manager
 
@@ -67,13 +71,22 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
         _LOGGER.info("Added note to run %s", run_id)
 
     async def handle_search_cultivar(call: ServiceCall) -> dict:
-        session = async_get_clientsession(hass)
+        """Try online SeedFinder first, fallback to local fuzzy cache."""
         species = call.data[ATTR_SPECIES]
-        breeder = call.data[ATTR_BREEDER]
-        profile = await fetch_cultivar_profile(session, species, breeder)
-        stored = await manager.upsert_cultivar(profile)
-        _LOGGER.info("Upserted cultivar %s", stored.get("cultivar_id"))
-        return {"result": stored}
+        breeder = call.data.get(ATTR_BREEDER, "")
+
+        try:
+            session = async_get_clientsession(hass)
+            profile = await fetch_cultivar_profile(session, species, breeder)
+            stored = await manager.upsert_cultivar(profile)
+            _LOGGER.info("Upserted cultivar %s", stored.get("cultivar_id"))
+            return {"result": stored, "source": "seedfinder"}
+        except Exception as exc:  # noqa: BLE001 - deliberate provider fallback
+            _LOGGER.warning("SeedFinder fetch failed, trying local fallback: %s", exc)
+            local_matches = manager.search_local_cultivars(species, breeder)
+            if local_matches:
+                return {"result": local_matches[0], "source": "local_cache", "matches": local_matches}
+            raise
 
     async def handle_attach_cultivar_to_run(call: ServiceCall) -> None:
         run_id = call.data[ATTR_RUN_ID]
@@ -93,6 +106,19 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
         stored = await manager.upsert_cultivar(profile)
         _LOGGER.info("Refreshed cultivar %s", cultivar_id)
         return {"result": stored}
+
+    async def handle_bind_sensor_to_run(call: ServiceCall) -> None:
+        await manager.bind_sensor_to_run(
+            call.data[ATTR_RUN_ID],
+            call.data[ATTR_BINDING_KEY],
+            call.data[ATTR_ENTITY_ID],
+        )
+
+    async def handle_unbind_sensor_from_run(call: ServiceCall) -> None:
+        await manager.unbind_sensor_from_run(
+            call.data[ATTR_RUN_ID],
+            call.data[ATTR_BINDING_KEY],
+        )
 
     hass.services.async_register(DOMAIN, SERVICE_START_RUN, handle_start_run)
     hass.services.async_register(DOMAIN, SERVICE_END_RUN, handle_end_run)
@@ -114,6 +140,16 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
         SERVICE_REFRESH_CULTIVAR,
         handle_refresh_cultivar,
         supports_response=SupportsResponse.ONLY,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_BIND_SENSOR_TO_RUN,
+        handle_bind_sensor_to_run,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_UNBIND_SENSOR_FROM_RUN,
+        handle_unbind_sensor_from_run,
     )
 
     await discovery.async_load_platform(hass, "sensor", DOMAIN, {}, config)
