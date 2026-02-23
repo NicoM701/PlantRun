@@ -44,8 +44,20 @@ class PlantRunConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             {
                 vol.Required(CONF_NAME, default="PlantRun"): str,
                 vol.Optional(CONF_ELECTRICITY_PRICE, default=0.30): vol.Coerce(float),
-                vol.Optional(CONF_BACKUP_MODE, default="off"): vol.In(["off", "daily", "hourly"]),
-                vol.Optional(CONF_SETUP_MODE, default="none"): vol.In(["none", "new", "import"]),
+                vol.Optional(
+                    CONF_BACKUP_MODE,
+                    default="off",
+                ): vol.In({"off": "Aus", "daily": "Täglich", "hourly": "Stündlich"}),
+                vol.Optional(
+                    CONF_SETUP_MODE,
+                    default="none",
+                ): vol.In(
+                    {
+                        "none": "Später",
+                        "new": "Ja, neuen Run starten",
+                        "import": "Ja, bestehenden Run importieren",
+                    }
+                ),
             }
         )
         return self.async_show_form(step_id="user", data_schema=schema)
@@ -66,9 +78,9 @@ class PlantRunConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             }
             return self.async_create_entry(title=data[CONF_NAME], data=data)
 
-        started_help = "Optional ISO datetime (e.g. 2026-02-22T12:00:00+00:00)."
+        started_help = "Optional: z. B. 2026-02-22T12:00:00+00:00 (wird später durch bequemere Eingabe ersetzt)."
         if setup_mode == "import":
-            started_help = "Required ISO datetime for import (e.g. 2026-02-22T12:00:00+00:00)."
+            started_help = "Pflichtfeld beim Import: z. B. 2026-02-22T12:00:00+00:00."
 
         schema = vol.Schema(
             {
@@ -120,7 +132,7 @@ class PlantRunOptionsFlow(config_entries.OptionsFlow):
                         CONF_BACKUP_MODE,
                         self.config_entry.data.get(CONF_BACKUP_MODE, "off"),
                     ),
-                ): vol.In(["off", "daily", "hourly"]),
+                ): vol.In({"off": "Aus", "daily": "Täglich", "hourly": "Stündlich"}),
                 vol.Optional("open_binding_wizard", default=False): bool,
             }
         )
