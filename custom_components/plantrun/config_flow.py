@@ -8,7 +8,6 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import callback
 from homeassistant.data_entry_flow import FlowResult
-from homeassistant.helpers.selector import EntitySelector, EntitySelectorConfig
 
 from .const import BINDABLE_SENSOR_KEYS, DATA_MANAGER, DOMAIN, PHASES
 
@@ -150,16 +149,15 @@ class PlantRunOptionsFlow(config_entries.OptionsFlow):
                         run_id=run_id,
                         use_active_run=False,
                     )
-            return self.async_create_entry(title="", data=self._pending_options or self.config_entry.options)
+            return self.async_create_entry(
+                title="", data=self._pending_options or self.config_entry.options
+            )
 
         schema_fields: dict[Any, Any] = {
             vol.Required("run_id"): vol.In(run_options),
         }
 
         for key in BINDABLE_SENSOR_KEYS:
-            domains = ["camera"] if key == "camera" else ["sensor", "number", "input_number"]
-            schema_fields[vol.Optional(key)] = EntitySelector(
-                EntitySelectorConfig(domain=domains, multiple=False)
-            )
+            schema_fields[vol.Optional(key)] = str
 
         return self.async_show_form(step_id="bindings", data_schema=vol.Schema(schema_fields))
