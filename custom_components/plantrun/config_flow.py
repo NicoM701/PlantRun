@@ -44,20 +44,8 @@ class PlantRunConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             {
                 vol.Required(CONF_NAME, default="PlantRun"): str,
                 vol.Optional(CONF_ELECTRICITY_PRICE, default=0.30): vol.Coerce(float),
-                vol.Optional(
-                    CONF_BACKUP_MODE,
-                    default="off",
-                ): vol.In({"off": "Aus", "daily": "Täglich", "hourly": "Stündlich"}),
-                vol.Optional(
-                    CONF_SETUP_MODE,
-                    default="none",
-                ): vol.In(
-                    {
-                        "none": "Später",
-                        "new": "Ja, neuen Run starten",
-                        "import": "Ja, bestehenden Run importieren",
-                    }
-                ),
+                vol.Optional(CONF_BACKUP_MODE, default="off"): vol.In(["off", "daily", "hourly"]),
+                vol.Optional(CONF_SETUP_MODE, default="none"): vol.In(["none", "new", "import"]),
             }
         )
         return self.async_show_form(step_id="user", data_schema=schema)
@@ -98,14 +86,13 @@ class PlantRunConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     @staticmethod
     @callback
     def async_get_options_flow(config_entry: config_entries.ConfigEntry):
-        return PlantRunOptionsFlow(config_entry)
+        return PlantRunOptionsFlow()
 
 
-class PlantRunOptionsFlow(config_entries.OptionsFlow):
+class PlantRunOptionsFlow(config_entries.OptionsFlowWithConfigEntry):
     """Handle PlantRun options + quick UX actions."""
 
-    def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
-        self.config_entry = config_entry
+    def __init__(self) -> None:
         self._pending_options: dict[str, Any] = {}
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> FlowResult:
@@ -132,7 +119,7 @@ class PlantRunOptionsFlow(config_entries.OptionsFlow):
                         CONF_BACKUP_MODE,
                         self.config_entry.data.get(CONF_BACKUP_MODE, "off"),
                     ),
-                ): vol.In({"off": "Aus", "daily": "Täglich", "hourly": "Stündlich"}),
+                ): vol.In(["off", "daily", "hourly"]),
                 vol.Optional("open_binding_wizard", default=False): bool,
             }
         )
@@ -165,10 +152,7 @@ class PlantRunOptionsFlow(config_entries.OptionsFlow):
                 title="", data=self._pending_options or self.config_entry.options
             )
 
-        schema_fields: dict[Any, Any] = {
-            vol.Required("run_id"): vol.In(run_options),
-        }
-
+        schema_fields: dict[Any, Any] = {vol.Required("run_id"): vol.In(run_options)}
         for key in BINDABLE_SENSOR_KEYS:
             schema_fields[vol.Optional(key)] = str
 

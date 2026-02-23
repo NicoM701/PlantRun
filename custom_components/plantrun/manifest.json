@@ -1,7 +1,7 @@
 {
   "domain": "plantrun",
   "name": "PlantRun",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "documentation": "https://github.com/NicoM701/PlantRun",
   "issue_tracker": "https://github.com/NicoM701/PlantRun/issues",
   "codeowners": ["@NicoM701"],
