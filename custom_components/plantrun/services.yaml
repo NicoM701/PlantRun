@@ -1,0 +1,54 @@
+create_run:
+  name: Create Run
+  description: Create a new plant cultivation run.
+  fields:
+    friendly_name:
+      name: Friendly Name
+      description: The human-readable name for this run.
+      required: true
+      example: "Tomato Balcony 2026"
+      selector:
+        text:
+    start_time:
+      name: Start Time
+      description: ISO timestamp for when the run started. Optional default is now.
+      required: false
+      example: "2026-02-25T12:00:00Z"
+      selector:
+        text:
+
+add_phase:
+  name: Add Phase
+  description: Add a new phase to an existing run.
+  fields:
+    run_id:
+      name: Run ID
+      description: The internal ID of the run.
+      required: true
+      example: "abc123def456"
+      selector:
+        text:
+    phase_name:
+      name: Phase Name
+      description: The name of the phase (e.g. Seedling, Veg, Flower).
+      required: true
+      example: "Seedling"
+      selector:
+        text:
+
+add_note:
+  name: Add Note
+  description: Add a note to an existing run.
+  fields:
+    run_id:
+      name: Run ID
+      description: The internal ID of the run.
+      required: true
+      selector:
+        text:
+    text:
+      name: Text
+      description: The note to add.
+      required: true
+      selector:
+        text:

@@ -1,0 +1,17 @@
+{
+    "title": "PlantRun",
+    "config": {
+        "step": {
+            "user": {
+                "title": "Set up PlantRun",
+                "description": "Initialize the PlantRun tracking integration."
+            }
+        },
+        "abort": {
+            "single_instance_allowed": "Only a single instance of PlantRun is required/allowed."
+        }
+    },
+    "entity": {
+        "sensor": {}
+    }
+}
