@@ -157,6 +157,7 @@ class PlantRunOptionsFlowHandler(config_entries.OptionsFlow):
                     "temperature_sensor": "temperature",
                     "humidity_sensor": "humidity",
                     "soil_moisture_sensor": "soil_moisture",
+                    "conductivity_sensor": "conductivity",
                     "light_sensor": "light",
                     "energy_sensor": "energy"
                 }
@@ -193,6 +194,7 @@ class PlantRunOptionsFlowHandler(config_entries.OptionsFlow):
         schema_dict[vol.Optional("temperature_sensor")] = sensor_selector
         schema_dict[vol.Optional("humidity_sensor")] = sensor_selector
         schema_dict[vol.Optional("soil_moisture_sensor")] = sensor_selector
+        schema_dict[vol.Optional("conductivity_sensor")] = sensor_selector
         schema_dict[vol.Optional("light_sensor")] = sensor_selector
         schema_dict[vol.Optional("energy_sensor")] = sensor_selector
 
@@ -294,6 +296,7 @@ class PlantRunOptionsFlowHandler(config_entries.OptionsFlow):
             "temperature": "Temperature", 
             "humidity": "Humidity", 
             "soil_moisture": "Soil Moisture", 
+            "conductivity": "Conductivity",
             "light": "Light",
             "energy": "Energy", 
             "water": "Water", 

@@ -37,6 +37,7 @@
                     "temperature_sensor": "Temperature Sensor",
                     "humidity_sensor": "Humidity Sensor",
                     "soil_moisture_sensor": "Soil Moisture Sensor",
+                    "conductivity_sensor": "Conductivity Sensor",
                     "light_sensor": "Light Sensor (DLI/Lux)",
                     "energy_sensor": "Power / Energy Sensor"
                 }
