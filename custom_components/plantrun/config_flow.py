@@ -55,6 +55,8 @@ class PlantRunOptionsFlowHandler(config_entries.OptionsFlow):
         
         # State carried between steps for run creation
         self._create_friendly_name: str | None = None
+        self._create_seedfinder_breeder: str | None = None
+        self._create_seedfinder_strain: str | None = None
         self._create_seedfinder_results: list[CultivarSnapshot] | None = None
 
     @property
@@ -104,12 +106,16 @@ class PlantRunOptionsFlowHandler(config_entries.OptionsFlow):
         """Step 1 of Run Creation: Name and optional Cultivar search."""
         if user_input is not None:
             self._create_friendly_name = user_input["friendly_name"]
-            search_term = user_input.get("cultivar_search", "").strip()
+            breeder = user_input.get("cultivar_breeder", "").strip()
+            strain = user_input.get("cultivar_strain", "").strip()
             
+            self._create_seedfinder_breeder = breeder
+            self._create_seedfinder_strain = strain
             self._create_seedfinder_results = []
-            if search_term:
-                # Silently query SeedFinder
-                results = await async_search_cultivar(search_term)
+            
+            if breeder and strain:
+                # Silently query SeedFinder using specific Breeder and Strain
+                results = await async_search_cultivar(breeder, strain)
                 if results:
                     self._create_seedfinder_results = results
             
@@ -119,7 +125,8 @@ class PlantRunOptionsFlowHandler(config_entries.OptionsFlow):
             step_id="create_run_start",
             data_schema=vol.Schema({
                 vol.Required("friendly_name"): str,
-                vol.Optional("cultivar_search"): str,
+                vol.Optional("cultivar_breeder"): str,
+                vol.Optional("cultivar_strain"): str,
             }),
         )
 
@@ -150,6 +157,7 @@ class PlantRunOptionsFlowHandler(config_entries.OptionsFlow):
                     "temperature_sensor": "temperature",
                     "humidity_sensor": "humidity",
                     "soil_moisture_sensor": "soil_moisture",
+                    "light_sensor": "light",
                     "energy_sensor": "energy"
                 }
                 
@@ -163,6 +171,10 @@ class PlantRunOptionsFlowHandler(config_entries.OptionsFlow):
                         }
                         await self.hass.services.async_call(DOMAIN, "add_binding", bind_data)
             
+            # Immediately reload the integration so the new run spawns as a Device in HA!
+            self.hass.async_create_task(
+                self.hass.config_entries.async_reload(self.plantrun_config_entry.entry_id)
+            )
             return self.async_create_entry(title="", data={})
 
         schema_dict = {}
@@ -181,6 +193,7 @@ class PlantRunOptionsFlowHandler(config_entries.OptionsFlow):
         schema_dict[vol.Optional("temperature_sensor")] = sensor_selector
         schema_dict[vol.Optional("humidity_sensor")] = sensor_selector
         schema_dict[vol.Optional("soil_moisture_sensor")] = sensor_selector
+        schema_dict[vol.Optional("light_sensor")] = sensor_selector
         schema_dict[vol.Optional("energy_sensor")] = sensor_selector
 
         return self.async_show_form(
@@ -281,6 +294,7 @@ class PlantRunOptionsFlowHandler(config_entries.OptionsFlow):
             "temperature": "Temperature", 
             "humidity": "Humidity", 
             "soil_moisture": "Soil Moisture", 
+            "light": "Light",
             "energy": "Energy", 
             "water": "Water", 
             "camera": "Camera"

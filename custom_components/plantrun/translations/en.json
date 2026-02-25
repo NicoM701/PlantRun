@@ -22,10 +22,11 @@
             },
             "create_run_start": {
                 "title": "Start a New Grow Run",
-                "description": "Give your new plant a name and optionally search SeedFinder for its genetics.",
+                "description": "Give your new plant a name. To search SeedFinder, provide BOTH Breeder and Strain names.",
                 "data": {
                     "friendly_name": "Friendly Name",
-                    "cultivar_search": "Cultivar Search Term (Optional)"
+                    "cultivar_breeder": "Cultivar Breeder (Optional)",
+                    "cultivar_strain": "Cultivar Strain Name (Optional)"
                 }
             },
             "create_run_details": {
@@ -36,6 +37,7 @@
                     "temperature_sensor": "Temperature Sensor",
                     "humidity_sensor": "Humidity Sensor",
                     "soil_moisture_sensor": "Soil Moisture Sensor",
+                    "light_sensor": "Light Sensor (DLI/Lux)",
                     "energy_sensor": "Power / Energy Sensor"
                 }
             },
