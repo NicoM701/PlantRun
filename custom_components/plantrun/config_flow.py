@@ -46,13 +46,13 @@ class PlantRunOptionsFlowHandler(config_entries.OptionsFlow):
 
     def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
         """Initialize options flow."""
-        self.config_entry = config_entry
+        self.plantrun_config_entry = config_entry
 
     @property
     def _storage(self):
         """Return the storage instance attached to this config entry."""
         # Using hass.data provides robust access to our integration's data
-        return self.hass.data[DOMAIN][self.config_entry.entry_id]["storage"]
+        return self.hass.data[DOMAIN][self.plantrun_config_entry.entry_id]["storage"]
 
     def _get_active_runs_dict(self):
         """Get a dict of run_id -> friendly_name for active runs."""
