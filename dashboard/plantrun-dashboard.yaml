@@ -1,0 +1,45 @@
+title: PlantRun
+path: plantrun
+cards:
+  - type: vertical-stack
+    cards:
+      - type: markdown
+        content: |
+          # 🌿 PlantRun Active Dashboard
+          ### High-level summary of your active grow.
+
+      - type: entities
+        title: Run Status
+        entities:
+          - entity: sensor.plantrun_total_runs
+            name: Total Historical Runs
+          - type: divider
+          # NOTE: The integration generates unique IDs per run. You will need to replace
+          # `<run_id>` below with the actual sensor IDs generated in your HA instance!
+          - entity: sensor.plantrun_status_<run_id>
+            name: Current State
+          - entity: sensor.plantrun_active_phase_<run_id>
+            name: Current Phase
+          - entity: sensor.plantrun_cultivar_<run_id>
+            name: Cultivar Name
+            
+      - type: horizontal-stack
+        cards:
+          - type: button
+            name: Add New Phase
+            icon: mdi:timelapse
+            tap_action:
+              action: call-service
+              service: plantrun.add_phase
+              service_data:
+                run_id: "<run_id>"
+                phase_name: "Flowering"
+          - type: button
+            name: Add Water Log Note
+            icon: mdi:water
+            tap_action:
+              action: call-service
+              service: plantrun.add_note
+              service_data:
+                run_id: "<run_id>"
+                text: "Watered 2L"
