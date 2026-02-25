@@ -15,44 +15,68 @@
         "step": {
             "init": {
                 "title": "PlantRun Wizard",
-                "description": "Choose a management action to perform.",
+                "description": "Welcome to the PlantRun configuration wizard. What would you like to do?",
                 "data": {
                     "action": "Action"
                 }
             },
-            "create_run": {
-                "title": "Start New Run",
+            "create_run_start": {
+                "title": "Start a New Grow Run",
+                "description": "Give your new plant a name and optionally search SeedFinder for its genetics.",
                 "data": {
-                    "friendly_name": "Friendly Name"
+                    "friendly_name": "Friendly Name",
+                    "cultivar_search": "Cultivar Search Term (Optional)"
+                }
+            },
+            "create_run_details": {
+                "title": "Configure Run Details",
+                "description": "Select the exact SeedFinder genetics from your search and link your environmental sensors.",
+                "data": {
+                    "cultivar_result": "Database Cultivar Match",
+                    "temperature_sensor": "Temperature Sensor",
+                    "humidity_sensor": "Humidity Sensor",
+                    "soil_moisture_sensor": "Soil Moisture Sensor",
+                    "energy_sensor": "Power / Energy Sensor"
+                }
+            },
+            "manage_run": {
+                "title": "Manage Existing Run",
+                "description": "Select an active run to modify.",
+                "data": {
+                    "run_id": "Target Run"
+                }
+            },
+            "manage_action": {
+                "title": "Action",
+                "description": "What would you like to do with this run?",
+                "data": {
+                    "action": "Action"
                 }
             },
             "add_phase": {
                 "title": "Change Phase",
                 "data": {
-                    "run_id": "Target Run",
                     "phase_name": "New Phase"
                 }
             },
             "add_note": {
                 "title": "Add Log Note",
                 "data": {
-                    "run_id": "Target Run",
                     "text": "Note Text"
                 }
             },
-            "set_cultivar": {
-                "title": "Set Cultivar",
+            "add_binding": {
+                "title": "Add Sensor Binding",
                 "data": {
-                    "run_id": "Target Run",
-                    "cultivar_name": "Cultivar Name (Search SeedFinder)"
+                    "metric_type": "Metric to Bind",
+                    "sensor_id": "Sensor Entity"
                 }
             },
-            "add_binding": {
-                "title": "Bind Sensor/Camera",
+            "end_run": {
+                "title": "End Run",
+                "description": "Are you sure you want to completely end this run?",
                 "data": {
-                    "run_id": "Target Run",
-                    "metric_type": "Metric to Bind",
-                    "sensor_id": "Sensor or Camera Entity"
+                    "confirm": "Yes, End Run"
                 }
             }
         },

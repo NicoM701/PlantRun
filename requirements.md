@@ -122,12 +122,12 @@ Planned extension:
 - Avoid technical/internal naming in user-visible forms.
 
 ### 4.2 Run UX
-- Must provide run wizard for:
-  - New run
+- Must provide a **multi-step wizard** for:
+  - New run (including inline SeedFinder search and sensor binding)
   - Import run
   - Backdated start
 - Must avoid forcing users to manually copy internal IDs.
-- Must provide friendly run selection controls.
+- Must provide friendly run selection controls via dropdowns.
 
 ### 4.3 Binding UX
 - Must provide UI flow for sensor/camera binding.
