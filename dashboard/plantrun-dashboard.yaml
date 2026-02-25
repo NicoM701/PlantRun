@@ -7,6 +7,9 @@ cards:
         content: |
           # 🌿 PlantRun Active Dashboard
           ### High-level summary of your active grow.
+          
+          > **Tip: Need to add a phase or make changes?**
+          > Head over to `Settings -> Devices & Services -> PlantRun -> Configure` to use the Setup Wizard!
 
       - type: entities
         title: Run Status
@@ -22,24 +25,3 @@ cards:
             name: Current Phase
           - entity: sensor.plantrun_cultivar_<run_id>
             name: Cultivar Name
-            
-      - type: horizontal-stack
-        cards:
-          - type: button
-            name: Add New Phase
-            icon: mdi:timelapse
-            tap_action:
-              action: call-service
-              service: plantrun.add_phase
-              service_data:
-                run_id: "<run_id>"
-                phase_name: "Flowering"
-          - type: button
-            name: Add Water Log Note
-            icon: mdi:water
-            tap_action:
-              action: call-service
-              service: plantrun.add_note
-              service_data:
-                run_id: "<run_id>"
-                text: "Watered 2L"

@@ -11,6 +11,58 @@
             "single_instance_allowed": "Only a single instance of PlantRun is required/allowed."
         }
     },
+    "options": {
+        "step": {
+            "init": {
+                "title": "PlantRun Wizard",
+                "description": "Choose a management action to perform.",
+                "data": {
+                    "action": "Action"
+                }
+            },
+            "create_run": {
+                "title": "Start New Run",
+                "data": {
+                    "friendly_name": "Friendly Name"
+                }
+            },
+            "add_phase": {
+                "title": "Change Phase",
+                "data": {
+                    "run_id": "Target Run",
+                    "phase_name": "New Phase"
+                }
+            },
+            "add_note": {
+                "title": "Add Log Note",
+                "data": {
+                    "run_id": "Target Run",
+                    "text": "Note Text"
+                }
+            },
+            "set_cultivar": {
+                "title": "Set Cultivar",
+                "data": {
+                    "run_id": "Target Run",
+                    "cultivar_name": "Cultivar Name (Search SeedFinder)"
+                }
+            },
+            "add_binding": {
+                "title": "Bind Sensor/Camera",
+                "data": {
+                    "run_id": "Target Run",
+                    "metric_type": "Metric to Bind",
+                    "sensor_id": "Sensor or Camera Entity"
+                }
+            }
+        },
+        "error": {
+            "no_active_runs": "There are no active runs. Please create one first."
+        },
+        "abort": {
+            "no_active_runs": "There are no active runs. Please create one first."
+        }
+    },
     "entity": {
         "sensor": {
             "status": {
