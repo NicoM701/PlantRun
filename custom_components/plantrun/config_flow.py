@@ -51,12 +51,20 @@ class PlantRunOptionsFlowHandler(config_entries.OptionsFlow):
     @property
     def _storage(self):
         """Return the storage instance attached to this config entry."""
+        # Using hass.data provides robust access to our integration's data
         return self.hass.data[DOMAIN][self.config_entry.entry_id]["storage"]
 
     def _get_active_runs_dict(self):
         """Get a dict of run_id -> friendly_name for active runs."""
         runs = {}
-        for run in self._storage.runs:
+        if not hasattr(self, "hass") or DOMAIN not in self.hass.data:
+            return runs
+            
+        storage = self._storage
+        if not storage:
+            return runs
+            
+        for run in storage.runs:
             if run.status == "active":
                 runs[run.id] = f"{run.friendly_name} ({run.id[-6:]})"
         return runs
@@ -86,15 +94,11 @@ class PlantRunOptionsFlowHandler(config_entries.OptionsFlow):
             "add_binding": "Bind Sensor/Camera"
         }
 
+        # Simplest Selector pattern to avoid HA 500 errors
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema({
-                vol.Required("action"): selector.SelectSelector(
-                    selector.SelectSelectorConfig(
-                        options=[{"value": k, "label": v} for k, v in actions.items()],
-                        mode=selector.SelectSelectorMode.DROPDOWN
-                    )
-                )
+                vol.Required("action"): vol.In(actions)
             }),
         )
 
@@ -102,14 +106,12 @@ class PlantRunOptionsFlowHandler(config_entries.OptionsFlow):
         """Handle creating a new run via the UI."""
         if user_input is not None:
             await self.hass.services.async_call(DOMAIN, "create_run", user_input)
-            return self.async_create_entry(title="", data=self.config_entry.options)
+            return self.async_create_entry(title="", data={})
 
         return self.async_show_form(
             step_id="create_run",
             data_schema=vol.Schema({
-                vol.Required("friendly_name"): selector.TextSelector(
-                    selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
-                ),
+                vol.Required("friendly_name"): str,
             }),
         )
 
@@ -121,9 +123,15 @@ class PlantRunOptionsFlowHandler(config_entries.OptionsFlow):
 
         if user_input is not None:
             await self.hass.services.async_call(DOMAIN, "add_phase", user_input)
-            return self.async_create_entry(title="", data=self.config_entry.options)
+            return self.async_create_entry(title="", data={})
 
-        phases = ["Seedling", "Vegetative", "Flowering", "Drying", "Curing"]
+        phases = {
+            "Seedling": "Seedling", 
+            "Vegetative": "Vegetative", 
+            "Flowering": "Flowering", 
+            "Drying": "Drying", 
+            "Curing": "Curing"
+        }
         return self.async_show_form(
             step_id="add_phase",
             data_schema=vol.Schema({
@@ -140,15 +148,13 @@ class PlantRunOptionsFlowHandler(config_entries.OptionsFlow):
 
         if user_input is not None:
             await self.hass.services.async_call(DOMAIN, "add_note", user_input)
-            return self.async_create_entry(title="", data=self.config_entry.options)
+            return self.async_create_entry(title="", data={})
 
         return self.async_show_form(
             step_id="add_note",
             data_schema=vol.Schema({
                 vol.Required("run_id"): vol.In(runs),
-                vol.Required("text"): selector.TextSelector(
-                    selector.TextSelectorConfig(multiline=True)
-                ),
+                vol.Required("text"): str,
             }),
         )
 
@@ -162,15 +168,13 @@ class PlantRunOptionsFlowHandler(config_entries.OptionsFlow):
             self.hass.async_create_task(
                 self.hass.services.async_call(DOMAIN, "set_cultivar", user_input)
             )
-            return self.async_create_entry(title="", data=self.config_entry.options)
+            return self.async_create_entry(title="", data={})
 
         return self.async_show_form(
             step_id="set_cultivar",
             data_schema=vol.Schema({
                 vol.Required("run_id"): vol.In(runs),
-                vol.Required("cultivar_name"): selector.TextSelector(
-                    selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
-                ),
+                vol.Required("cultivar_name"): str,
             }),
         )
 
@@ -182,9 +186,16 @@ class PlantRunOptionsFlowHandler(config_entries.OptionsFlow):
 
         if user_input is not None:
             await self.hass.services.async_call(DOMAIN, "add_binding", user_input)
-            return self.async_create_entry(title="", data=self.config_entry.options)
+            return self.async_create_entry(title="", data={})
 
-        metrics = ["temperature", "humidity", "soil_moisture", "energy", "water", "camera"]
+        metrics = {
+            "temperature": "Temperature", 
+            "humidity": "Humidity", 
+            "soil_moisture": "Soil Moisture", 
+            "energy": "Energy", 
+            "water": "Water", 
+            "camera": "Camera"
+        }
         return self.async_show_form(
             step_id="add_binding",
             data_schema=vol.Schema({
