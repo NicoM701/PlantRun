@@ -12,6 +12,42 @@
         }
     },
     "entity": {
-        "sensor": {}
+        "sensor": {
+            "status": {
+                "name": "Status"
+            },
+            "active_phase": {
+                "name": "Active Phase"
+            },
+            "cultivar": {
+                "name": "Cultivar"
+            }
+        }
+    },
+    "services": {
+        "create_run": {
+            "name": "Create Run",
+            "description": "Create a new plant cultivation run."
+        },
+        "add_phase": {
+            "name": "Add Phase",
+            "description": "Add a new phase to an existing run."
+        },
+        "add_note": {
+            "name": "Add Note",
+            "description": "Add a note to an existing run."
+        },
+        "end_run": {
+            "name": "End Run",
+            "description": "Mark a run as completed or ended."
+        },
+        "set_cultivar": {
+            "name": "Set Cultivar",
+            "description": "Attach a Cultivar profile to the run."
+        },
+        "add_binding": {
+            "name": "Add Binding",
+            "description": "Bind a Home Assistant entity (like a sensor) to a given run metric."
+        }
     }
 }

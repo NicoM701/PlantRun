@@ -1,0 +1,57 @@
+end_run:
+  name: End Run
+  description: Mark an active run as ended.
+  fields:
+    run_id:
+      name: Run ID
+      description: The internal ID of the run.
+      required: true
+      selector:
+        text:
+    end_time:
+      name: End Time
+      description: ISO timestamp for completion. Optional, defaults to now.
+      required: false
+      example: "2026-02-25T12:00:00Z"
+      selector:
+        text:
+
+set_cultivar:
+  name: Set Cultivar
+  description: Assign a cultivar profile to an active run.
+  fields:
+    run_id:
+      name: Run ID
+      description: The internal ID of the run.
+      required: true
+      selector:
+        text:
+    cultivar_name:
+      name: Cultivar Name
+      description: Name of the strain/cultivar. Will search SeedFinder if breeder omitted.
+      required: true
+      example: "Northern Lights"
+      selector:
+        text:
+
+add_binding:
+  name: Add Binding
+  description: Bind an entity to a run metric.
+  fields:
+    run_id:
+      name: Run ID
+      required: true
+      selector:
+        text:
+    metric_type:
+      name: Metric Type
+      description: "E.g. temperature, soil_moisture, camera"
+      required: true
+      selector:
+        text:
+    sensor_id:
+      name: Sensor ID
+      description: "The full entity_id of the sensor in HA (e.g. sensor.tent_temp)"
+      required: true
+      selector:
+        text:

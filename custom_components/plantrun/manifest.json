@@ -9,6 +9,8 @@
     "documentation": "https://github.com/NicoM701/PlantRun",
     "iot_class": "local_polling",
     "issue_tracker": "https://github.com/NicoM701/PlantRun/issues",
-    "requirements": [],
+    "requirements": [
+        "beautifulsoup4>=4.12.0"
+    ],
     "version": "0.1.0"
 }
