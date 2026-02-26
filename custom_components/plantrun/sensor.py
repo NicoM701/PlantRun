@@ -40,7 +40,7 @@ async def async_setup_entry(
                     PlantRunProxySensor(
                         run_id=run.id,
                         run_name=run.friendly_name,
-                        metric_type=binding.metric,
+                        metric_type=binding.metric_type,
                         source_entity_id=binding.sensor_id
                     )
                 )

@@ -165,6 +165,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         DOMAIN, "create_run", handle_create_run, schema=vol.Schema({
             vol.Required("friendly_name"): str,
             vol.Optional("start_time"): str,
+            vol.Optional("planted_date"): str,
         })
     )
 

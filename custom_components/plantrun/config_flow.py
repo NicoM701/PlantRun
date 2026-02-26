@@ -144,10 +144,10 @@ class PlantRunOptionsFlowHandler(config_entries.OptionsFlow):
         """Step 2 of Run Creation: Pick SeedFinder result and bind sensors."""
         if user_input is not None:
             # 1. Create the run
-            create_data = {
-                "friendly_name": self._create_friendly_name,
-                "planted_date": self._create_planted_date
-            }
+            create_data = {"friendly_name": self._create_friendly_name}
+            if self._create_planted_date:
+                create_data["planted_date"] = self._create_planted_date
+
             await self.hass.services.async_call(DOMAIN, "create_run", create_data)
             
             # Re-fetch storage to get newly created run ID (it will be the last active one)
