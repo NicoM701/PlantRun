@@ -246,3 +246,21 @@ A baseline version is acceptable when a non-technical user can:
 A robust version is acceptable when the above still works even if external cultivar sources fail, with local fallback and optional backup retention. User firendlyness is the key to this getting a great project!
 
 Build this in a new branch "antigravity" on https://github.com/NicoM701/PlantRun (another agent did a version but im not happy so just ignore it)
+
+---
+
+## 12. Developer Context & Agent Handoff (V1 MVP Lessons)
+
+### The OptionsFlow 500 Error Pain Point
+Home Assistant's `OptionsFlow` is notoriously tricky for multi-step configuration of custom sensors. During the initial MVP build, we hit repetitive `500 Internal Server Errors` because we were attempting to return `self.async_show_form` inside an outer try-except loop where the exception lacked a proper `ValueError` handler, or we failed to pass an empty `data_schema`. **Rule of thumb for future agents**: Always validate inputs manually and construct the schema dictionary dynamically based on `vol.Optional`.
+
+### SeedFinder Integration 
+The `seedfinder.eu` API/Search acts via an obscure `AJAX` endpoint (`/ajax/search.php`). We abandoned pure JSON scraping because it often returned a generic 'Skip' string.
+- *Solution:* We ported python code to do direct HTML scraping using `beautifulsoup4` targeting the specific structure of their result cards. 
+- *Pain point:* `beautifulsoup4` types conflict heavily with Pyre2 strict-typing in HA configurations. Do not use complex inline typing when parsing HTML tags.
+
+### The Problem of "Infinite Memory" vs HA Recorder
+The user specifically wants 'infinite memory'. HA's `recorder` usually purges data after 10 days.
+- *Architecture Choice:* We implemented `plantrun_store.json` via `Store` as the ultimate, permanent ledger.
+- *Proxy Sensors:* To show metrics on the dashboard without losing data if a sensor dies, we created `PlantRunProxySensor` in `sensor.py`. These sensors mirror user-bound entities but group them directly onto the PlantRun Device.
+- *Auto-Harvest Lock:* When the `Phase` is set to "Harvest" (or similar), a lock snaps the `end_time` shut so the exact historical timespan is forever frozen in JSON, regardless of HA's Recorder history.
