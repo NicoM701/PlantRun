@@ -38,10 +38,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         """Handle the create_run service."""
         friendly_name = call.data.get("friendly_name", "Unnamed Run")
         start_time = call.data.get("start_time", datetime.utcnow().isoformat())
+        planted_date = call.data.get("planted_date")
 
         new_run = RunData(
             friendly_name=friendly_name,
-            start_time=start_time
+            start_time=start_time,
+            planted_date=planted_date
         )
         await storage.async_add_run(new_run)
         await coordinator.async_request_refresh()
@@ -65,6 +67,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
         # Add new phase
         run.phases.append(Phase(name=phase_name, start_time=now))
+        
+        # Smart end-date tracking for Harvest
+        if phase_name.lower() == "harvest":
+            run.end_time = now
+            run.status = "ended"
+        else:
+            run.end_time = None
+            run.status = "active"
+
         await storage.async_update_run(run)
         await coordinator.async_request_refresh()
         _LOGGER.info("Added phase %s to run %s", phase_name, run_id)

@@ -55,6 +55,7 @@ class PlantRunOptionsFlowHandler(config_entries.OptionsFlow):
         
         # State carried between steps for run creation
         self._create_friendly_name: str | None = None
+        self._create_planted_date: str | None = None
         self._create_seedfinder_breeder: str | None = None
         self._create_seedfinder_strain: str | None = None
         self._create_seedfinder_results: list[CultivarSnapshot] | None = None
@@ -106,6 +107,14 @@ class PlantRunOptionsFlowHandler(config_entries.OptionsFlow):
         """Step 1 of Run Creation: Name and optional Cultivar search."""
         if user_input is not None:
             self._create_friendly_name = user_input["friendly_name"]
+            
+            # Handle Date or String depending on HA version
+            p_date = user_input.get("planted_date")
+            if p_date:
+                self._create_planted_date = str(p_date)
+            else:
+                self._create_planted_date = None
+                
             breeder = user_input.get("cultivar_breeder", "").strip()
             strain = user_input.get("cultivar_strain", "").strip()
             
@@ -125,6 +134,7 @@ class PlantRunOptionsFlowHandler(config_entries.OptionsFlow):
             step_id="create_run_start",
             data_schema=vol.Schema({
                 vol.Required("friendly_name"): str,
+                vol.Optional("planted_date"): selector.DateSelector(),
                 vol.Optional("cultivar_breeder"): str,
                 vol.Optional("cultivar_strain"): str,
             }),
@@ -134,7 +144,10 @@ class PlantRunOptionsFlowHandler(config_entries.OptionsFlow):
         """Step 2 of Run Creation: Pick SeedFinder result and bind sensors."""
         if user_input is not None:
             # 1. Create the run
-            create_data = {"friendly_name": self._create_friendly_name}
+            create_data = {
+                "friendly_name": self._create_friendly_name,
+                "planted_date": self._create_planted_date
+            }
             await self.hass.services.async_call(DOMAIN, "create_run", create_data)
             
             # Re-fetch storage to get newly created run ID (it will be the last active one)

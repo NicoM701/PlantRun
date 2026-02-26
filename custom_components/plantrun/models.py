@@ -62,12 +62,14 @@ class CultivarSnapshot:
 class RunData:
     friendly_name: str
     start_time: str
+    planted_date: str | None = None
     id: str = field(default_factory=default_id)
     end_time: str | None = None
     status: str = "active"
     phases: list[Phase] = field(default_factory=list)
     notes: list[Note] = field(default_factory=list)
     bindings: list[Binding] = field(default_factory=list)
+    sensor_history: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
     cultivar: CultivarSnapshot | None = None
 
     def to_dict(self) -> dict[str, Any]:
@@ -78,6 +80,7 @@ class RunData:
         data["phases"] = [p.to_dict() for p in self.phases]
         data["notes"] = [n.to_dict() for n in self.notes]
         data["bindings"] = [b.to_dict() for b in self.bindings]
+        data["sensor_history"] = self.sensor_history
         return data
 
     @classmethod
@@ -92,10 +95,12 @@ class RunData:
             id=data.get("id", default_id()),
             friendly_name=data.get("friendly_name", "Unknown Run"),
             start_time=data["start_time"],
+            planted_date=data.get("planted_date"),
             end_time=data.get("end_time"),
             status=data.get("status", "active"),
             phases=phases,
             notes=notes,
             bindings=bindings,
+            sensor_history=data.get("sensor_history", {}),
             cultivar=cultivar,
         )

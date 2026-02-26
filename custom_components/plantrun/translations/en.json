@@ -25,6 +25,7 @@
                 "description": "Give your new plant a name. To search SeedFinder, provide BOTH Breeder and Strain names.",
                 "data": {
                     "friendly_name": "Friendly Name",
+                    "planted_date": "Planted Date (Optional)",
                     "cultivar_breeder": "Cultivar Breeder (Optional)",
                     "cultivar_strain": "Cultivar Strain Name (Optional)"
                 }
