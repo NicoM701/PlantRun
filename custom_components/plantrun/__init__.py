@@ -20,6 +20,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up PlantRun from a config entry."""
     hass.data.setdefault(DOMAIN, {})
 
+    # Register the frontend static path
+    hass.http.register_static_path(
+        "/plantrun_frontend",
+        hass.config.path("custom_components/plantrun/www"),
+        cache_headers=False,
+    )
+
     storage = PlantRunStorage(hass)
     await storage.async_load()
 
