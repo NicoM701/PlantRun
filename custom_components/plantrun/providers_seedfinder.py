@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from urllib.parse import quote, urljoin, urlparse
 from typing import Any
 
 from aiohttp import ClientSession
@@ -12,6 +13,22 @@ from homeassistant.exceptions import HomeAssistantError
 
 def _slug(value: str) -> str:
     return re.sub(r"[^a-z0-9]+", "_", value.strip().lower()).strip("_")
+
+
+def _breeder_path(value: str) -> str:
+    """SeedFinder breeder URLs commonly use percent-encoded path values."""
+    return quote(value.strip().lower().replace(" ", "-"), safe="")
+
+
+def _normalize_seedfinder_url(base_url: str, candidate_url: str) -> str:
+    url = urljoin(base_url, candidate_url)
+    parsed_url = urlparse(url)
+    if parsed_url.scheme not in {"http", "https"} or parsed_url.netloc not in {
+        "seedfinder.eu",
+        "www.seedfinder.eu",
+    }:
+        raise HomeAssistantError("SeedFinder returned an unsupported detail URL")
+    return url
 
 
 def _norm(value: str) -> str:
@@ -52,7 +69,7 @@ async def fetch_cultivar_profile(
     if not species or not breeder:
         raise HomeAssistantError("species and breeder are required")
 
-    breeder_slug = _slug(breeder)
+    breeder_slug = _breeder_path(breeder)
     breeder_urls = [
         f"https://seedfinder.eu/en/database/breeder/{breeder_slug}/",
         f"https://seedfinder.eu/de/database/breeder/{breeder_slug}/",
@@ -61,11 +78,14 @@ async def fetch_cultivar_profile(
     breeder_html = None
     last_status = None
     for breeder_url in breeder_urls:
-        async with session.get(breeder_url, timeout=20) as response:
-            last_status = response.status
-            if response.status == 200:
-                breeder_html = await response.text()
-                break
+        try:
+            async with session.get(breeder_url, timeout=20) as response:
+                last_status = response.status
+                if response.status == 200:
+                    breeder_html = await response.text()
+                    break
+        except Exception as exc:  # noqa: BLE001
+            raise HomeAssistantError(f"SeedFinder request failed for breeder page: {exc}") from exc
 
     if not breeder_html:
         raise HomeAssistantError(f"SeedFinder breeder page failed ({last_status})")
@@ -100,11 +120,17 @@ async def fetch_cultivar_profile(
     detail_url = anchor.get("href")
     if not detail_url:
         raise HomeAssistantError("SeedFinder detail URL missing")
+    detail_url = _normalize_seedfinder_url("https://seedfinder.eu", detail_url)
 
-    async with session.get(detail_url, timeout=20) as response:
-        if response.status != 200:
-            raise HomeAssistantError(f"SeedFinder detail page failed ({response.status})")
-        detail_html = await response.text()
+    try:
+        async with session.get(detail_url, timeout=20) as response:
+            if response.status != 200:
+                raise HomeAssistantError(f"SeedFinder detail page failed ({response.status})")
+            detail_html = await response.text()
+    except Exception as exc:  # noqa: BLE001
+        if isinstance(exc, HomeAssistantError):
+            raise
+        raise HomeAssistantError(f"SeedFinder request failed for detail page: {exc}") from exc
 
     detail_soup = BeautifulSoup(detail_html, "html.parser")
 
@@ -117,8 +143,12 @@ async def fetch_cultivar_profile(
     image_url = None
     for img in detail_soup.find_all("img"):
         src = img.get("src") or img.get("data-src")
-        if src and "seedfinder" in src and src.startswith("http"):
-            image_url = src
+        if not src:
+            continue
+        candidate = urljoin(detail_url, src)
+        parsed_img = urlparse(candidate)
+        if parsed_img.scheme in {"http", "https"} and "seedfinder" in parsed_img.netloc:
+            image_url = candidate
             break
 
     return {

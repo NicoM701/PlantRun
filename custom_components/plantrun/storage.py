@@ -33,6 +33,15 @@ class PlantRunStorage:
             merged = deepcopy(DEFAULT_DATA)
             merged.update(stored)
 
+            # --- Migration: active_run_id (singular) → active_run_ids (list) ---
+            if "active_run_ids" not in stored:
+                old_active = merged.get("active_run_id")
+                merged["active_run_ids"] = [old_active] if old_active else []
+            merged.setdefault("active_run_ids", [])
+            # Keep active_run_id as a convenience alias (first active or None)
+            ids = merged["active_run_ids"]
+            merged["active_run_id"] = ids[0] if ids else None
+
             runs = merged.get("runs", {})
             if isinstance(runs, dict):
                 for run in runs.values():

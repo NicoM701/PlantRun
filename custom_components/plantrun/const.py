@@ -50,7 +50,8 @@ BINDABLE_SENSOR_KEYS = [
 ]
 
 DEFAULT_DATA = {
-    "active_run_id": None,
+    "active_run_id": None,  # legacy single-run field (migrated → active_run_ids)
+    "active_run_ids": [],    # list of currently active run ids
     "last_event": None,
     "runs": {},
     "cultivars": {},

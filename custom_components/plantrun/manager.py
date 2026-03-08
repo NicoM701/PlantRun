@@ -42,6 +42,15 @@ def _parse_iso(value: str | None) -> str:
         ) from exc
 
 
+def _to_utc_datetime(value: str | None) -> datetime:
+    if not value:
+        return datetime.min.replace(tzinfo=UTC)
+    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
+
+
 class PlantRunManager:
     """Owns run lifecycle operations and persistence."""
 
@@ -54,7 +63,7 @@ class PlantRunManager:
 
     def list_runs(self) -> list[dict[str, Any]]:
         runs = list(self.data.get("runs", {}).values())
-        runs.sort(key=lambda x: x.get("started_at", ""), reverse=True)
+        runs.sort(key=lambda x: _to_utc_datetime(x.get("started_at")), reverse=True)
         return runs
 
     def get_run_or_raise(self, run_id: str) -> dict[str, Any]:
@@ -84,10 +93,19 @@ class PlantRunManager:
             raise HomeAssistantError(f"No run found with name '{run_name}'.")
 
         if use_active_run:
-            active_id = self.data.get("active_run_id")
-            if not active_id:
+            active_ids = self.data.get("active_run_ids", [])
+            if not active_ids:
                 raise HomeAssistantError("No active run available.")
-            return self.get_run_or_raise(active_id)
+            if len(active_ids) == 1:
+                return self.get_run_or_raise(active_ids[0])
+            # Multiple active runs – caller must specify which one
+            names = []
+            for rid in active_ids:
+                r = self.data.get("runs", {}).get(rid)
+                names.append(f"  • {r.get('name', '?')} ({r.get('display_id', rid)})" if r else f"  • {rid}")
+            raise HomeAssistantError(
+                f"Multiple runs are active. Specify run_id or run_name:\n" + "\n".join(names)
+            )
 
         raise HomeAssistantError("Provide run_id, run_name, or set use_active_run=true")
 
@@ -187,18 +205,12 @@ class PlantRunManager:
         if phase not in PHASES:
             raise HomeAssistantError(f"Invalid phase: {phase}")
 
-        active_run_id = self.data.get("active_run_id")
-        if active_run_id:
-            active_run = self.data.get("runs", {}).get(active_run_id)
-            active_name = active_run.get("name") if active_run else active_run_id
-            raise HomeAssistantError(
-                f"Run already active ({active_name}). End it before starting a new one."
-            )
-
         started = _parse_iso(started_at)
         run_id, run = self._build_run(run_name, started, phase)
         self.data["runs"][run_id] = run
-        self.data["active_run_id"] = run_id
+        self.data.setdefault("active_run_ids", [])
+        self.data["active_run_ids"].append(run_id)
+        self.data["active_run_id"] = self.data["active_run_ids"][0]
 
         await self._save_and_signal(
             "start_run", run_id, {"run_name": run_name, "phase": phase, "started_at": started}
@@ -220,14 +232,19 @@ class PlantRunManager:
 
         started = _parse_iso(started_at)
         ended = _parse_iso(ended_at) if ended_at else None
+        if ended and _to_utc_datetime(ended) < _to_utc_datetime(started):
+            raise HomeAssistantError("ended_at cannot be earlier than started_at.")
 
         run_id, run = self._build_run(run_name, started, phase)
         run["ended_at"] = ended
 
         self.data["runs"][run_id] = run
+        self.data.setdefault("active_run_ids", [])
 
-        if ended is None and not self.data.get("active_run_id"):
-            self.data["active_run_id"] = run_id
+        if ended is None:
+            self.data["active_run_ids"].append(run_id)
+            if not self.data.get("active_run_id"):
+                self.data["active_run_id"] = run_id
 
         await self._save_and_signal(
             "import_run",
@@ -242,8 +259,11 @@ class PlantRunManager:
             raise HomeAssistantError(f"Run already ended: {run.get('id')}")
 
         run["ended_at"] = self.storage.utc_now_iso()
-        if self.data.get("active_run_id") == run.get("id"):
-            self.data["active_run_id"] = None
+        rid = run.get("id")
+        active_ids = self.data.setdefault("active_run_ids", [])
+        if rid in active_ids:
+            active_ids.remove(rid)
+        self.data["active_run_id"] = active_ids[0] if active_ids else None
 
         await self._save_and_signal("end_run", run["id"], {"run_name": run.get("name")})
 

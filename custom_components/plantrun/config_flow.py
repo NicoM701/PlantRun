@@ -71,11 +71,19 @@ class PlantRunConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             started_help = "Pflichtfeld beim Import: z. B. 2026-02-22T12:00:00+00:00."
 
         schema = vol.Schema(
-            {
-                vol.Required(CONF_INITIAL_RUN_NAME): str,
-                vol.Optional(CONF_INITIAL_STARTED_AT): str,
-                vol.Optional(CONF_INITIAL_PHASE, default="growth"): vol.In(PHASES),
-            }
+            (
+                {
+                    vol.Required(CONF_INITIAL_RUN_NAME): str,
+                    vol.Required(CONF_INITIAL_STARTED_AT): str,
+                    vol.Optional(CONF_INITIAL_PHASE, default="growth"): vol.In(PHASES),
+                }
+                if setup_mode == "import"
+                else {
+                    vol.Required(CONF_INITIAL_RUN_NAME): str,
+                    vol.Optional(CONF_INITIAL_STARTED_AT): str,
+                    vol.Optional(CONF_INITIAL_PHASE, default="growth"): vol.In(PHASES),
+                }
+            )
         )
         return self.async_show_form(
             step_id="initial_run",

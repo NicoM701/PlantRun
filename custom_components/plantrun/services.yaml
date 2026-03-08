@@ -143,8 +143,8 @@ search_cultivar:
         text:
     breeder:
       name: Breeder
-      description: Optional but recommended for SeedFinder lookup precision.
-      required: false
+      description: Required for SeedFinder lookup precision and deterministic matching.
+      required: true
       selector:
         text:
     prefer_automatic:

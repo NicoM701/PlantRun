@@ -3,11 +3,35 @@
 from __future__ import annotations
 
 from homeassistant.components.sensor import SensorEntity
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import DATA_STORAGE, DOMAIN, SIGNAL_DATA_UPDATED
+
+
+def _build_entities(hass: HomeAssistant) -> list[SensorEntity]:
+    return [
+        PlantRunActiveRunSensor(hass),
+        PlantRunActiveRunCountSensor(hass),
+        PlantRunActivePhaseSensor(hass),
+        PlantRunTotalRunsSensor(hass),
+        PlantRunLastEventSensor(hass),
+        PlantRunActiveCultivarNameSensor(hass),
+        PlantRunActiveCultivarBreederSensor(hass),
+        PlantRunActiveCultivarFlowerWindowSensor(hass),
+    ]
+
+
+async def async_setup_entry(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback,
+) -> None:
+    """Set up PlantRun sensors from config entry."""
+    del entry
+    async_add_entities(_build_entities(hass), True)
 
 
 async def async_setup_platform(
@@ -17,18 +41,8 @@ async def async_setup_platform(
     discovery_info: dict | None = None,
 ) -> None:
     """Set up PlantRun sensors from discovery."""
-    async_add_entities(
-        [
-            PlantRunActiveRunSensor(hass),
-            PlantRunActivePhaseSensor(hass),
-            PlantRunTotalRunsSensor(hass),
-            PlantRunLastEventSensor(hass),
-            PlantRunActiveCultivarNameSensor(hass),
-            PlantRunActiveCultivarBreederSensor(hass),
-            PlantRunActiveCultivarFlowerWindowSensor(hass),
-        ],
-        True,
-    )
+    del config, discovery_info
+    async_add_entities(_build_entities(hass), True)
 
 
 class PlantRunBaseSensor(SensorEntity):
@@ -44,10 +58,21 @@ class PlantRunBaseSensor(SensorEntity):
         return self.hass.data[DOMAIN][DATA_STORAGE].data
 
     def active_run(self) -> dict | None:
-        active_run_id = self.storage.get("active_run_id")
-        if not active_run_id:
-            return None
-        return self.storage.get("runs", {}).get(active_run_id)
+        """Return the first active run (legacy compat)."""
+        active_ids = self.storage.get("active_run_ids", [])
+        if not active_ids:
+            # Fallback to legacy field
+            active_run_id = self.storage.get("active_run_id")
+            if not active_run_id:
+                return None
+            return self.storage.get("runs", {}).get(active_run_id)
+        return self.storage.get("runs", {}).get(active_ids[0])
+
+    def active_runs(self) -> list[dict]:
+        """Return all active runs."""
+        active_ids = self.storage.get("active_run_ids", [])
+        runs_store = self.storage.get("runs", {})
+        return [runs_store[rid] for rid in active_ids if rid in runs_store]
 
     async def async_added_to_hass(self) -> None:
         self.async_on_remove(
@@ -64,21 +89,50 @@ class PlantRunActiveRunSensor(PlantRunBaseSensor):
 
     @property
     def native_value(self) -> str | None:
-        run = self.active_run()
-        if not run:
+        runs = self.active_runs()
+        if not runs:
             return None
-        return run.get("name")
+        if len(runs) == 1:
+            return runs[0].get("name")
+        return f"{len(runs)} active runs"
 
     @property
     def extra_state_attributes(self) -> dict:
-        active_run_id = self.storage.get("active_run_id")
-        run = self.active_run()
+        runs = self.active_runs()
+        if not runs:
+            return {"active_count": 0}
+        if len(runs) == 1:
+            r = runs[0]
+            return {
+                "active_count": 1,
+                "run_id": r.get("id"),
+                "display_id": r.get("display_id"),
+                "started_at": r.get("started_at"),
+                "bindings": r.get("bindings"),
+            }
         return {
-            "run_id": active_run_id,
-            "display_id": run.get("display_id") if run else None,
-            "started_at": run.get("started_at") if run else None,
-            "bindings": run.get("bindings") if run else None,
+            "active_count": len(runs),
+            "runs": [
+                {
+                    "run_id": r.get("id"),
+                    "display_id": r.get("display_id"),
+                    "name": r.get("name"),
+                    "phase": r.get("phase"),
+                    "started_at": r.get("started_at"),
+                }
+                for r in runs
+            ],
         }
+
+
+class PlantRunActiveRunCountSensor(PlantRunBaseSensor):
+    _attr_name = "PlantRun Active Run Count"
+    _attr_unique_id = "plantrun_active_run_count"
+    _attr_icon = "mdi:sprout-outline"
+
+    @property
+    def native_value(self) -> int:
+        return len(self.active_runs())
 
 
 class PlantRunActivePhaseSensor(PlantRunBaseSensor):

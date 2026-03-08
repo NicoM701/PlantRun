@@ -15,7 +15,7 @@ PlantRun is a Home Assistant custom integration project for documenting cultivat
 
 ---
 
-## ✨ Features (current, v0.3.2)
+## ✨ Features (current, v0.4.0)
 
 - Run lifecycle tracking (`start`, `phase`, `end`)
 - Setup wizard with optional first-run create/import
@@ -23,7 +23,7 @@ PlantRun is a Home Assistant custom integration project for documenting cultivat
 - Backdated run start support (`started_at`) + run import for ongoing/historical runs
 - Human-friendly run labels (`display_id`) + list service for easier selection
 - Notes and event history per run
-- SeedFinder-based cultivar lookup (with local fallback)
+- SeedFinder-based cultivar lookup (species + breeder, with local fallback)
 - Attach cultivar profiles to runs
 - Mid-run sensor/camera binding updates
 - Live sensors for active run + active cultivar status
@@ -62,7 +62,7 @@ PlantRun is a Home Assistant custom integration project for documenting cultivat
 2. Optional: inspect run list with friendly IDs:
    - `plantrun.list_runs`
 3. (Optional) Lookup cultivar:
-   - `plantrun.search_cultivar` with `species` (+ optional `breeder`, `prefer_automatic`)
+   - `plantrun.search_cultivar` with `species`, `breeder` (+ optional `prefer_automatic`)
 4. Attach cultivar to run:
    - `plantrun.attach_cultivar_to_run` with `cultivar_id` + (`run_id` or `run_name`)
 5. Bind sensors/camera (any time during run):
@@ -97,6 +97,7 @@ See `custom_components/plantrun/services.yaml` for fields.
 ## 📊 Exposed sensors
 
 - `sensor.plantrun_active_run`
+- `sensor.plantrun_active_run_count`
 - `sensor.plantrun_active_phase`
 - `sensor.plantrun_active_cultivar_name`
 - `sensor.plantrun_active_cultivar_breeder`
@@ -129,7 +130,6 @@ hacs.json
 
 ## ⚠️ Current limitations
 
-- Currently only one run can be active at a time.
 - Date/time inputs still use ISO text format in setup/import fields.
 - Sensor binding wizard currently uses plain text entity IDs (entity picker UX planned).
 
