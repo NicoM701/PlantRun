@@ -30,8 +30,26 @@ class PlantRunStorage:
             data.setdefault("active_run_id", None)
 
         self._data = data
-        self.runs = [RunData.from_dict(r) for r in data.get("runs", [])]
+        raw_runs = data.get("runs", [])
+        self.runs = [RunData.from_dict(r) for r in raw_runs]
+        # Persist upgraded binding IDs from legacy records.
+        if self._bindings_need_migration(raw_runs):
+            await self.async_save()
         _LOGGER.debug("Loaded %s runs from storage", len(self.runs))
+
+    @staticmethod
+    def _bindings_need_migration(raw_runs: list[dict[str, Any]]) -> bool:
+        """Return true when one or more bindings are in legacy shape."""
+        for run in raw_runs:
+            ids: set[str] = set()
+            for binding in run.get("bindings", []):
+                binding_id = binding.get("id")
+                if not isinstance(binding_id, str) or not binding_id.strip():
+                    return True
+                if binding_id in ids:
+                    return True
+                ids.add(binding_id)
+        return False
 
     async def async_save(self) -> None:
         """Save data to the store."""
