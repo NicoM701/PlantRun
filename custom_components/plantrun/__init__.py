@@ -10,6 +10,7 @@ from typing import Any
 import voluptuous as vol
 
 from homeassistant.components import frontend, websocket_api
+from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import ServiceValidationError
@@ -96,12 +97,24 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up PlantRun from a config entry."""
     hass.data.setdefault(DOMAIN, {})
 
-    # Register frontend static path
-    hass.http.register_static_path(
-        "/plantrun_frontend",
-        hass.config.path("custom_components/plantrun/www"),
-        cache_headers=False,
-    )
+    # Register frontend static path (HA API changed from sync to async registration).
+    if hasattr(hass.http, "async_register_static_paths"):
+        await hass.http.async_register_static_paths(
+            [
+                StaticPathConfig(
+                    "/plantrun_frontend",
+                    hass.config.path("custom_components/plantrun/www"),
+                    cache_headers=False,
+                )
+            ]
+        )
+    else:
+        # Backward-compat for older HA cores.
+        hass.http.register_static_path(
+            "/plantrun_frontend",
+            hass.config.path("custom_components/plantrun/www"),
+            cache_headers=False,
+        )
 
     storage = PlantRunStorage(hass)
     await storage.async_load()
