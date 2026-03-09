@@ -91,6 +91,9 @@ async def async_search_cultivar(breeder: str, strain: str) -> list[CultivarSnaps
             for _, cells, anchor in scored_rows[:5]:
                 match_name = anchor.get_text(strip=True)
                 match_breeder = cells[1].get_text(strip=True) if len(cells) > 1 else breeder
+                detail_url = anchor.get("href")
+                if detail_url and detail_url.startswith("/"):
+                    detail_url = f"https://seedfinder.eu{detail_url}"
                 
                 # We could fetch detail page here to get flower_time, but for the wizard 
                 # a snapshot with just name/breeder is enough for now to avoid 5 slow requests.
@@ -98,7 +101,8 @@ async def async_search_cultivar(breeder: str, strain: str) -> list[CultivarSnaps
                     CultivarSnapshot(
                         name=match_name,
                         breeder=match_breeder,
-                        flower_window_days=None
+                        flower_window_days=None,
+                        detail_url=detail_url,
                     )
                 )
 
@@ -106,3 +110,38 @@ async def async_search_cultivar(breeder: str, strain: str) -> list[CultivarSnaps
         _LOGGER.error("Error searching SeedFinder: %s", err)
         
     return results
+
+
+async def async_fetch_cultivar_image_url(detail_url: str) -> str | None:
+    """Fetch a cultivar image URL from a SeedFinder detail page when available."""
+    if not detail_url:
+        return None
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(detail_url, timeout=20) as response:
+                if response.status != 200:
+                    return None
+                html = await response.text()
+    except Exception as err:
+        _LOGGER.debug("Cultivar image fetch failed for %s: %s", detail_url, err)
+        return None
+
+    soup = BeautifulSoup(html, "html.parser")
+
+    og_image = soup.find("meta", attrs={"property": "og:image"})
+    if og_image and og_image.get("content"):
+        return og_image["content"]
+
+    tw_image = soup.find("meta", attrs={"name": "twitter:image"})
+    if tw_image and tw_image.get("content"):
+        return tw_image["content"]
+
+    image = soup.select_one("img[src*='seedfinder'], img[src*='strain']")
+    if image and image.get("src"):
+        src = image["src"]
+        if src.startswith("http"):
+            return src
+        return f"https://seedfinder.eu{src}" if src.startswith("/") else None
+
+    return None
