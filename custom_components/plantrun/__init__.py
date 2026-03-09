@@ -1,9 +1,11 @@
 """The PlantRun integration."""
 import base64
 import binascii
+import json
 import logging
 import re
-from datetime import datetime
+from datetime import datetime, timezone
+from functools import partial
 from pathlib import Path
 from typing import Any
 
@@ -14,6 +16,7 @@ from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import ServiceValidationError
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .const import (
     ACTIVE_RUN_STRATEGIES,
@@ -41,8 +44,17 @@ _LOGGER = logging.getLogger(__name__)
 PANEL_URL_PATH = "plantrun-dashboard"
 PANEL_TITLE = "PlantRun"
 PANEL_ICON = "mdi:sprout"
-PANEL_JS_URL = "/plantrun_frontend/plantrun-panel.js"
+_MANIFEST_VERSION = json.loads((Path(__file__).parent / "manifest.json").read_text(encoding="utf-8"))[
+    "version"
+]
+PANEL_MODULE_URL = f"/plantrun_frontend/plantrun-panel.js?v={_MANIFEST_VERSION}"
 UPLOADS_SUBDIR = "plantrun_uploads"
+
+
+def _write_uploaded_image(output_dir: Path, output_name: str, raw: bytes) -> None:
+    """Persist uploaded image data outside the event loop."""
+    output_dir.mkdir(parents=True, exist_ok=True)
+    (output_dir / output_name).write_bytes(raw)
 
 
 def _storage_for_hass(hass: HomeAssistant) -> PlantRunStorage | None:
@@ -130,7 +142,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     "name": "plantrun-dashboard-panel",
                     "embed_iframe": False,
                     "trust_external": False,
-                    "js_url": PANEL_JS_URL,
+                    "module_url": PANEL_MODULE_URL,
                 }
             },
             require_admin=False,
@@ -186,7 +198,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     async def handle_create_run(call: ServiceCall) -> None:
         """Handle the create_run service."""
         friendly_name = call.data.get("friendly_name", "Unnamed Run")
-        start_time = call.data.get("start_time", datetime.utcnow().isoformat())
+        start_time = call.data.get("start_time", datetime.now(timezone.utc).isoformat())
         planted_date = call.data.get("planted_date")
 
         new_run = RunData(
@@ -203,7 +215,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         """Handle the add_phase service."""
         run = resolve_target_run(call)
         phase_name = call.data["phase_name"]
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
 
         if run.phases:
             run.phases[-1].end_time = now
@@ -229,7 +241,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         """Handle the add_note service."""
         run = resolve_target_run(call)
         text = call.data["text"]
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
         run.notes.append(Note(text=text, timestamp=now))
         await storage.async_update_run(run)
         await refresh_after_update()
@@ -246,7 +258,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             raise ServiceValidationError(f"Note '{note_id}' not found on run '{run.id}'.")
 
         note.text = new_text
-        note.timestamp = datetime.utcnow().isoformat()
+        note.timestamp = datetime.now(timezone.utc).isoformat()
         await storage.async_update_run(run)
         await refresh_after_update()
         _LOGGER.info("Updated note %s on run %s", note_id, run.id)
@@ -268,7 +280,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     async def handle_end_run(call: ServiceCall) -> None:
         """Handle the end_run service."""
         run = resolve_target_run(call)
-        end_time = call.data.get("end_time", datetime.utcnow().isoformat())
+        end_time = call.data.get("end_time", datetime.now(timezone.utc).isoformat())
 
         run.end_time = end_time
         run.status = "ended"
@@ -294,7 +306,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
         if breeder:
             lookup_strain = strain or cultivar_name
-            results = await async_search_cultivar(breeder, lookup_strain)
+            session = async_get_clientsession(hass)
+            results = await async_search_cultivar(breeder, lookup_strain, session=session)
             if not results:
                 raise ServiceValidationError(
                     "Cultivar lookup failed: no SeedFinder result for "
@@ -302,7 +315,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 )
             selected = results[0]
             if selected.detail_url and not selected.image_url:
-                selected.image_url = await async_fetch_cultivar_image_url(selected.detail_url)
+                selected.image_url = await async_fetch_cultivar_image_url(
+                    selected.detail_url,
+                    session=session,
+                )
             run.cultivar = selected
             if selected.image_url and not run.image_url:
                 run.image_url = selected.image_url
@@ -408,13 +424,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 suffix = ".jpg"
 
             sanitized = re.sub(r"[^a-zA-Z0-9_-]+", "_", run.id)
-            ts = datetime.utcnow().strftime("%Y%m%d%H%M%S")
+            ts = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
             output_name = f"{sanitized}_{ts}{suffix}"
 
             output_dir = Path(hass.config.path("www", UPLOADS_SUBDIR))
-            output_dir.mkdir(parents=True, exist_ok=True)
-            output_path = output_dir / output_name
-            output_path.write_bytes(raw)
+            await hass.async_add_executor_job(
+                partial(_write_uploaded_image, output_dir, output_name, raw)
+            )
 
             run.image_url = f"/local/{UPLOADS_SUBDIR}/{output_name}"
             run.image_source = "uploaded"

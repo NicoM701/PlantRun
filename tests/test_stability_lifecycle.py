@@ -1,6 +1,10 @@
 import asyncio
+import base64
 import importlib.util
+import json
+import shutil
 import sys
+import tempfile
 import types
 import unittest
 from pathlib import Path
@@ -156,6 +160,7 @@ def _install_homeassistant_stubs() -> None:
     data_flow.FlowResult = dict
     sys.modules["homeassistant.data_entry_flow"] = data_flow
 
+    helpers_mod = types.ModuleType("homeassistant.helpers")
     selector_mod = types.ModuleType("homeassistant.helpers.selector")
 
     class DateSelector:
@@ -172,7 +177,17 @@ def _install_homeassistant_stubs() -> None:
     selector_mod.DateSelector = DateSelector
     selector_mod.EntitySelectorConfig = EntitySelectorConfig
     selector_mod.EntitySelector = EntitySelector
+    sys.modules["homeassistant.helpers"] = helpers_mod
     sys.modules["homeassistant.helpers.selector"] = selector_mod
+
+    aiohttp_client = types.ModuleType("homeassistant.helpers.aiohttp_client")
+    aiohttp_client._session = object()
+
+    def async_get_clientsession(_hass):
+        return aiohttp_client._session
+
+    aiohttp_client.async_get_clientsession = async_get_clientsession
+    sys.modules["homeassistant.helpers.aiohttp_client"] = aiohttp_client
 
     exceptions_mod = types.ModuleType("homeassistant.exceptions")
 
@@ -184,11 +199,35 @@ def _install_homeassistant_stubs() -> None:
 
 
 class FakeStorage:
+    instances = []
+
     def __init__(self, _hass=None):
         self.runs = []
         self.active_run_id = None
+        self.saved_runs = []
+        FakeStorage.instances.append(self)
 
     async def async_load(self):
+        return None
+
+    async def async_add_run(self, run):
+        self.runs.append(run)
+
+    async def async_set_active_run_id(self, run_id):
+        self.active_run_id = run_id
+
+    async def async_update_run(self, run):
+        self.saved_runs.append(run.id)
+        for index, existing in enumerate(self.runs):
+            if existing.id == run.id:
+                self.runs[index] = run
+                return
+        self.runs.append(run)
+
+    def get_run(self, run_id):
+        for run in self.runs:
+            if run.id == run_id:
+                return run
         return None
 
 
@@ -202,6 +241,52 @@ class FakeCoordinator:
 
     async def async_request_refresh(self):
         return None
+
+
+class FakeServices:
+    def __init__(self):
+        self._services = {}
+        self.calls = []
+
+    def has_service(self, domain, name):
+        return (domain, name) in self._services
+
+    def async_remove(self, domain, name):
+        self._services.pop((domain, name), None)
+
+    def async_register(self, domain, name, handler, schema=None):
+        self._services[(domain, name)] = handler
+
+    async def async_call(self, domain, name, data=None, blocking=False):
+        self.calls.append((domain, name, data or {}, blocking))
+        return None
+
+    def get_handler(self, domain, name):
+        return self._services[(domain, name)]
+
+
+class FakeConfigEntries:
+    async def async_forward_entry_setups(self, _entry, _platforms):
+        return True
+
+    async def async_unload_platforms(self, _entry, _platforms):
+        return True
+
+
+class FakeHTTP:
+    def __init__(self):
+        self.calls = 0
+
+    async def async_register_static_paths(self, _paths):
+        self.calls += 1
+
+
+class FakeConfig:
+    def __init__(self, root: Path):
+        self._root = root
+
+    def path(self, *parts):
+        return str(self._root.joinpath(*parts))
 
 
 class StabilityLifecycleTests(unittest.TestCase):
@@ -218,21 +303,35 @@ class StabilityLifecycleTests(unittest.TestCase):
         sys.modules["custom_components.plantrun"] = plantrun_pkg
 
         _load_module("custom_components.plantrun.const", PLANTRUN_DIR / "const.py")
-        _load_module("custom_components.plantrun.models", PLANTRUN_DIR / "models.py")
+        models = _load_module("custom_components.plantrun.models", PLANTRUN_DIR / "models.py")
         _load_module("custom_components.plantrun.run_resolution", PLANTRUN_DIR / "run_resolution.py")
         _load_module("custom_components.plantrun.retention", PLANTRUN_DIR / "retention.py")
         _load_module("custom_components.plantrun.summary", PLANTRUN_DIR / "summary.py")
-        providers_mod = types.ModuleType("custom_components.plantrun.providers_seedfinder")
 
-        async def async_search_cultivar(_breeder, _strain):
+        providers_mod = types.ModuleType("custom_components.plantrun.providers_seedfinder")
+        providers_mod.calls = []
+
+        async def async_search_cultivar(_breeder, _strain, session=None):
+            providers_mod.calls.append(("search", session))
+            if _breeder == "Barney's Farm":
+                return [
+                    models.CultivarSnapshot(
+                        name="Runtz Layer Cake",
+                        breeder=_breeder,
+                        detail_url="https://example.invalid/detail",
+                    )
+                ]
             return []
 
-        async def async_fetch_cultivar_image_url(_detail_url):
-            return None
+        async def async_fetch_cultivar_image_url(_detail_url, session=None):
+            providers_mod.calls.append(("image", session))
+            return "https://example.invalid/image.jpg"
 
         providers_mod.async_search_cultivar = async_search_cultivar
         providers_mod.async_fetch_cultivar_image_url = async_fetch_cultivar_image_url
         sys.modules["custom_components.plantrun.providers_seedfinder"] = providers_mod
+        cls.providers = providers_mod
+        cls.models = models
 
         coordinator_mod = types.ModuleType("custom_components.plantrun.coordinator")
         coordinator_mod.PlantRunCoordinator = FakeCoordinator
@@ -245,6 +344,33 @@ class StabilityLifecycleTests(unittest.TestCase):
         cls.config_flow = _load_module("custom_components.plantrun.config_flow", PLANTRUN_DIR / "config_flow.py")
         cls.integration = _load_module("custom_components.plantrun.__init__", PLANTRUN_DIR / "__init__.py")
 
+    def setUp(self):
+        self.providers.calls.clear()
+        FakeStorage.instances.clear()
+        self.tmpdir = Path(tempfile.mkdtemp(prefix="plantrun-test-"))
+
+    def tearDown(self):
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def _build_hass(self):
+        services = FakeServices()
+        executor_calls = []
+
+        async def async_add_executor_job(func):
+            executor_calls.append(func)
+            return func()
+
+        hass = types.SimpleNamespace(
+            data={},
+            http=FakeHTTP(),
+            config=FakeConfig(self.tmpdir),
+            services=services,
+            config_entries=FakeConfigEntries(),
+            async_add_executor_job=async_add_executor_job,
+        )
+        hass._executor_calls = executor_calls
+        return hass
+
     def test_options_flow_aborts_cleanly_when_storage_not_ready(self):
         ConfigEntry = sys.modules["homeassistant.config_entries"].ConfigEntry
         entry = ConfigEntry("entry-missing")
@@ -255,61 +381,141 @@ class StabilityLifecycleTests(unittest.TestCase):
         self.assertEqual(result["type"], "abort")
         self.assertEqual(result["reason"], "integration_not_ready")
 
-    def test_setup_entry_sets_runtime_data_and_registers_static_once(self):
-        class FakeHTTP:
-            def __init__(self):
-                self.calls = 0
-
-            async def async_register_static_paths(self, _paths):
-                self.calls += 1
-
-        class FakeConfig:
-            @staticmethod
-            def path(value):
-                return f"/tmp/{value}"
-
-        class FakeServices:
-            def __init__(self):
-                self._services = set()
-
-            def has_service(self, domain, name):
-                return (domain, name) in self._services
-
-            def async_remove(self, domain, name):
-                self._services.discard((domain, name))
-
-            def async_register(self, domain, name, _handler, schema=None):
-                self._services.add((domain, name))
-
-        class FakeConfigEntries:
-            async def async_forward_entry_setups(self, _entry, _platforms):
-                return True
-
-            async def async_unload_platforms(self, _entry, _platforms):
-                return True
-
-        hass = types.SimpleNamespace(
-            data={},
-            http=FakeHTTP(),
-            config=FakeConfig(),
-            services=FakeServices(),
-            config_entries=FakeConfigEntries(),
-        )
+    def test_setup_entry_sets_runtime_data_and_registers_module_panel_once(self):
+        frontend = sys.modules["homeassistant.components.frontend"]
+        frontend._registered.clear()
+        hass = self._build_hass()
         entry = sys.modules["homeassistant.config_entries"].ConfigEntry("entry-1")
 
         asyncio.run(self.integration.async_setup_entry(hass, entry))
         asyncio.run(self.integration.async_setup_entry(hass, entry))
 
         self.assertEqual(hass.http.calls, 1)
+        self.assertEqual(len(frontend._registered), 1)
+        _, panel_kwargs = frontend._registered[0]
+        self.assertEqual(
+            panel_kwargs["config"]["_panel_custom"]["module_url"],
+            self.integration.PANEL_MODULE_URL,
+        )
         self.assertIn("storage", entry.runtime_data)
         self.assertIn("coordinator", entry.runtime_data)
 
-    def test_panel_script_is_classic_script_compatible(self):
+    def test_panel_script_is_loaded_as_a_versioned_module(self):
         panel_script = (PLANTRUN_DIR / "www" / "plantrun-panel.js").read_text(encoding="utf-8")
+        manifest_version = json.loads((PLANTRUN_DIR / "manifest.json").read_text(encoding="utf-8"))[
+            "version"
+        ]
 
         self.assertNotIn('import {', panel_script)
         self.assertIn('customElements.get("ha-panel-lovelace")', panel_script)
-        self.assertIn('"js_url": PANEL_JS_URL', (PLANTRUN_DIR / "__init__.py").read_text(encoding="utf-8"))
+        self.assertEqual(
+            self.integration.PANEL_MODULE_URL,
+            f"/plantrun_frontend/plantrun-panel.js?v={manifest_version}",
+        )
+
+    def test_options_flow_uses_shared_session_for_seedfinder_lookup(self):
+        ConfigEntry = sys.modules["homeassistant.config_entries"].ConfigEntry
+        entry = ConfigEntry("entry-seedfinder")
+        storage = FakeStorage()
+        entry.runtime_data = {"storage": storage}
+        flow = self.config_flow.PlantRunOptionsFlowHandler(entry)
+        flow.hass = self._build_hass()
+
+        result = asyncio.run(
+            flow.async_step_create_run_start(
+                {
+                    "friendly_name": "Tent A",
+                    "planted_date": "2026-03-10",
+                    "cultivar_breeder": "Barney's Farm",
+                    "cultivar_strain": "Runtz Layer Cake",
+                }
+            )
+        )
+
+        self.assertEqual(result["step_id"], "create_run_details")
+        self.assertEqual(self.providers.calls[0][0], "search")
+        self.assertIs(
+            self.providers.calls[0][1],
+            sys.modules["homeassistant.helpers.aiohttp_client"]._session,
+        )
+
+    def test_options_flow_service_calls_wait_for_completion(self):
+        ConfigEntry = sys.modules["homeassistant.config_entries"].ConfigEntry
+        entry = ConfigEntry("entry-options")
+        storage = FakeStorage()
+        entry.runtime_data = {"storage": storage}
+        flow = self.config_flow.PlantRunOptionsFlowHandler(entry)
+        flow.hass = self._build_hass()
+        flow._create_friendly_name = "Tent B"
+        flow._create_planted_date = "2026-03-10"
+        flow._create_seedfinder_results = []
+
+        result = asyncio.run(
+            flow.async_step_create_run_details(
+                {
+                    "cultivar_result": "None",
+                    "temperature_sensor": "sensor.tent_temp",
+                }
+            )
+        )
+
+        self.assertEqual(result["type"], "create_entry")
+        self.assertEqual(len(flow.hass.services.calls), 1)
+        domain, name, data, blocking = flow.hass.services.calls[0]
+        self.assertEqual((domain, name), (self.config_flow.DOMAIN, "add_binding"))
+        self.assertEqual(data["sensor_id"], "sensor.tent_temp")
+        self.assertTrue(blocking)
+
+    def test_set_cultivar_service_uses_shared_session(self):
+        hass = self._build_hass()
+        entry = sys.modules["homeassistant.config_entries"].ConfigEntry("entry-service")
+        asyncio.run(self.integration.async_setup_entry(hass, entry))
+
+        storage = FakeStorage.instances[-1]
+        run = self.models.RunData(id="run-1", friendly_name="Tent C", start_time="2026-03-10T00:00:00")
+        storage.runs.append(run)
+        storage.active_run_id = run.id
+
+        handler = hass.services.get_handler(self.integration.DOMAIN, "set_cultivar")
+        call = sys.modules["homeassistant.core"].ServiceCall(
+            {
+                "run_id": run.id,
+                "cultivar_name": "Runtz Layer Cake",
+                "breeder": "Barney's Farm",
+            }
+        )
+
+        asyncio.run(handler(call))
+
+        self.assertEqual([name for name, _session in self.providers.calls], ["search", "image"])
+        for _name, session in self.providers.calls:
+            self.assertIs(session, sys.modules["homeassistant.helpers.aiohttp_client"]._session)
+        self.assertEqual(run.image_source, "seedfinder")
+
+    def test_set_run_image_uses_executor_for_filesystem_writes(self):
+        hass = self._build_hass()
+        entry = sys.modules["homeassistant.config_entries"].ConfigEntry("entry-image")
+        asyncio.run(self.integration.async_setup_entry(hass, entry))
+
+        storage = FakeStorage.instances[-1]
+        run = self.models.RunData(id="run-image", friendly_name="Tent D", start_time="2026-03-10T00:00:00")
+        storage.runs.append(run)
+        storage.active_run_id = run.id
+
+        handler = hass.services.get_handler(self.integration.DOMAIN, "set_run_image")
+        call = sys.modules["homeassistant.core"].ServiceCall(
+            {
+                "run_id": run.id,
+                "image_data": base64.b64encode(b"image-bytes").decode("ascii"),
+                "file_name": "photo.png",
+            }
+        )
+
+        asyncio.run(handler(call))
+
+        self.assertEqual(len(hass._executor_calls), 1)
+        self.assertEqual(run.image_source, "uploaded")
+        self.assertTrue((self.tmpdir / "www" / self.integration.UPLOADS_SUBDIR).exists())
 
 
 if __name__ == "__main__":
