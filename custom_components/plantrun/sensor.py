@@ -43,6 +43,7 @@ async def async_setup_entry(
                 known_binding_ids.add(key)
                 entities.append(
                     PlantRunProxySensor(
+                        coordinator=coordinator,
                         run_id=run.id,
                         run_name=run.friendly_name,
                         binding=binding,
@@ -162,13 +163,21 @@ class PlantRunCultivarSensor(PlantRunBaseRunSensor):
         return run.cultivar.name
 
 
-class PlantRunProxySensor(SensorEntity):
+class PlantRunProxySensor(CoordinatorEntity[PlantRunCoordinator], SensorEntity):
     """Sensor that mirrors an existing HA entity but attaches to the PlantRun device."""
+
     _attr_has_entity_name = True
     _attr_should_poll = False
 
-    def __init__(self, run_id: str, run_name: str, binding: Binding) -> None:
+    def __init__(
+        self,
+        coordinator: PlantRunCoordinator,
+        run_id: str,
+        run_name: str,
+        binding: Binding,
+    ) -> None:
         """Initialize the proxy sensor."""
+        super().__init__(coordinator)
         self.run_id = run_id
         self.run_name = run_name
         self.metric_type = binding.metric_type
@@ -184,6 +193,23 @@ class PlantRunProxySensor(SensorEntity):
             "name": self.run_name,
             "manufacturer": "PlantRun",
         }
+
+    def _binding_still_exists(self) -> bool:
+        """Return True while this binding still exists on the run."""
+        for run in self.coordinator.data:
+            if run.id != self.run_id:
+                continue
+            return any(binding.id == self.binding_id for binding in run.bindings)
+        return False
+
+    @property
+    def available(self) -> bool:
+        """Mark proxy unavailable when binding was removed at runtime."""
+        return self._binding_still_exists()
+
+    def _handle_coordinator_update(self) -> None:
+        """Update availability as runtime bindings are added/removed."""
+        self.async_write_ha_state()
 
     async def async_added_to_hass(self) -> None:
         """Handle entity which will be added."""
