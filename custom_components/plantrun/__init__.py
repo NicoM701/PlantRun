@@ -25,6 +25,7 @@ from .const import (
     ATTR_RUN_ID,
     ATTR_RUN_NAME,
     ATTR_SPECIES,
+    ATTR_STRICT_ACTIVE_RESOLUTION,
     ATTR_STARTED_AT,
     ATTR_USE_ACTIVE_RUN,
     DATA_MANAGER,
@@ -86,6 +87,7 @@ RUN_SELECTOR_FIELDS = {
     vol.Optional(ATTR_RUN_ID): _non_empty_text,
     vol.Optional(ATTR_RUN_NAME): _non_empty_text,
     vol.Optional(ATTR_USE_ACTIVE_RUN, default=True): bool,
+    vol.Optional(ATTR_STRICT_ACTIVE_RESOLUTION, default=False): bool,
 }
 
 START_RUN_SCHEMA = vol.Schema(
@@ -132,7 +134,7 @@ ADD_NOTE_SCHEMA = vol.All(
 SEARCH_CULTIVAR_SCHEMA = vol.Schema(
     {
         vol.Required(ATTR_SPECIES): _non_empty_text,
-        vol.Required(ATTR_BREEDER): _non_empty_text,
+        vol.Optional(ATTR_BREEDER): _non_empty_text,
         vol.Optional(ATTR_PREFER_AUTOMATIC, default=False): bool,
     },
     extra=vol.PREVENT_EXTRA,
@@ -227,6 +229,7 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
                 run_id=call.data.get(ATTR_RUN_ID),
                 run_name=call.data.get(ATTR_RUN_NAME),
                 use_active_run=bool(call.data.get(ATTR_USE_ACTIVE_RUN, True)),
+                strict_active_resolution=bool(call.data.get(ATTR_STRICT_ACTIVE_RESOLUTION, False)),
             )
         )
 
@@ -237,6 +240,7 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
                 run_id=call.data.get(ATTR_RUN_ID),
                 run_name=call.data.get(ATTR_RUN_NAME),
                 use_active_run=bool(call.data.get(ATTR_USE_ACTIVE_RUN, True)),
+                strict_active_resolution=bool(call.data.get(ATTR_STRICT_ACTIVE_RESOLUTION, False)),
             )
         )
 
@@ -247,6 +251,7 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
                 run_id=call.data.get(ATTR_RUN_ID),
                 run_name=call.data.get(ATTR_RUN_NAME),
                 use_active_run=bool(call.data.get(ATTR_USE_ACTIVE_RUN, True)),
+                strict_active_resolution=bool(call.data.get(ATTR_STRICT_ACTIVE_RESOLUTION, False)),
             )
         )
 
@@ -255,8 +260,22 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
 
     async def _handle_search_cultivar(call: ServiceCall) -> dict:
         species = call.data[ATTR_SPECIES]
-        breeder = call.data[ATTR_BREEDER]
+        breeder = str(call.data.get(ATTR_BREEDER, "")).strip()
         prefer_automatic = bool(call.data.get(ATTR_PREFER_AUTOMATIC, False))
+
+        if not breeder:
+            local_matches = manager.search_local_cultivars(species, None)
+            if local_matches:
+                return {
+                    "result": local_matches[0],
+                    "source": "local_cache",
+                    "matches": local_matches,
+                    "message": "No breeder provided; returned best local cache match.",
+                }
+            raise HomeAssistantError(
+                f"No cultivar found in local cache for species '{species}' without breeder."
+                " Provide breeder for SeedFinder lookup."
+            )
 
         try:
             session = async_get_clientsession(hass)
@@ -289,6 +308,7 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
                 run_id=call.data.get(ATTR_RUN_ID),
                 run_name=call.data.get(ATTR_RUN_NAME),
                 use_active_run=bool(call.data.get(ATTR_USE_ACTIVE_RUN, True)),
+                strict_active_resolution=bool(call.data.get(ATTR_STRICT_ACTIVE_RESOLUTION, False)),
             )
         )
 
@@ -316,6 +336,7 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
                 run_id=call.data.get(ATTR_RUN_ID),
                 run_name=call.data.get(ATTR_RUN_NAME),
                 use_active_run=bool(call.data.get(ATTR_USE_ACTIVE_RUN, True)),
+                strict_active_resolution=bool(call.data.get(ATTR_STRICT_ACTIVE_RESOLUTION, False)),
             )
         )
 
@@ -326,6 +347,7 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
                 run_id=call.data.get(ATTR_RUN_ID),
                 run_name=call.data.get(ATTR_RUN_NAME),
                 use_active_run=bool(call.data.get(ATTR_USE_ACTIVE_RUN, True)),
+                strict_active_resolution=bool(call.data.get(ATTR_STRICT_ACTIVE_RESOLUTION, False)),
             )
         )
 

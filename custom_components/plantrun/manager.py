@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import re
 import uuid
 from collections.abc import Mapping
@@ -14,6 +15,8 @@ from homeassistant.helpers.dispatcher import async_dispatcher_send
 
 from .const import BINDABLE_SENSOR_KEYS, PHASES, PHASE_GROWTH, SIGNAL_DATA_UPDATED
 from .storage import PlantRunStorage
+
+_LOGGER = logging.getLogger(__name__)
 
 
 def _default_bindings() -> dict[str, str | None]:
@@ -77,6 +80,7 @@ class PlantRunManager:
         run_id: str | None = None,
         run_name: str | None = None,
         use_active_run: bool = False,
+        strict_active_resolution: bool = False,
     ) -> dict[str, Any]:
         if run_id:
             return self.get_run_or_raise(run_id)
@@ -98,14 +102,30 @@ class PlantRunManager:
                 raise HomeAssistantError("No active run available.")
             if len(active_ids) == 1:
                 return self.get_run_or_raise(active_ids[0])
-            # Multiple active runs – caller must specify which one
-            names = []
-            for rid in active_ids:
-                r = self.data.get("runs", {}).get(rid)
-                names.append(f"  • {r.get('name', '?')} ({r.get('display_id', rid)})" if r else f"  • {rid}")
-            raise HomeAssistantError(
-                f"Multiple runs are active. Specify run_id or run_name:\n" + "\n".join(names)
+            if strict_active_resolution:
+                # Multiple active runs – caller must specify which one
+                names = []
+                for rid in active_ids:
+                    r = self.data.get("runs", {}).get(rid)
+                    names.append(f"  • {r.get('name', '?')} ({r.get('display_id', rid)})" if r else f"  • {rid}")
+                raise HomeAssistantError(
+                    f"Multiple runs are active. Specify run_id or run_name:\n" + "\n".join(names)
+                )
+
+            active_run_id = self.data.get("active_run_id")
+            if active_run_id and active_run_id in active_ids:
+                _LOGGER.warning(
+                    "Multiple active runs; using active_run_id '%s' as compatibility fallback.",
+                    active_run_id,
+                )
+                return self.get_run_or_raise(active_run_id)
+
+            fallback_id = active_ids[0]
+            _LOGGER.warning(
+                "Multiple active runs; using first active run '%s' as deterministic compatibility fallback.",
+                fallback_id,
             )
+            return self.get_run_or_raise(fallback_id)
 
         raise HomeAssistantError("Provide run_id, run_name, or set use_active_run=true")
 
@@ -253,8 +273,19 @@ class PlantRunManager:
         )
         return run_id
 
-    async def end_run(self, run_id: str | None = None, run_name: str | None = None, use_active_run: bool = True) -> None:
-        run = self.resolve_run_or_raise(run_id=run_id, run_name=run_name, use_active_run=use_active_run)
+    async def end_run(
+        self,
+        run_id: str | None = None,
+        run_name: str | None = None,
+        use_active_run: bool = True,
+        strict_active_resolution: bool = False,
+    ) -> None:
+        run = self.resolve_run_or_raise(
+            run_id=run_id,
+            run_name=run_name,
+            use_active_run=use_active_run,
+            strict_active_resolution=strict_active_resolution,
+        )
         if run.get("ended_at"):
             raise HomeAssistantError(f"Run already ended: {run.get('id')}")
 
@@ -273,11 +304,17 @@ class PlantRunManager:
         run_id: str | None = None,
         run_name: str | None = None,
         use_active_run: bool = True,
+        strict_active_resolution: bool = False,
     ) -> None:
         if phase not in PHASES:
             raise HomeAssistantError(f"Invalid phase: {phase}")
 
-        run = self.resolve_run_or_raise(run_id=run_id, run_name=run_name, use_active_run=use_active_run)
+        run = self.resolve_run_or_raise(
+            run_id=run_id,
+            run_name=run_name,
+            use_active_run=use_active_run,
+            strict_active_resolution=strict_active_resolution,
+        )
         run["phase"] = phase
         run.setdefault("phase_history", []).append(
             {"phase": phase, "at": self.storage.utc_now_iso()}
@@ -291,12 +328,18 @@ class PlantRunManager:
         run_id: str | None = None,
         run_name: str | None = None,
         use_active_run: bool = True,
+        strict_active_resolution: bool = False,
     ) -> None:
         note = note.strip()
         if not note:
             raise HomeAssistantError("note cannot be empty")
 
-        run = self.resolve_run_or_raise(run_id=run_id, run_name=run_name, use_active_run=use_active_run)
+        run = self.resolve_run_or_raise(
+            run_id=run_id,
+            run_name=run_name,
+            use_active_run=use_active_run,
+            strict_active_resolution=strict_active_resolution,
+        )
         run.setdefault("notes", []).append({"at": self.storage.utc_now_iso(), "text": note})
 
         await self._save_and_signal("add_note", run["id"], {"note": note})
@@ -323,8 +366,14 @@ class PlantRunManager:
         run_id: str | None = None,
         run_name: str | None = None,
         use_active_run: bool = True,
+        strict_active_resolution: bool = False,
     ) -> None:
-        run = self.resolve_run_or_raise(run_id=run_id, run_name=run_name, use_active_run=use_active_run)
+        run = self.resolve_run_or_raise(
+            run_id=run_id,
+            run_name=run_name,
+            use_active_run=use_active_run,
+            strict_active_resolution=strict_active_resolution,
+        )
         cultivar = self.get_cultivar_or_raise(cultivar_id)
         run["cultivar_id"] = cultivar_id
         run["cultivar_snapshot"] = deepcopy(cultivar)
@@ -346,6 +395,7 @@ class PlantRunManager:
         run_id: str | None = None,
         run_name: str | None = None,
         use_active_run: bool = True,
+        strict_active_resolution: bool = False,
     ) -> None:
         if binding_key not in BINDABLE_SENSOR_KEYS:
             raise HomeAssistantError(
@@ -354,7 +404,12 @@ class PlantRunManager:
         if not entity_id.strip():
             raise HomeAssistantError("entity_id cannot be empty")
 
-        run = self.resolve_run_or_raise(run_id=run_id, run_name=run_name, use_active_run=use_active_run)
+        run = self.resolve_run_or_raise(
+            run_id=run_id,
+            run_name=run_name,
+            use_active_run=use_active_run,
+            strict_active_resolution=strict_active_resolution,
+        )
         run.setdefault("bindings", _default_bindings())
         run["bindings"][binding_key] = entity_id.strip()
 
@@ -370,13 +425,19 @@ class PlantRunManager:
         run_id: str | None = None,
         run_name: str | None = None,
         use_active_run: bool = True,
+        strict_active_resolution: bool = False,
     ) -> None:
         if binding_key not in BINDABLE_SENSOR_KEYS:
             raise HomeAssistantError(
                 f"Invalid binding_key: {binding_key}. Allowed: {', '.join(BINDABLE_SENSOR_KEYS)}"
             )
 
-        run = self.resolve_run_or_raise(run_id=run_id, run_name=run_name, use_active_run=use_active_run)
+        run = self.resolve_run_or_raise(
+            run_id=run_id,
+            run_name=run_name,
+            use_active_run=use_active_run,
+            strict_active_resolution=strict_active_resolution,
+        )
         run.setdefault("bindings", _default_bindings())
         run["bindings"][binding_key] = None
 

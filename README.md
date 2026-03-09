@@ -23,7 +23,7 @@ PlantRun is a Home Assistant custom integration project for documenting cultivat
 - Backdated run start support (`started_at`) + run import for ongoing/historical runs
 - Human-friendly run labels (`display_id`) + list service for easier selection
 - Notes and event history per run
-- SeedFinder-based cultivar lookup (species + breeder, with local fallback)
+- SeedFinder-based cultivar lookup (species + optional breeder, with compatibility local fallback)
 - Attach cultivar profiles to runs
 - Mid-run sensor/camera binding updates
 - Live sensors for active run + active cultivar status
@@ -62,7 +62,8 @@ PlantRun is a Home Assistant custom integration project for documenting cultivat
 2. Optional: inspect run list with friendly IDs:
    - `plantrun.list_runs`
 3. (Optional) Lookup cultivar:
-   - `plantrun.search_cultivar` with `species`, `breeder` (+ optional `prefer_automatic`)
+   - `plantrun.search_cultivar` with `species` (+ optional `breeder`, optional `prefer_automatic`)
+   - If `breeder` is omitted, PlantRun uses best-effort local cache matching only.
 4. Attach cultivar to run:
    - `plantrun.attach_cultivar_to_run` with `cultivar_id` + (`run_id` or `run_name`)
 5. Bind sensors/camera (any time during run):
@@ -73,6 +74,7 @@ PlantRun is a Home Assistant custom integration project for documenting cultivat
    - `plantrun.add_note`
 7. End run:
    - `plantrun.end_run`
+   - Optional `strict_active_resolution: true` keeps strict behavior when multiple runs are active.
 
 ---
 
@@ -104,6 +106,8 @@ See `custom_components/plantrun/services.yaml` for fields.
 - `sensor.plantrun_active_cultivar_flower_window`
 - `sensor.plantrun_total_runs`
 - `sensor.plantrun_last_event`
+
+`sensor.plantrun_active_phase` and active cultivar sensors include attributes indicating the represented run (`represented_run_id`, `represented_display_id`, `represented_run_name`) plus active-run ambiguity context.
 
 ---
 

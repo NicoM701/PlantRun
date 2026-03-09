@@ -58,21 +58,43 @@ class PlantRunBaseSensor(SensorEntity):
         return self.hass.data[DOMAIN][DATA_STORAGE].data
 
     def active_run(self) -> dict | None:
-        """Return the first active run (legacy compat)."""
+        """Return compatibility-selected active run."""
         active_ids = self.storage.get("active_run_ids", [])
-        if not active_ids:
-            # Fallback to legacy field
-            active_run_id = self.storage.get("active_run_id")
-            if not active_run_id:
-                return None
-            return self.storage.get("runs", {}).get(active_run_id)
-        return self.storage.get("runs", {}).get(active_ids[0])
+        runs_store = self.storage.get("runs", {})
+        active_run_id = self.storage.get("active_run_id")
+
+        if active_ids:
+            if active_run_id and active_run_id in active_ids:
+                return runs_store.get(active_run_id)
+            return runs_store.get(active_ids[0])
+
+        if active_run_id:
+            return runs_store.get(active_run_id)
+        return None
 
     def active_runs(self) -> list[dict]:
         """Return all active runs."""
         active_ids = self.storage.get("active_run_ids", [])
         runs_store = self.storage.get("runs", {})
         return [runs_store[rid] for rid in active_ids if rid in runs_store]
+
+    def represented_run_attributes(self, run: dict | None) -> dict:
+        runs = self.active_runs()
+        attrs = {"active_count": len(runs)}
+        if not run:
+            return attrs
+
+        attrs.update(
+            {
+                "represented_run_id": run.get("id"),
+                "represented_display_id": run.get("display_id"),
+                "represented_run_name": run.get("name"),
+            }
+        )
+        if len(runs) > 1:
+            attrs["resolution"] = "compatibility_fallback"
+            attrs["active_run_ids"] = [r.get("id") for r in runs]
+        return attrs
 
     async def async_added_to_hass(self) -> None:
         self.async_on_remove(
@@ -145,6 +167,10 @@ class PlantRunActivePhaseSensor(PlantRunBaseSensor):
         run = self.active_run()
         return run.get("phase") if run else None
 
+    @property
+    def extra_state_attributes(self) -> dict:
+        return self.represented_run_attributes(self.active_run())
+
 
 class PlantRunActiveCultivarNameSensor(PlantRunBaseSensor):
     _attr_name = "PlantRun Active Cultivar"
@@ -158,6 +184,10 @@ class PlantRunActiveCultivarNameSensor(PlantRunBaseSensor):
             return None
         snapshot = run.get("cultivar_snapshot") or {}
         return snapshot.get("species")
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        return self.represented_run_attributes(self.active_run())
 
 
 class PlantRunActiveCultivarBreederSensor(PlantRunBaseSensor):
@@ -173,6 +203,10 @@ class PlantRunActiveCultivarBreederSensor(PlantRunBaseSensor):
         snapshot = run.get("cultivar_snapshot") or {}
         return snapshot.get("breeder")
 
+    @property
+    def extra_state_attributes(self) -> dict:
+        return self.represented_run_attributes(self.active_run())
+
 
 class PlantRunActiveCultivarFlowerWindowSensor(PlantRunBaseSensor):
     _attr_name = "PlantRun Active Cultivar Flower Window"
@@ -186,6 +220,10 @@ class PlantRunActiveCultivarFlowerWindowSensor(PlantRunBaseSensor):
             return None
         snapshot = run.get("cultivar_snapshot") or {}
         return snapshot.get("flower_time")
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        return self.represented_run_attributes(self.active_run())
 
 
 class PlantRunTotalRunsSensor(PlantRunBaseSensor):

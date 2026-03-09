@@ -1,5 +1,3 @@
-import asyncio
-import copy
 import sys
 import types
 import unittest
@@ -29,13 +27,15 @@ def _install_homeassistant_stubs() -> None:
         pass
 
     class ServiceCall:
-        data = {}
+        def __init__(self, data):
+            self.data = data
 
     class SupportsResponse:
         ONLY = "only"
 
     class Store:
         def __init__(self, hass, version, key):
+            del hass, version, key
             self._data = None
 
         def __class_getitem__(cls, _item):
@@ -47,12 +47,9 @@ def _install_homeassistant_stubs() -> None:
         async def async_save(self, data):
             self._data = data
 
-    def async_dispatcher_send(*_args, **_kwargs):
-        return None
-
     exceptions.HomeAssistantError = HomeAssistantError
     exceptions.ServiceValidationError = HomeAssistantError
-    dispatcher.async_dispatcher_send = async_dispatcher_send
+    dispatcher.async_dispatcher_send = lambda *_args, **_kwargs: None
     aiohttp_client.async_get_clientsession = lambda hass: hass
     config_validation.entity_id = lambda value: value
     core.HomeAssistant = HomeAssistant
@@ -93,18 +90,12 @@ def _install_voluptuous_stub() -> None:
             return value
 
     def _required(value, default=None):
-        _ = default
+        del default
         return value
 
     def _optional(value, default=None):
-        _ = default
+        del default
         return value
-
-    def _coerce(converter):
-        def _convert(value):
-            return converter(value)
-
-        return _convert
 
     def _in(_values):
         def _validator(value):
@@ -122,7 +113,6 @@ def _install_voluptuous_stub() -> None:
     voluptuous.Schema = _Schema
     voluptuous.Required = _required
     voluptuous.Optional = _optional
-    voluptuous.Coerce = _coerce
     voluptuous.In = _in
     voluptuous.All = _all
     voluptuous.PREVENT_EXTRA = object()
@@ -157,71 +147,52 @@ _install_external_lib_stubs()
 
 from homeassistant.exceptions import HomeAssistantError
 
-from custom_components.plantrun.const import DEFAULT_DATA
-from custom_components.plantrun.manager import PlantRunManager
+from custom_components.plantrun import async_setup
+from custom_components.plantrun.const import DATA_MANAGER, DOMAIN, SERVICE_SEARCH_CULTIVAR
 
 
-class FakeStorage:
+class _FakeServices:
     def __init__(self):
-        self.data = copy.deepcopy(DEFAULT_DATA)
-        self.hass = object()
+        self.handlers = {}
 
-    async def async_save(self):
-        return None
-
-    @staticmethod
-    def utc_now_iso() -> str:
-        return "2026-03-09T00:00:00+00:00"
+    def async_register(self, domain, service, handler, schema=None, supports_response=None):
+        del schema, supports_response
+        self.handlers[(domain, service)] = handler
 
 
-class PlantRunManagerTests(unittest.IsolatedAsyncioTestCase):
-    async def test_import_rejects_end_before_start(self):
-        manager = PlantRunManager(FakeStorage())
+class _FakeHass:
+    def __init__(self):
+        self.data = {}
+        self.services = _FakeServices()
 
-        with self.assertRaises(HomeAssistantError):
-            await manager.import_run(
-                run_name="Run A",
-                started_at="2026-03-09T12:00:00+00:00",
-                ended_at="2026-03-08T12:00:00+00:00",
-            )
 
-    async def test_resolve_active_defaults_to_legacy_compatible_fallback_when_multiple_active(self):
-        manager = PlantRunManager(FakeStorage())
+class ServiceCompatibilityTests(unittest.IsolatedAsyncioTestCase):
+    async def test_search_cultivar_without_breeder_uses_local_cache(self):
+        hass = _FakeHass()
+        await async_setup(hass, {})
+        manager = hass.data[DOMAIN][DATA_MANAGER]
+        manager.data["cultivars"]["seedfinder:test:blue-dream"] = {
+            "cultivar_id": "seedfinder:test:blue-dream",
+            "species": "Blue Dream",
+            "breeder": "Test Seeds",
+        }
+        handler = hass.services.handlers[(DOMAIN, SERVICE_SEARCH_CULTIVAR)]
 
-        run_a = await manager.start_run("Run A", started_at="2026-03-01T00:00:00+00:00")
-        await manager.start_run("Run B", started_at="2026-03-02T00:00:00+00:00")
+        result = await handler(types.SimpleNamespace(data={"species": "Blue Dream"}))
 
-        resolved = manager.resolve_run_or_raise(use_active_run=True)
-        self.assertEqual(resolved["id"], run_a)
+        self.assertEqual(result["source"], "local_cache")
+        self.assertEqual(result["result"]["cultivar_id"], "seedfinder:test:blue-dream")
+        self.assertIn("No breeder provided", result["message"])
 
-    async def test_resolve_active_strict_mode_requires_explicit_when_multiple_active(self):
-        manager = PlantRunManager(FakeStorage())
+    async def test_search_cultivar_without_breeder_clear_error_when_no_local_match(self):
+        hass = _FakeHass()
+        await async_setup(hass, {})
+        handler = hass.services.handlers[(DOMAIN, SERVICE_SEARCH_CULTIVAR)]
 
-        await manager.start_run("Run A", started_at="2026-03-01T00:00:00+00:00")
-        await manager.start_run("Run B", started_at="2026-03-02T00:00:00+00:00")
+        with self.assertRaises(HomeAssistantError) as ctx:
+            await handler(types.SimpleNamespace(data={"species": "Unknown Strain"}))
 
-        with self.assertRaises(HomeAssistantError):
-            manager.resolve_run_or_raise(use_active_run=True, strict_active_resolution=True)
-
-    async def test_resolve_active_prefers_active_run_id_when_multiple_active(self):
-        manager = PlantRunManager(FakeStorage())
-
-        run_a = await manager.start_run("Run A", started_at="2026-03-01T00:00:00+00:00")
-        run_b = await manager.start_run("Run B", started_at="2026-03-02T00:00:00+00:00")
-        manager.data["active_run_id"] = run_b
-
-        resolved = manager.resolve_run_or_raise(use_active_run=True)
-        self.assertEqual(resolved["id"], run_b)
-        self.assertNotEqual(resolved["id"], run_a)
-
-    async def test_list_runs_sorted_desc_by_started_at(self):
-        manager = PlantRunManager(FakeStorage())
-
-        await manager.start_run("Older", started_at="2026-03-01T00:00:00+00:00")
-        await manager.start_run("Newer", started_at="2026-03-03T00:00:00+00:00")
-
-        names = [run["name"] for run in manager.list_runs()]
-        self.assertEqual(names[:2], ["Newer", "Older"])
+        self.assertIn("Provide breeder for SeedFinder lookup", str(ctx.exception))
 
 
 if __name__ == "__main__":

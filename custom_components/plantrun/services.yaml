@@ -60,7 +60,7 @@ list_runs:
 
 end_run:
   name: End run
-  description: End a run by id/name or active run.
+  description: End a run by id/name or compatibility-selected active run.
   fields:
     run_id:
       name: Run ID
@@ -77,10 +77,16 @@ end_run:
       required: false
       selector:
         boolean:
+    strict_active_resolution:
+      name: Strict active run resolution
+      description: If true, error when multiple active runs exist and no run_id/run_name is provided.
+      required: false
+      selector:
+        boolean:
 
 set_phase:
   name: Set phase
-  description: Set phase for selected run (or active run by default).
+  description: Set phase for selected run (or compatibility-selected active run by default).
   fields:
     phase:
       name: Phase
@@ -106,10 +112,16 @@ set_phase:
       required: false
       selector:
         boolean:
+    strict_active_resolution:
+      name: Strict active run resolution
+      description: If true, error when multiple active runs exist and no run_id/run_name is provided.
+      required: false
+      selector:
+        boolean:
 
 add_note:
   name: Add note
-  description: Add a note/event to a run.
+  description: Add a note/event to a selected run or compatibility-selected active run.
   fields:
     note:
       name: Note
@@ -131,10 +143,16 @@ add_note:
       required: false
       selector:
         boolean:
+    strict_active_resolution:
+      name: Strict active run resolution
+      description: If true, error when multiple active runs exist and no run_id/run_name is provided.
+      required: false
+      selector:
+        boolean:
 
 search_cultivar:
   name: Search cultivar (SeedFinder)
-  description: Fetch cultivar profile from SeedFinder using species + breeder (fuzzy tolerant). Falls back to local cultivar cache when provider fails.
+  description: Fetch cultivar profile from SeedFinder using species + breeder (fuzzy tolerant). If breeder is omitted, use best-effort local cache only.
   fields:
     species:
       name: Species / Strain
@@ -143,8 +161,8 @@ search_cultivar:
         text:
     breeder:
       name: Breeder
-      description: Required for SeedFinder lookup precision and deterministic matching.
-      required: true
+      description: Optional. When provided, SeedFinder is queried first; when omitted, only local cache matching is used.
+      required: false
       selector:
         text:
     prefer_automatic:
@@ -156,7 +174,7 @@ search_cultivar:
 
 attach_cultivar_to_run:
   name: Attach cultivar to run
-  description: Link a stored cultivar profile to a run.
+  description: Link a stored cultivar profile to a selected run or compatibility-selected active run.
   fields:
     cultivar_id:
       name: Cultivar ID
@@ -178,6 +196,12 @@ attach_cultivar_to_run:
       required: false
       selector:
         boolean:
+    strict_active_resolution:
+      name: Strict active run resolution
+      description: If true, error when multiple active runs exist and no run_id/run_name is provided.
+      required: false
+      selector:
+        boolean:
 
 refresh_cultivar:
   name: Refresh cultivar
@@ -191,7 +215,7 @@ refresh_cultivar:
 
 bind_sensor_to_run:
   name: Bind sensor/camera to run
-  description: Attach or update a sensor binding at any point during a run.
+  description: Attach or update a sensor binding at any point during a selected run or compatibility-selected active run.
   fields:
     binding_key:
       name: Binding key
@@ -226,10 +250,16 @@ bind_sensor_to_run:
       required: false
       selector:
         boolean:
+    strict_active_resolution:
+      name: Strict active run resolution
+      description: If true, error when multiple active runs exist and no run_id/run_name is provided.
+      required: false
+      selector:
+        boolean:
 
 unbind_sensor_from_run:
   name: Unbind sensor/camera from run
-  description: Remove a sensor binding while keeping run history.
+  description: Remove a sensor binding while keeping run history for a selected run or compatibility-selected active run.
   fields:
     binding_key:
       name: Binding key
@@ -255,6 +285,12 @@ unbind_sensor_from_run:
         text:
     use_active_run:
       name: Use active run
+      required: false
+      selector:
+        boolean:
+    strict_active_resolution:
+      name: Strict active run resolution
+      description: If true, error when multiple active runs exist and no run_id/run_name is provided.
       required: false
       selector:
         boolean:

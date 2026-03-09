@@ -39,6 +39,7 @@ ATTR_PREFER_AUTOMATIC = "prefer_automatic"
 ATTR_STARTED_AT = "started_at"
 ATTR_ENDED_AT = "ended_at"
 ATTR_USE_ACTIVE_RUN = "use_active_run"
+ATTR_STRICT_ACTIVE_RESOLUTION = "strict_active_resolution"
 
 BINDABLE_SENSOR_KEYS = [
     "temperature",
