@@ -22,8 +22,10 @@ from .const import (
     ATTR_RUN_NAME,
     ATTR_STRICT_ACTIVE_RESOLUTION,
     ATTR_USE_ACTIVE_RUN,
+    ALLOWED_METRIC_TYPES,
     DOMAIN,
     PLATFORMS,
+    UNSUPPORTED_BINDING_METRIC_TYPES,
 )
 from .coordinator import PlantRunCoordinator
 from .models import Binding, CultivarSnapshot, Note, Phase, RunData
@@ -303,8 +305,22 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     async def handle_add_binding(call: ServiceCall) -> None:
         """Handle the add_binding service."""
         run = resolve_target_run(call)
-        metric_type = call.data["metric_type"]
-        sensor_id = call.data["sensor_id"]
+        metric_type = str(call.data["metric_type"]).strip()
+        sensor_id = str(call.data["sensor_id"]).strip()
+
+        if metric_type not in ALLOWED_METRIC_TYPES:
+            raise ServiceValidationError(
+                f"Unsupported metric_type '{metric_type}'. Allowed values: {', '.join(ALLOWED_METRIC_TYPES)}."
+            )
+
+        if metric_type in UNSUPPORTED_BINDING_METRIC_TYPES:
+            raise ServiceValidationError(
+                "camera bindings are not yet supported by the current sensor-only PlantRun model. "
+                "Please bind camera entities outside PlantRun for now."
+            )
+
+        if not sensor_id:
+            raise ServiceValidationError("sensor_id must not be empty.")
 
         if run.has_binding(metric_type, sensor_id):
             raise ServiceValidationError(
@@ -502,8 +518,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         vol.Schema(
             {
                 **run_resolution_schema,
-                vol.Required("metric_type"): str,
-                vol.Required("sensor_id"): str,
+                vol.Required("metric_type"): vol.In(ALLOWED_METRIC_TYPES),
+                vol.Required("sensor_id"): vol.All(str, vol.Length(min=1)),
             }
         ),
     )
