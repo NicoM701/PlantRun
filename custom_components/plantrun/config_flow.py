@@ -64,7 +64,15 @@ class PlantRunOptionsFlowHandler(config_entries.OptionsFlow):
     @property
     def _storage(self):
         """Return the storage instance attached to this config entry."""
-        return self.hass.data[DOMAIN][self.plantrun_config_entry.entry_id]["storage"]
+        runtime_data = getattr(self.plantrun_config_entry, "runtime_data", None)
+        if isinstance(runtime_data, dict) and runtime_data.get("storage") is not None:
+            return runtime_data["storage"]
+
+        domain_data = getattr(getattr(self, "hass", None), "data", {}).get(DOMAIN, {})
+        entry_data = domain_data.get(self.plantrun_config_entry.entry_id)
+        if isinstance(entry_data, dict):
+            return entry_data.get("storage")
+        return None
 
     def _get_runs_dict(self, *, include_ended: bool = True):
         """Get a dict of run_id -> human-friendly run label."""
@@ -85,6 +93,9 @@ class PlantRunOptionsFlowHandler(config_entries.OptionsFlow):
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Manage the options - Step 1: Base Menu."""
+        if self._storage is None:
+            return self.async_abort(reason="integration_not_ready")
+
         if user_input is not None:
             self._action = user_input["action"]
             if self._action == "create_run":
@@ -145,6 +156,10 @@ class PlantRunOptionsFlowHandler(config_entries.OptionsFlow):
 
     async def async_step_create_run_details(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         """Step 2 of Run Creation: Pick SeedFinder result and bind sensors."""
+        storage = self._storage
+        if storage is None:
+            return self.async_abort(reason="integration_not_ready")
+
         if user_input is not None:
             # 1) Deterministically create and persist a specific run object.
             new_run = RunData(
@@ -155,8 +170,8 @@ class PlantRunOptionsFlowHandler(config_entries.OptionsFlow):
             # Keep service-compatible start_time format.
             new_run.start_time = datetime.utcnow().isoformat()
 
-            await self._storage.async_add_run(new_run)
-            await self._storage.async_set_active_run_id(new_run.id)
+            await storage.async_add_run(new_run)
+            await storage.async_set_active_run_id(new_run.id)
 
             # 2) Assign cultivar if selected.
             selected_cultivar_name = user_input.get("cultivar_result", "None")
@@ -167,7 +182,7 @@ class PlantRunOptionsFlowHandler(config_entries.OptionsFlow):
                         break
 
             if new_run.cultivar:
-                await self._storage.async_update_run(new_run)
+                await storage.async_update_run(new_run)
 
             # 3) Bind sensors explicitly to the created run id.
             metrics_map = {

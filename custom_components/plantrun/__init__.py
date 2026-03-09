@@ -97,35 +97,26 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up PlantRun from a config entry."""
     hass.data.setdefault(DOMAIN, {})
 
-    # Register frontend static path (HA API changed from sync to async registration).
-    if hasattr(hass.http, "async_register_static_paths"):
-        await hass.http.async_register_static_paths(
-            [
-                StaticPathConfig(
-                    "/plantrun_frontend",
-                    hass.config.path("custom_components/plantrun/www"),
-                    cache_headers=False,
-                )
-            ]
-        )
-    else:
-        # Backward-compat for older HA cores.
-        hass.http.register_static_path(
-            "/plantrun_frontend",
-            hass.config.path("custom_components/plantrun/www"),
-            cache_headers=False,
-        )
-
-    storage = PlantRunStorage(hass)
-    await storage.async_load()
-
-    coordinator = PlantRunCoordinator(hass, storage)
-    await coordinator.async_config_entry_first_refresh()
-
-    hass.data[DOMAIN][entry.entry_id] = {
-        "storage": storage,
-        "coordinator": coordinator,
-    }
+    if not hass.data[DOMAIN].get("_static_registered"):
+        # Register frontend static path (HA API changed from sync to async registration).
+        if hasattr(hass.http, "async_register_static_paths"):
+            await hass.http.async_register_static_paths(
+                [
+                    StaticPathConfig(
+                        "/plantrun_frontend",
+                        hass.config.path("custom_components/plantrun/www"),
+                        cache_headers=False,
+                    )
+                ]
+            )
+        else:
+            # Backward-compat for older HA cores.
+            hass.http.register_static_path(
+                "/plantrun_frontend",
+                hass.config.path("custom_components/plantrun/www"),
+                cache_headers=False,
+            )
+        hass.data[DOMAIN]["_static_registered"] = True
 
     if not hass.data[DOMAIN].get("_panel_registered"):
         frontend.async_register_built_in_panel(
@@ -150,6 +141,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         websocket_api.async_register_command(hass, websocket_get_runs)
         websocket_api.async_register_command(hass, websocket_get_run_summary)
         hass.data[DOMAIN]["_ws_registered"] = True
+
+    storage = PlantRunStorage(hass)
+    await storage.async_load()
+
+    coordinator = PlantRunCoordinator(hass, storage)
+    await coordinator.async_refresh()
+
+    runtime_data = {
+        "storage": storage,
+        "coordinator": coordinator,
+    }
+    hass.data[DOMAIN][entry.entry_id] = runtime_data
+    entry.runtime_data = runtime_data
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(async_reload_entry))
@@ -577,6 +581,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
         hass.data[DOMAIN].pop(entry.entry_id, None)
+        entry.runtime_data = None
         has_other_entries = any(
             isinstance(value, dict) and "storage" in value
             for value in hass.data.get(DOMAIN, {}).values()
