@@ -38,6 +38,9 @@ def _install_homeassistant_stubs() -> None:
         def async_write_ha_state(self) -> None:
             return None
 
+        def schedule_update_ha_state(self, _force_refresh: bool = False) -> None:
+            return None
+
     sensor_mod.SensorEntity = SensorEntity
     sys.modules["homeassistant.components"] = components
     sys.modules["homeassistant.components.sensor"] = sensor_mod
@@ -282,6 +285,66 @@ class TestDynamicBindingEntities(unittest.TestCase):
         self.assertEqual(proxy._attr_state_class, "total_increasing")
         self.assertEqual(proxy._attr_device_class, "energy")
         self.assertEqual(proxy._attr_native_unit_of_measurement, "Wh")
+
+
+class TestProxyStateChangeThreadSafety(unittest.TestCase):
+    def test_state_change_callback_uses_schedule_update(self) -> None:
+        run = RunData.from_dict(
+            {
+                "id": "runT",
+                "friendly_name": "Tent T",
+                "start_time": "2026-03-01T00:00:00",
+                "bindings": [{"metric_type": "temperature", "sensor_id": "sensor.t1"}],
+            }
+        )
+        coordinator = FakeCoordinator([run])
+        proxy = SENSOR_MODULE.PlantRunProxySensor(
+            coordinator=coordinator,
+            run_id="runT",
+            run_name="Tent T",
+            binding=run.bindings[0],
+        )
+
+        captured = {}
+
+        def _capture_track(_hass, _entity_ids, callback):
+            captured["callback"] = callback
+            return lambda: None
+
+        SENSOR_MODULE.async_track_state_change_event = _capture_track
+
+        class _States:
+            @staticmethod
+            def get(_entity_id):
+                return None
+
+        proxy.hass = types.SimpleNamespace(states=_States())
+
+        calls = {"scheduled": 0, "written": 0}
+
+        def _schedule_update_ha_state(_force_refresh: bool = False) -> None:
+            calls["scheduled"] += 1
+
+        def _async_write_ha_state() -> None:
+            calls["written"] += 1
+
+        proxy.schedule_update_ha_state = _schedule_update_ha_state
+        proxy.async_write_ha_state = _async_write_ha_state
+
+        asyncio.run(proxy.async_added_to_hass())
+
+        event = types.SimpleNamespace(
+            data={
+                "new_state": types.SimpleNamespace(
+                    state="21.4",
+                    attributes={"unit_of_measurement": "°C"},
+                )
+            }
+        )
+        captured["callback"](event)
+
+        self.assertEqual(calls["scheduled"], 1)
+        self.assertEqual(calls["written"], 0)
 
 
 if __name__ == "__main__":
