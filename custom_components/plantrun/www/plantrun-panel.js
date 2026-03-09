@@ -1,4 +1,11 @@
-import { LitElement, html, css } from "https://unpkg.com/lit-element@2.4.0/lit-element.js?module";
+// Use Home Assistant's bundled Lit runtime to avoid external CDN dependencies.
+const HaPanelLovelace = customElements.get("ha-panel-lovelace");
+if (!HaPanelLovelace) {
+  throw new Error("PlantRun panel requires Home Assistant frontend Lit runtime.");
+}
+const LitElement = Object.getPrototypeOf(HaPanelLovelace);
+const html = LitElement.prototype.html;
+const css = LitElement.prototype.css;
 
 const PHASES = ["Seedling", "Vegetative", "Flowering", "Harvest"];
 
@@ -677,7 +684,7 @@ class PlantRunDashboardPanel extends LitElement {
   _changeYield(runId, rawValue) {
     const trimmed = String(rawValue ?? "").trim();
     if (!trimmed) {
-      this._updateRun(runId, { dry_yield_grams: 0 });
+      this._updateRun(runId, { dry_yield_grams: null });
       return;
     }
     const value = Number(trimmed);

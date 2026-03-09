@@ -40,6 +40,49 @@ PANEL_JS_URL = "/plantrun_frontend/plantrun-panel.js"
 UPLOADS_SUBDIR = "plantrun_uploads"
 
 
+def _write_uploaded_image(output_dir: Path, output_path: Path, raw: bytes) -> None:
+    """Write uploaded image bytes to disk outside of the event loop."""
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_path.write_bytes(raw)
+
+
+def _normalize_dry_yield(raw_value: Any) -> float | None:
+    """Normalize dry yield values, treating empty values as unknown."""
+    if raw_value is None:
+        return None
+    if isinstance(raw_value, str):
+        stripped = raw_value.strip()
+        if not stripped:
+            return None
+        raw_value = stripped
+    try:
+        return float(raw_value)
+    except (TypeError, ValueError) as err:
+        raise ServiceValidationError("dry_yield_grams must be numeric or null.") from err
+
+
+def _apply_status_transition(run: RunData, requested_status: str) -> None:
+    """Apply status updates while keeping run/phase timestamps consistent."""
+    normalized = str(requested_status).strip().lower()
+    if normalized not in {"active", "ended"}:
+        # Backward compatibility for legacy/custom statuses.
+        run.status = requested_status
+        return
+
+    now = datetime.utcnow().isoformat()
+    run.status = normalized
+
+    if normalized == "ended":
+        if not run.end_time:
+            run.end_time = now
+        if run.phases and not run.phases[-1].end_time:
+            run.phases[-1].end_time = run.end_time
+        return
+
+    # Active runs should not carry an end timestamp.
+    run.end_time = None
+
+
 def _storage_for_hass(hass: HomeAssistant) -> PlantRunStorage | None:
     """Return the first configured PlantRun storage instance."""
     domain_data = hass.data.get(DOMAIN, {})
@@ -303,12 +346,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         """Handle partial run updates for sidebar CRUD flows."""
         run = resolve_target_run(call)
 
-        for field in ("friendly_name", "planted_date", "notes_summary", "status"):
+        for field in ("friendly_name", "planted_date", "notes_summary"):
             if field in call.data:
                 setattr(run, field, call.data[field])
 
         if "dry_yield_grams" in call.data:
-            run.dry_yield_grams = float(call.data["dry_yield_grams"])
+            run.dry_yield_grams = _normalize_dry_yield(call.data["dry_yield_grams"])
+
+        if "status" in call.data:
+            _apply_status_transition(run, call.data["status"])
 
         if "base_config" in call.data:
             base_config = call.data["base_config"]
@@ -354,9 +400,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             output_name = f"{sanitized}_{ts}{suffix}"
 
             output_dir = Path(hass.config.path("www", UPLOADS_SUBDIR))
-            output_dir.mkdir(parents=True, exist_ok=True)
             output_path = output_dir / output_name
-            output_path.write_bytes(raw)
+            await hass.async_add_executor_job(_write_uploaded_image, output_dir, output_path, raw)
 
             run.image_url = f"/local/{UPLOADS_SUBDIR}/{output_name}"
             run.image_source = "uploaded"
@@ -487,7 +532,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 vol.Optional("planted_date"): str,
                 vol.Optional("notes_summary"): str,
                 vol.Optional("status"): str,
-                vol.Optional("dry_yield_grams"): vol.Coerce(float),
+                vol.Optional("dry_yield_grams"): vol.Any(None, "", vol.Coerce(float)),
                 vol.Optional("base_config"): dict,
                 vol.Optional("image_url"): str,
                 vol.Optional("image_source"): str,
