@@ -37,13 +37,27 @@ class Note:
 class Binding:
     metric_type: str
     sensor_id: str
+    id: str = field(default_factory=default_id)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "Binding":
-        return cls(**data)
+    def from_dict(cls, data: dict[str, Any], *, run_id: str | None = None) -> "Binding":
+        """Load binding from storage with v1 compatibility fallback.
+
+        Legacy records may not have an explicit binding id.
+        """
+        binding_id = data.get("id")
+        if not isinstance(binding_id, str) or not binding_id.strip():
+            metric_type = str(data.get("metric_type", "unknown"))
+            # Legacy IDs are deterministic by metric type so old entity IDs can be preserved.
+            binding_id = f"legacy_{metric_type}"
+        return cls(
+            metric_type=data["metric_type"],
+            sensor_id=data["sensor_id"],
+            id=binding_id,
+        )
 
 @dataclass
 class CultivarSnapshot:
@@ -87,12 +101,23 @@ class RunData:
     def from_dict(cls, data: dict[str, Any]) -> "RunData":
         phases = [Phase.from_dict(p) for p in data.get("phases", [])]
         notes = [Note.from_dict(n) for n in data.get("notes", [])]
-        bindings = [Binding.from_dict(b) for b in data.get("bindings", [])]
+        run_id = data.get("id", default_id())
+        bindings: list[Binding] = []
+        seen_ids: dict[str, int] = {}
+        for binding in data.get("bindings", []):
+            loaded = Binding.from_dict(binding, run_id=run_id)
+            # Ensure no duplicate IDs per run, while preserving first legacy mapping.
+            base_id = loaded.id
+            count = seen_ids.get(base_id, 0)
+            if count:
+                loaded.id = f"{base_id}_{count + 1}"
+            seen_ids[base_id] = count + 1
+            bindings.append(loaded)
         cultivar_data = data.get("cultivar")
         cultivar = CultivarSnapshot.from_dict(cultivar_data) if cultivar_data else None
 
         return cls(
-            id=data.get("id", default_id()),
+            id=run_id,
             friendly_name=data.get("friendly_name", "Unknown Run"),
             start_time=data["start_time"],
             planted_date=data.get("planted_date"),

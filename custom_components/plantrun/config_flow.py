@@ -185,10 +185,6 @@ class PlantRunOptionsFlowHandler(config_entries.OptionsFlow):
                         }
                         await self.hass.services.async_call(DOMAIN, "add_binding", bind_data)
             
-            # Immediately reload the integration so the new run spawns as a Device in HA!
-            self.hass.async_create_task(
-                self.hass.config_entries.async_reload(self.plantrun_config_entry.entry_id)
-            )
             return self.async_create_entry(title="", data={})
 
         schema_dict = {}

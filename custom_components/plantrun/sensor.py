@@ -11,7 +11,7 @@ from homeassistant.core import Event
 
 from .const import DOMAIN
 from .coordinator import PlantRunCoordinator
-from .models import RunData
+from .models import Binding, RunData
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -24,31 +24,41 @@ async def async_setup_entry(
     data = hass.data[DOMAIN][entry.entry_id]
     coordinator: PlantRunCoordinator = data["coordinator"]
 
-    entities: list[SensorEntity] = []
+    known_run_ids: set[str] = set()
+    known_binding_ids: set[tuple[str, str]] = set()
 
-    # Currently we create entities for all existing runs at startup.
-    # To handle adding runs at runtime, we would use a dispatcher signal or listener here.
-    for run in coordinator.data:
-        entities.append(PlantRunActivePhaseSensor(coordinator, run.id))
-        entities.append(PlantRunStatusSensor(coordinator, run.id))
-        entities.append(PlantRunCultivarSensor(coordinator, run.id))
+    def _collect_new_entities() -> list[SensorEntity]:
+        entities: list[SensorEntity] = []
+        for run in coordinator.data:
+            if run.id not in known_run_ids:
+                known_run_ids.add(run.id)
+                entities.append(PlantRunActivePhaseSensor(coordinator, run.id))
+                entities.append(PlantRunStatusSensor(coordinator, run.id))
+                entities.append(PlantRunCultivarSensor(coordinator, run.id))
 
-        # Spawn proxy sensors for all existing bindings
-        if run.bindings:
             for binding in run.bindings:
+                key = (run.id, binding.id)
+                if key in known_binding_ids:
+                    continue
+                known_binding_ids.add(key)
                 entities.append(
                     PlantRunProxySensor(
                         run_id=run.id,
                         run_name=run.friendly_name,
-                        metric_type=binding.metric_type,
-                        source_entity_id=binding.sensor_id
+                        binding=binding,
                     )
                 )
+        return entities
 
-    # Add a general summary sensor
-    entities.append(PlantRunTotalRunsSensor(coordinator))
+    initial_entities = [PlantRunTotalRunsSensor(coordinator), *_collect_new_entities()]
+    async_add_entities(initial_entities)
 
-    async_add_entities(entities)
+    def _handle_coordinator_update() -> None:
+        new_entities = _collect_new_entities()
+        if new_entities:
+            async_add_entities(new_entities)
+
+    entry.async_on_unload(coordinator.async_add_listener(_handle_coordinator_update))
 
 
 class PlantRunTotalRunsSensor(CoordinatorEntity[PlantRunCoordinator], SensorEntity):
@@ -157,15 +167,16 @@ class PlantRunProxySensor(SensorEntity):
     _attr_has_entity_name = True
     _attr_should_poll = False
 
-    def __init__(self, run_id: str, run_name: str, metric_type: str, source_entity_id: str) -> None:
+    def __init__(self, run_id: str, run_name: str, binding: Binding) -> None:
         """Initialize the proxy sensor."""
         self.run_id = run_id
         self.run_name = run_name
-        self.metric_type = metric_type
-        self.source_entity_id = source_entity_id
+        self.metric_type = binding.metric_type
+        self.source_entity_id = binding.sensor_id
+        self.binding_id = binding.id
         
-        self._attr_unique_id = f"plantrun_{metric_type}_{run_id}"
-        self._attr_name = metric_type.replace("_", " ").title()
+        self._attr_unique_id = _binding_unique_id(run_id, binding)
+        self._attr_name = self.metric_type.replace("_", " ").title()
         
         # Link this to the correct PlantRun Device
         self._attr_device_info = {
@@ -202,3 +213,12 @@ class PlantRunProxySensor(SensorEntity):
             self._attr_native_unit_of_measurement = state.attributes.get("unit_of_measurement")
             self._attr_device_class = state.attributes.get("device_class")
             self._attr_state_class = state.attributes.get("state_class")
+            self.async_write_ha_state()
+
+
+def _binding_unique_id(run_id: str, binding: Binding) -> str:
+    """Return stable unique_id with legacy compatibility for v1 bindings."""
+    # Preserve existing dashboards/entity IDs when migrating from the v1 model.
+    if binding.id == f"legacy_{binding.metric_type}":
+        return f"plantrun_{binding.metric_type}_{run_id}"
+    return f"plantrun_{binding.metric_type}_{run_id}_{binding.id}"
