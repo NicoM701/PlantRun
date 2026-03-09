@@ -24,7 +24,10 @@ class PlantRunStorage:
         """Load data from the store."""
         data = await self._store.async_load()
         if data is None:
-            data = {"runs": []}
+            data = {"runs": [], "active_run_id": None}
+        else:
+            data.setdefault("runs", [])
+            data.setdefault("active_run_id", None)
 
         self._data = data
         self.runs = [RunData.from_dict(r) for r in data.get("runs", [])]
@@ -34,6 +37,17 @@ class PlantRunStorage:
         """Save data to the store."""
         self._data["runs"] = [run.to_dict() for run in self.runs]
         await self._store.async_save(self._data)
+
+    @property
+    def active_run_id(self) -> str | None:
+        """Return compatibility alias for active run fallback."""
+        value = self._data.get("active_run_id")
+        return value if isinstance(value, str) and value else None
+
+    async def async_set_active_run_id(self, run_id: str | None) -> None:
+        """Persist compatibility alias for active run fallback."""
+        self._data["active_run_id"] = run_id
+        await self.async_save()
 
     def get_run(self, run_id: str) -> RunData | None:
         """Get a run by ID."""

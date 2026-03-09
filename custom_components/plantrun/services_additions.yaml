@@ -4,10 +4,41 @@ end_run:
   fields:
     run_id:
       name: Run ID
-      description: The internal ID of the run.
-      required: true
+      description: The internal ID of the run. Optional if another selector is used.
+      required: false
       selector:
         text:
+    run_name:
+      name: Run Name
+      description: Exact friendly name match. Optional alternative to run_id.
+      required: false
+      selector:
+        text:
+    use_active_run:
+      name: Use Active Run
+      description: Resolve target from active runs when run_id/run_name is omitted.
+      required: false
+      default: false
+      selector:
+        boolean:
+    strict_active_resolution:
+      name: Strict Active Resolution
+      description: Fail if multiple active runs exist instead of auto-selecting.
+      required: false
+      default: false
+      selector:
+        boolean:
+    active_run_strategy:
+      name: Active Run Strategy
+      description: Strategy for choosing an active run when multiple are active.
+      required: false
+      default: legacy
+      selector:
+        select:
+          options:
+            - legacy
+            - active_run_id
+            - first_active
     end_time:
       name: End Time
       description: ISO timestamp for completion. Optional, defaults to now.
@@ -22,10 +53,41 @@ set_cultivar:
   fields:
     run_id:
       name: Run ID
-      description: The internal ID of the run.
-      required: true
+      description: The internal ID of the run. Optional if another selector is used.
+      required: false
       selector:
         text:
+    run_name:
+      name: Run Name
+      description: Exact friendly name match. Optional alternative to run_id.
+      required: false
+      selector:
+        text:
+    use_active_run:
+      name: Use Active Run
+      description: Resolve target from active runs when run_id/run_name is omitted.
+      required: false
+      default: false
+      selector:
+        boolean:
+    strict_active_resolution:
+      name: Strict Active Resolution
+      description: Fail if multiple active runs exist instead of auto-selecting.
+      required: false
+      default: false
+      selector:
+        boolean:
+    active_run_strategy:
+      name: Active Run Strategy
+      description: Strategy for choosing an active run when multiple are active.
+      required: false
+      default: legacy
+      selector:
+        select:
+          options:
+            - legacy
+            - active_run_id
+            - first_active
     cultivar_name:
       name: Cultivar Name
       description: Name of the strain/cultivar. Will search SeedFinder if breeder omitted.
@@ -40,9 +102,41 @@ add_binding:
   fields:
     run_id:
       name: Run ID
-      required: true
+      description: The internal ID of the run. Optional if another selector is used.
+      required: false
       selector:
         text:
+    run_name:
+      name: Run Name
+      description: Exact friendly name match. Optional alternative to run_id.
+      required: false
+      selector:
+        text:
+    use_active_run:
+      name: Use Active Run
+      description: Resolve target from active runs when run_id/run_name is omitted.
+      required: false
+      default: false
+      selector:
+        boolean:
+    strict_active_resolution:
+      name: Strict Active Resolution
+      description: Fail if multiple active runs exist instead of auto-selecting.
+      required: false
+      default: false
+      selector:
+        boolean:
+    active_run_strategy:
+      name: Active Run Strategy
+      description: Strategy for choosing an active run when multiple are active.
+      required: false
+      default: legacy
+      selector:
+        select:
+          options:
+            - legacy
+            - active_run_id
+            - first_active
     metric_type:
       name: Metric Type
       description: "E.g. temperature, soil_moisture, camera"

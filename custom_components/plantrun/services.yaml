@@ -23,11 +23,42 @@ add_phase:
   fields:
     run_id:
       name: Run ID
-      description: The internal ID of the run.
-      required: true
+      description: The internal ID of the run. Optional if another selector is used.
+      required: false
       example: "abc123def456"
       selector:
         text:
+    run_name:
+      name: Run Name
+      description: Exact friendly name match. Optional alternative to run_id.
+      required: false
+      selector:
+        text:
+    use_active_run:
+      name: Use Active Run
+      description: Resolve target from active runs when run_id/run_name is omitted.
+      required: false
+      default: false
+      selector:
+        boolean:
+    strict_active_resolution:
+      name: Strict Active Resolution
+      description: Fail if multiple active runs exist instead of auto-selecting.
+      required: false
+      default: false
+      selector:
+        boolean:
+    active_run_strategy:
+      name: Active Run Strategy
+      description: Strategy for choosing an active run when multiple are active.
+      required: false
+      default: legacy
+      selector:
+        select:
+          options:
+            - legacy
+            - active_run_id
+            - first_active
     phase_name:
       name: Phase Name
       description: The name of the phase (e.g. Seedling, Veg, Flower).
@@ -42,10 +73,41 @@ add_note:
   fields:
     run_id:
       name: Run ID
-      description: The internal ID of the run.
-      required: true
+      description: The internal ID of the run. Optional if another selector is used.
+      required: false
       selector:
         text:
+    run_name:
+      name: Run Name
+      description: Exact friendly name match. Optional alternative to run_id.
+      required: false
+      selector:
+        text:
+    use_active_run:
+      name: Use Active Run
+      description: Resolve target from active runs when run_id/run_name is omitted.
+      required: false
+      default: false
+      selector:
+        boolean:
+    strict_active_resolution:
+      name: Strict Active Resolution
+      description: Fail if multiple active runs exist instead of auto-selecting.
+      required: false
+      default: false
+      selector:
+        boolean:
+    active_run_strategy:
+      name: Active Run Strategy
+      description: Strategy for choosing an active run when multiple are active.
+      required: false
+      default: legacy
+      selector:
+        select:
+          options:
+            - legacy
+            - active_run_id
+            - first_active
     text:
       name: Text
       description: The note to add.

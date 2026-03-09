@@ -7,11 +7,22 @@ import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, ServiceCall
 
-from .const import DOMAIN, PLATFORMS
+from .const import (
+    ACTIVE_RUN_STRATEGIES,
+    ACTIVE_RUN_STRATEGY_LEGACY,
+    ATTR_ACTIVE_RUN_STRATEGY,
+    ATTR_RUN_ID,
+    ATTR_RUN_NAME,
+    ATTR_STRICT_ACTIVE_RESOLUTION,
+    ATTR_USE_ACTIVE_RUN,
+    DOMAIN,
+    PLATFORMS,
+)
 from .store import PlantRunStorage
 from .coordinator import PlantRunCoordinator
 from .models import RunData, Phase, Note, Binding
 from .providers_seedfinder import async_search_cultivar
+from .run_resolution import resolve_run_or_raise
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -53,18 +64,34 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             planted_date=planted_date
         )
         await storage.async_add_run(new_run)
+        await storage.async_set_active_run_id(new_run.id)
         await coordinator.async_request_refresh()
         _LOGGER.info("Created new run: %s", new_run.id)
 
+    def resolve_target_run(call: ServiceCall) -> RunData | None:
+        """Resolve target run from explicit id/name or active run compatibility args."""
+        try:
+            return resolve_run_or_raise(
+                storage,
+                run_id=call.data.get(ATTR_RUN_ID),
+                run_name=call.data.get(ATTR_RUN_NAME),
+                use_active_run=call.data.get(ATTR_USE_ACTIVE_RUN, False),
+                strict_active_resolution=call.data.get(ATTR_STRICT_ACTIVE_RESOLUTION, False),
+                active_run_strategy=call.data.get(
+                    ATTR_ACTIVE_RUN_STRATEGY, ACTIVE_RUN_STRATEGY_LEGACY
+                ),
+            )
+        except ValueError as err:
+            _LOGGER.error("Run resolution failed: %s", err)
+            return None
+
     async def handle_add_phase(call: ServiceCall) -> None:
         """Handle the add_phase service."""
-        run_id = call.data["run_id"]
-        phase_name = call.data["phase_name"]
-
-        run = storage.get_run(run_id)
+        run = resolve_target_run(call)
         if not run:
-            _LOGGER.error("Run %s not found", run_id)
             return
+
+        phase_name = call.data["phase_name"]
 
         now = datetime.utcnow().isoformat()
 
@@ -79,66 +106,69 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         if phase_name.lower() == "harvest":
             run.end_time = now
             run.status = "ended"
+            if storage.active_run_id == run.id:
+                replacement = next((r.id for r in storage.runs if r.status == "active"), None)
+                await storage.async_set_active_run_id(replacement)
         else:
             run.end_time = None
             run.status = "active"
+            await storage.async_set_active_run_id(run.id)
 
         await storage.async_update_run(run)
         await coordinator.async_request_refresh()
-        _LOGGER.info("Added phase %s to run %s", phase_name, run_id)
+        _LOGGER.info("Added phase %s to run %s", phase_name, run.id)
 
     async def handle_add_note(call: ServiceCall) -> None:
         """Handle the add_note service."""
-        run_id = call.data["run_id"]
-        text = call.data["text"]
-
-        run = storage.get_run(run_id)
+        run = resolve_target_run(call)
         if not run:
-            _LOGGER.error("Run %s not found", run_id)
             return
+
+        text = call.data["text"]
 
         now = datetime.utcnow().isoformat()
         run.notes.append(Note(text=text, timestamp=now))
         await storage.async_update_run(run)
         await coordinator.async_request_refresh()
-        _LOGGER.info("Added note to run %s", run_id)
+        _LOGGER.info("Added note to run %s", run.id)
 
     async def handle_end_run(call: ServiceCall) -> None:
         """Handle the end_run service."""
-        run_id = call.data["run_id"]
-        end_time = call.data.get("end_time", datetime.utcnow().isoformat())
-        
-        run = storage.get_run(run_id)
+        run = resolve_target_run(call)
         if not run:
-            _LOGGER.error("Run %s not found", run_id)
             return
-            
+
+        end_time = call.data.get("end_time", datetime.utcnow().isoformat())
+
         run.end_time = end_time
         run.status = "ended"
         if run.phases:
             run.phases[-1].end_time = end_time
-            
+
         await storage.async_update_run(run)
+        if storage.active_run_id == run.id:
+            replacement = next((r.id for r in storage.runs if r.status == "active"), None)
+            await storage.async_set_active_run_id(replacement)
         await coordinator.async_request_refresh()
-        _LOGGER.info("Ended run %s", run_id)
+        _LOGGER.info("Ended run %s", run.id)
 
     async def handle_set_cultivar(call: ServiceCall) -> None:
         """Handle the set_cultivar service using SeedFinder provider."""
-        run_id = call.data["run_id"]
-        cultivar_name = call.data["cultivar_name"]
-        
-        run = storage.get_run(run_id)
+        run = resolve_target_run(call)
         if not run:
-            _LOGGER.error("Run %s not found", run_id)
             return
-            
+
+        cultivar_name = call.data["cultivar_name"]
+
         # Search SeedFinder
         results = await async_search_cultivar(cultivar_name)
         if results:
             # We pick the first match for automation purposes,
             # though a full UI would let the user pick.
             run.cultivar = results[0]
-            _LOGGER.info("Attached Cultivar %s from SeedFinder to run %s", results[0].name, run_id)
+            _LOGGER.info(
+                "Attached Cultivar %s from SeedFinder to run %s", results[0].name, run.id
+            )
         else:
             _LOGGER.warning("Cultivar %s not found, continuing without details", cultivar_name)
             # Create a basic fallback snapshot
@@ -150,14 +180,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         
     async def handle_add_binding(call: ServiceCall) -> None:
         """Handle the add_binding service."""
-        run_id = call.data["run_id"]
+        run = resolve_target_run(call)
+        if not run:
+            return
+
         metric_type = call.data["metric_type"]
         sensor_id = call.data["sensor_id"]
-
-        run = storage.get_run(run_id)
-        if not run:
-            _LOGGER.error("Run %s not found", run_id)
-            return
             
         # Optional: Remove existing binding of same type
         run.bindings = [b for b in run.bindings if b.metric_type != metric_type]
@@ -165,7 +193,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         
         await storage.async_update_run(run)
         await coordinator.async_request_refresh()
-        _LOGGER.info("Bound %s to %s for run %s", sensor_id, metric_type, run_id)
+        _LOGGER.info("Bound %s to %s for run %s", sensor_id, metric_type, run.id)
+
+    run_resolution_schema = {
+        vol.Optional(ATTR_RUN_ID): str,
+        vol.Optional(ATTR_RUN_NAME): str,
+        vol.Optional(ATTR_USE_ACTIVE_RUN, default=False): bool,
+        vol.Optional(ATTR_STRICT_ACTIVE_RESOLUTION, default=False): bool,
+        vol.Optional(ATTR_ACTIVE_RUN_STRATEGY, default=ACTIVE_RUN_STRATEGY_LEGACY): vol.In(
+            ACTIVE_RUN_STRATEGIES
+        ),
+    }
 
     # Register services
     hass.services.async_register(
@@ -178,35 +216,35 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     hass.services.async_register(
         DOMAIN, "add_phase", handle_add_phase, schema=vol.Schema({
-            vol.Required("run_id"): str,
+            **run_resolution_schema,
             vol.Required("phase_name"): str,
         })
     )
 
     hass.services.async_register(
         DOMAIN, "add_note", handle_add_note, schema=vol.Schema({
-            vol.Required("run_id"): str,
+            **run_resolution_schema,
             vol.Required("text"): str,
         })
     )
     
     hass.services.async_register(
         DOMAIN, "end_run", handle_end_run, schema=vol.Schema({
-            vol.Required("run_id"): str,
+            **run_resolution_schema,
             vol.Optional("end_time"): str,
         })
     )
     
     hass.services.async_register(
         DOMAIN, "set_cultivar", handle_set_cultivar, schema=vol.Schema({
-            vol.Required("run_id"): str,
+            **run_resolution_schema,
             vol.Required("cultivar_name"): str,
         })
     )
     
     hass.services.async_register(
         DOMAIN, "add_binding", handle_add_binding, schema=vol.Schema({
-            vol.Required("run_id"): str,
+            **run_resolution_schema,
             vol.Required("metric_type"): str,
             vol.Required("sensor_id"): str,
         })
