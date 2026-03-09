@@ -86,6 +86,13 @@ class RunData:
     sensor_history: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
     cultivar: CultivarSnapshot | None = None
 
+    def has_binding(self, metric_type: str, sensor_id: str) -> bool:
+        """Return True if the run already has the exact binding."""
+        return any(
+            binding.metric_type == metric_type and binding.sensor_id == sensor_id
+            for binding in self.bindings
+        )
+
     def to_dict(self) -> dict[str, Any]:
         # To avoid issues with nested dataclasses and asdict, we handle nested manually.
         data = asdict(self)

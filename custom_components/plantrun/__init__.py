@@ -187,10 +187,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         metric_type = call.data["metric_type"]
         sensor_id = call.data["sensor_id"]
 
-        if any(
-            b.metric_type == metric_type and b.sensor_id == sensor_id
-            for b in run.bindings
-        ):
+        if run.has_binding(metric_type, sensor_id):
             raise ServiceValidationError(
                 f"Binding already exists for metric_type='{metric_type}' and sensor_id='{sensor_id}'."
             )

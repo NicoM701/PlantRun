@@ -50,6 +50,21 @@ class TestBindingCompatibility(unittest.TestCase):
         serialized = run.to_dict()
         self.assertEqual(serialized["bindings"][0]["id"], "bind_abc")
 
+    def test_has_binding_prevents_exact_duplicate_but_allows_same_metric(self) -> None:
+        run = RunData.from_dict(
+            {
+                "id": "run789",
+                "friendly_name": "Tent C",
+                "start_time": "2026-03-01T00:00:00",
+                "bindings": [
+                    {"metric_type": "temperature", "sensor_id": "sensor.t1"},
+                    {"metric_type": "temperature", "sensor_id": "sensor.t2"},
+                ],
+            }
+        )
+        self.assertTrue(run.has_binding("temperature", "sensor.t1"))
+        self.assertFalse(run.has_binding("temperature", "sensor.t3"))
+
 
 if __name__ == "__main__":
     unittest.main()
