@@ -249,7 +249,8 @@ class PlantRunProxySensor(CoordinatorEntity[PlantRunCoordinator], SensorEntity):
             if new_state:
                 self._attr_native_value = new_state.state
                 self._apply_source_metadata(new_state.attributes)
-                self.async_write_ha_state()
+                # Thread-safe from worker/event contexts on newer HA cores.
+                self.schedule_update_ha_state()
 
         # Listen to state changes from the real sensor
         self.async_on_remove(
