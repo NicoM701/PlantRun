@@ -89,7 +89,18 @@ class PlantRunStorage:
 
         self._data = normalized
         raw_runs = normalized.get("runs", [])
-        self.runs = [RunData.from_dict(r) for r in raw_runs]
+        loaded_runs: list[RunData] = []
+        for raw_run in raw_runs:
+            try:
+                loaded_runs.append(RunData.from_dict(raw_run))
+            except Exception as err:
+                changed = True
+                _LOGGER.warning("Skipping malformed stored PlantRun run: %s", err)
+        self.runs = loaded_runs
+
+        if self.active_run_id and not any(run.id == self.active_run_id for run in self.runs):
+            self._data["active_run_id"] = None
+            changed = True
 
         # Persist upgraded binding IDs / schema upgrades from legacy records.
         if changed or self._bindings_need_migration(raw_runs):

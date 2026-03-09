@@ -227,14 +227,27 @@ class PlantRunProxySensor(CoordinatorEntity[PlantRunCoordinator], SensorEntity):
                 expected_unit,
             )
 
-        self._attr_native_unit_of_measurement = source_unit or expected_unit
+        if expected_unit and source_unit and source_unit != expected_unit:
+            self._attr_native_unit_of_measurement = expected_unit
+        else:
+            self._attr_native_unit_of_measurement = source_unit or expected_unit
         self._attr_device_class = source_device_class or expected.get("device_class")
         self._attr_state_class = source_state_class or expected.get("state_class")
+
+    def _source_state_available(self) -> bool:
+        """Return true when the source entity exists and is usable."""
+        if not hasattr(self, "hass"):
+            return True
+
+        state = self.hass.states.get(self.source_entity_id)
+        if state is None:
+            return False
+        return state.state not in {"unknown", "unavailable"}
 
     @property
     def available(self) -> bool:
         """Mark proxy unavailable when binding was removed at runtime."""
-        return self._binding_still_exists()
+        return self._binding_still_exists() and self._source_state_available()
 
     def _handle_coordinator_update(self) -> None:
         """Update availability as runtime bindings are added/removed."""
@@ -246,11 +259,16 @@ class PlantRunProxySensor(CoordinatorEntity[PlantRunCoordinator], SensorEntity):
         
         def _handle_state_change(event: Event) -> None:
             new_state = event.data.get("new_state")
-            if new_state:
-                self._attr_native_value = new_state.state
-                self._apply_source_metadata(new_state.attributes)
+            if new_state is None:
+                self._attr_native_value = None
                 # Thread-safe from worker/event contexts on newer HA cores.
                 self.schedule_update_ha_state()
+                return
+
+            self._attr_native_value = new_state.state
+            self._apply_source_metadata(new_state.attributes)
+            # Thread-safe from worker/event contexts on newer HA cores.
+            self.schedule_update_ha_state()
 
         # Listen to state changes from the real sensor
         self.async_on_remove(

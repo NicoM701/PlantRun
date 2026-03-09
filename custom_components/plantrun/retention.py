@@ -12,7 +12,7 @@ from .summary import build_run_summary
 
 def snapshot_day(ts: datetime | None = None) -> str:
     """Return UTC day key for rollups."""
-    return (ts or datetime.utcnow()).date().isoformat()
+    return (ts or datetime.now(timezone.utc)).date().isoformat()
 
 
 def _summary_has_live_history(summary: dict[str, Any]) -> bool:
@@ -29,6 +29,27 @@ def _summary_has_live_history(summary: dict[str, Any]) -> bool:
     return False
 
 
+def _history_state(summary: dict[str, Any]) -> str:
+    """Describe whether the live summary is empty, partial, or complete."""
+    metrics_with_history = 0
+
+    if summary.get("energy_kwh") is not None:
+        metrics_with_history += 1
+
+    for metric in ("temperature", "humidity", "soil_moisture", "water"):
+        metric_stats = summary.get(metric)
+        if not isinstance(metric_stats, dict):
+            continue
+        if any(metric_stats.get(key) is not None for key in ("min", "max", "avg", "start", "end")):
+            metrics_with_history += 1
+
+    if metrics_with_history == 0:
+        return "empty"
+    if metrics_with_history == 5:
+        return "complete"
+    return "partial"
+
+
 def _rollup_health(day: str) -> dict[str, Any]:
     """Return age metadata for a rollup snapshot."""
     try:
@@ -42,11 +63,18 @@ def _rollup_health(day: str) -> dict[str, Any]:
     return {"rollup_day": day, "rollup_age_days": age_days, "rollup_health": health}
 
 
-def _with_summary_meta(summary: dict[str, Any], *, source: str, fallback_reason: str | None = None, day: str | None = None) -> dict[str, Any]:
+def _with_summary_meta(
+    summary: dict[str, Any],
+    *,
+    source: str,
+    fallback_reason: str | None = None,
+    day: str | None = None,
+) -> dict[str, Any]:
     enriched = dict(summary)
     meta: dict[str, Any] = {
         "source": source,
         "fallback_reason": fallback_reason,
+        "history_state": _history_state(summary),
     }
     if day is not None:
         meta.update(_rollup_health(day))
@@ -67,10 +95,13 @@ async def async_capture_daily_rollup(storage: PlantRunStorage, run: RunData) -> 
 def get_summary_with_rollup_fallback(storage: PlantRunStorage, run: RunData) -> dict[str, Any]:
     """Get summary with fallback to latest stored rollup when live history is sparse."""
     live = build_run_summary(run)
-    if _summary_has_live_history(live):
-        return _with_summary_meta(live, source="live")
-
     run_rollups = storage.daily_rollups.get(run.id, {})
+    if _summary_has_live_history(live):
+        fallback_reason = None
+        if run_rollups and _history_state(live) == "partial":
+            fallback_reason = "partial_live_history"
+        return _with_summary_meta(live, source="live", fallback_reason=fallback_reason)
+
     if not run_rollups:
         return _with_summary_meta(live, source="live", fallback_reason="no_history_no_rollup")
 

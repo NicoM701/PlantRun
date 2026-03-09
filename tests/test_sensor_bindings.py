@@ -157,6 +157,9 @@ class FakeEntry:
 class FakeHass:
     def __init__(self, domain: str, entry_id: str, coordinator) -> None:
         self.data = {domain: {entry_id: {"coordinator": coordinator}}}
+        self.states = types.SimpleNamespace(
+            get=lambda _entity_id: types.SimpleNamespace(state="21.4", attributes={})
+        )
 
 
 class TestSensorBindingCompatibility(unittest.TestCase):
@@ -284,7 +287,33 @@ class TestDynamicBindingEntities(unittest.TestCase):
         proxy._apply_source_metadata({"unit_of_measurement": "Wh"})
         self.assertEqual(proxy._attr_state_class, "total_increasing")
         self.assertEqual(proxy._attr_device_class, "energy")
-        self.assertEqual(proxy._attr_native_unit_of_measurement, "Wh")
+        self.assertEqual(proxy._attr_native_unit_of_measurement, "kWh")
+
+    def test_proxy_unavailable_when_source_entity_missing_or_unavailable(self) -> None:
+        run = RunData.from_dict(
+            {
+                "id": "runS",
+                "friendly_name": "Tent S",
+                "start_time": "2026-03-01T00:00:00",
+                "bindings": [{"metric_type": "temperature", "sensor_id": "sensor.temp"}],
+            }
+        )
+        coordinator = FakeCoordinator([run])
+        proxy = SENSOR_MODULE.PlantRunProxySensor(
+            coordinator=coordinator,
+            run_id="runS",
+            run_name="Tent S",
+            binding=run.bindings[0],
+        )
+
+        proxy.hass = types.SimpleNamespace(states=types.SimpleNamespace(get=lambda _entity_id: None))
+        self.assertFalse(proxy.available)
+
+        unavailable_state = types.SimpleNamespace(state="unavailable")
+        proxy.hass = types.SimpleNamespace(
+            states=types.SimpleNamespace(get=lambda _entity_id: unavailable_state)
+        )
+        self.assertFalse(proxy.available)
 
 
 class TestProxyStateChangeThreadSafety(unittest.TestCase):
