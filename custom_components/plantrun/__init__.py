@@ -30,6 +30,7 @@ from .models import Binding, CultivarSnapshot, Note, Phase, RunData
 from .providers_seedfinder import async_fetch_cultivar_image_url, async_search_cultivar
 from .run_resolution import resolve_run_or_raise
 from .store import PlantRunStorage
+from .summary import build_run_summary
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -67,6 +68,25 @@ async def websocket_get_runs(hass: HomeAssistant, connection: Any, msg: dict[str
             "active_run_id": storage.active_run_id,
         },
     )
+
+
+@websocket_api.websocket_command({"type": "plantrun/get_run_summary", "run_id": str})
+@websocket_api.async_response
+async def websocket_get_run_summary(
+    hass: HomeAssistant, connection: Any, msg: dict[str, Any]
+) -> None:
+    """Return run KPI summary for panel cards."""
+    storage = _storage_for_hass(hass)
+    if storage is None:
+        connection.send_error(msg["id"], "not_loaded", "PlantRun is not loaded")
+        return
+
+    run = storage.get_run(msg["run_id"])
+    if run is None:
+        connection.send_error(msg["id"], "not_found", f"Run '{msg['run_id']}' not found")
+        return
+
+    connection.send_result(msg["id"], build_run_summary(run))
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -112,6 +132,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     if not hass.data[DOMAIN].get("_ws_registered"):
         websocket_api.async_register_command(hass, websocket_get_runs)
+        websocket_api.async_register_command(hass, websocket_get_run_summary)
         hass.data[DOMAIN]["_ws_registered"] = True
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
