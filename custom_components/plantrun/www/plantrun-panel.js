@@ -1,4 +1,12 @@
-import { LitElement, html, css } from "https://unpkg.com/lit-element@2.4.0/lit-element.js?module";
+const HaPanelLovelace = customElements.get("ha-panel-lovelace");
+
+if (!HaPanelLovelace) {
+  throw new Error("PlantRun panel requires Home Assistant's frontend runtime.");
+}
+
+const LitElement = Object.getPrototypeOf(HaPanelLovelace);
+const html = LitElement.prototype.html;
+const css = LitElement.prototype.css;
 
 const PHASES = ["Seedling", "Vegetative", "Flowering", "Harvest"];
 

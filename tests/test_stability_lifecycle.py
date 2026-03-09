@@ -304,6 +304,13 @@ class StabilityLifecycleTests(unittest.TestCase):
         self.assertIn("storage", entry.runtime_data)
         self.assertIn("coordinator", entry.runtime_data)
 
+    def test_panel_script_is_classic_script_compatible(self):
+        panel_script = (PLANTRUN_DIR / "www" / "plantrun-panel.js").read_text(encoding="utf-8")
+
+        self.assertNotIn('import {', panel_script)
+        self.assertIn('customElements.get("ha-panel-lovelace")', panel_script)
+        self.assertIn('"js_url": PANEL_JS_URL', (PLANTRUN_DIR / "__init__.py").read_text(encoding="utf-8"))
+
 
 if __name__ == "__main__":
     unittest.main()
