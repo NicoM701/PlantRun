@@ -231,6 +231,58 @@ class TestDynamicBindingEntities(unittest.TestCase):
         self.assertEqual(len(new_proxy_ids), 1)
         self.assertNotEqual(new_proxy_ids[0], "plantrun_temperature_runA")
 
+    def test_removed_binding_marks_existing_proxy_unavailable(self) -> None:
+        const = sys.modules["custom_components.plantrun.const"]
+
+        run = RunData.from_dict(
+            {
+                "id": "runA",
+                "friendly_name": "Tent A",
+                "start_time": "2026-03-01T00:00:00",
+                "bindings": [{"metric_type": "temperature", "sensor_id": "sensor.t1"}],
+            }
+        )
+        coordinator = FakeCoordinator([run])
+        entry = FakeEntry("entry-1")
+        hass = FakeHass(const.DOMAIN, entry.entry_id, coordinator)
+        added_batches = []
+
+        def _async_add_entities(entities):
+            added_batches.append(list(entities))
+
+        asyncio.run(SENSOR_MODULE.async_setup_entry(hass, entry, _async_add_entities))
+        proxy = next(
+            entity
+            for entity in added_batches[0]
+            if isinstance(entity, SENSOR_MODULE.PlantRunProxySensor)
+        )
+        self.assertTrue(proxy.available)
+
+        run.bindings = []
+        coordinator._listeners[0]()
+        self.assertFalse(proxy.available)
+
+    def test_metadata_fallback_for_statistics_compat(self) -> None:
+        run = RunData.from_dict(
+            {
+                "id": "runM",
+                "friendly_name": "Tent M",
+                "start_time": "2026-03-01T00:00:00",
+                "bindings": [{"metric_type": "energy", "sensor_id": "sensor.energy_main"}],
+            }
+        )
+        coordinator = FakeCoordinator([run])
+        proxy = SENSOR_MODULE.PlantRunProxySensor(
+            coordinator=coordinator,
+            run_id="runM",
+            run_name="Tent M",
+            binding=run.bindings[0],
+        )
+        proxy._apply_source_metadata({"unit_of_measurement": "Wh"})
+        self.assertEqual(proxy._attr_state_class, "total_increasing")
+        self.assertEqual(proxy._attr_device_class, "energy")
+        self.assertEqual(proxy._attr_native_unit_of_measurement, "Wh")
+
 
 if __name__ == "__main__":
     unittest.main()

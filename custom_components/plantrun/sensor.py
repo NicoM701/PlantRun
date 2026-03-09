@@ -15,6 +15,14 @@ from .models import Binding, RunData
 
 _LOGGER = logging.getLogger(__name__)
 
+METRIC_METADATA: dict[str, dict[str, str]] = {
+    "temperature": {"device_class": "temperature", "state_class": "measurement", "unit": "°C"},
+    "humidity": {"device_class": "humidity", "state_class": "measurement", "unit": "%"},
+    "soil_moisture": {"device_class": "moisture", "state_class": "measurement", "unit": "%"},
+    "energy": {"device_class": "energy", "state_class": "total_increasing", "unit": "kWh"},
+    "water": {"state_class": "measurement"},
+}
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry,
@@ -43,6 +51,7 @@ async def async_setup_entry(
                 known_binding_ids.add(key)
                 entities.append(
                     PlantRunProxySensor(
+                        coordinator=coordinator,
                         run_id=run.id,
                         run_name=run.friendly_name,
                         binding=binding,
@@ -162,13 +171,21 @@ class PlantRunCultivarSensor(PlantRunBaseRunSensor):
         return run.cultivar.name
 
 
-class PlantRunProxySensor(SensorEntity):
+class PlantRunProxySensor(CoordinatorEntity[PlantRunCoordinator], SensorEntity):
     """Sensor that mirrors an existing HA entity but attaches to the PlantRun device."""
+
     _attr_has_entity_name = True
     _attr_should_poll = False
 
-    def __init__(self, run_id: str, run_name: str, binding: Binding) -> None:
+    def __init__(
+        self,
+        coordinator: PlantRunCoordinator,
+        run_id: str,
+        run_name: str,
+        binding: Binding,
+    ) -> None:
         """Initialize the proxy sensor."""
+        super().__init__(coordinator)
         self.run_id = run_id
         self.run_name = run_name
         self.metric_type = binding.metric_type
@@ -185,6 +202,44 @@ class PlantRunProxySensor(SensorEntity):
             "manufacturer": "PlantRun",
         }
 
+    def _binding_still_exists(self) -> bool:
+        """Return True while this binding still exists on the run."""
+        for run in self.coordinator.data:
+            if run.id != self.run_id:
+                continue
+            return any(binding.id == self.binding_id for binding in run.bindings)
+        return False
+
+    def _apply_source_metadata(self, attrs: dict) -> None:
+        """Apply metadata with safe metric-specific fallback for recorder/statistics."""
+        expected = METRIC_METADATA.get(self.metric_type, {})
+        source_unit = attrs.get("unit_of_measurement")
+        source_device_class = attrs.get("device_class")
+        source_state_class = attrs.get("state_class")
+
+        expected_unit = expected.get("unit")
+        if expected_unit and source_unit and source_unit != expected_unit:
+            _LOGGER.warning(
+                "Unit drift for %s (%s): source='%s', expected='%s'. Using expected unit.",
+                self.source_entity_id,
+                self.metric_type,
+                source_unit,
+                expected_unit,
+            )
+
+        self._attr_native_unit_of_measurement = source_unit or expected_unit
+        self._attr_device_class = source_device_class or expected.get("device_class")
+        self._attr_state_class = source_state_class or expected.get("state_class")
+
+    @property
+    def available(self) -> bool:
+        """Mark proxy unavailable when binding was removed at runtime."""
+        return self._binding_still_exists()
+
+    def _handle_coordinator_update(self) -> None:
+        """Update availability as runtime bindings are added/removed."""
+        self.async_write_ha_state()
+
     async def async_added_to_hass(self) -> None:
         """Handle entity which will be added."""
         await super().async_added_to_hass()
@@ -193,10 +248,7 @@ class PlantRunProxySensor(SensorEntity):
             new_state = event.data.get("new_state")
             if new_state:
                 self._attr_native_value = new_state.state
-                # Try to copy unit and device class if available
-                self._attr_native_unit_of_measurement = new_state.attributes.get("unit_of_measurement")
-                self._attr_device_class = new_state.attributes.get("device_class")
-                self._attr_state_class = new_state.attributes.get("state_class")
+                self._apply_source_metadata(new_state.attributes)
                 self.async_write_ha_state()
 
         # Listen to state changes from the real sensor
@@ -210,9 +262,7 @@ class PlantRunProxySensor(SensorEntity):
         state = self.hass.states.get(self.source_entity_id)
         if state:
             self._attr_native_value = state.state
-            self._attr_native_unit_of_measurement = state.attributes.get("unit_of_measurement")
-            self._attr_device_class = state.attributes.get("device_class")
-            self._attr_state_class = state.attributes.get("state_class")
+            self._apply_source_metadata(state.attributes)
             self.async_write_ha_state()
 
 

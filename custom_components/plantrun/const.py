@@ -5,7 +5,8 @@ PLATFORMS = ["sensor"]
 
 # Store constants
 STORE_KEY = "plantrun_store"
-STORE_VERSION = 1
+STORE_VERSION = 2
+STORE_SCHEMA_VERSION = 2
 
 # Service attribute keys
 ATTR_RUN_ID = "run_id"

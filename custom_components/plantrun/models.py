@@ -64,6 +64,8 @@ class CultivarSnapshot:
     name: str | None = None
     breeder: str | None = None
     flower_window_days: int | None = None
+    image_url: str | None = None
+    detail_url: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -85,6 +87,18 @@ class RunData:
     bindings: list[Binding] = field(default_factory=list)
     sensor_history: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
     cultivar: CultivarSnapshot | None = None
+    dry_yield_grams: float | None = None
+    notes_summary: str | None = None
+    base_config: dict[str, Any] = field(default_factory=dict)
+    image_url: str | None = None
+    image_source: str | None = None
+
+    def has_binding(self, metric_type: str, sensor_id: str) -> bool:
+        """Return True if the run already has the exact binding."""
+        return any(
+            binding.metric_type == metric_type and binding.sensor_id == sensor_id
+            for binding in self.bindings
+        )
 
     def to_dict(self) -> dict[str, Any]:
         # To avoid issues with nested dataclasses and asdict, we handle nested manually.
@@ -128,4 +142,9 @@ class RunData:
             bindings=bindings,
             sensor_history=data.get("sensor_history", {}),
             cultivar=cultivar,
+            dry_yield_grams=data.get("dry_yield_grams"),
+            notes_summary=data.get("notes_summary"),
+            base_config=data.get("base_config", {}),
+            image_url=data.get("image_url"),
+            image_source=data.get("image_source"),
         )
