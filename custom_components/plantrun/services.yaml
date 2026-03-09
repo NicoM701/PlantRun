@@ -207,8 +207,22 @@ set_cultivar:
             - first_active
     cultivar_name:
       name: Cultivar Name
-      description: Name of the strain/cultivar. Will search SeedFinder if breeder omitted.
+      description: Cultivar display name. Used as manual snapshot name and default lookup strain.
       required: true
+      example: "Northern Lights"
+      selector:
+        text:
+    breeder:
+      name: Breeder
+      description: Optional breeder for SeedFinder lookup. If omitted, cultivar is saved as manual entry.
+      required: false
+      example: "Sensi Seeds"
+      selector:
+        text:
+    strain:
+      name: Strain
+      description: Optional strain for SeedFinder lookup. Defaults to cultivar_name.
+      required: false
       example: "Northern Lights"
       selector:
         text:

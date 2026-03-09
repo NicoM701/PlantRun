@@ -21,7 +21,7 @@ from .const import (
 )
 from .store import PlantRunStorage
 from .coordinator import PlantRunCoordinator
-from .models import RunData, Phase, Note, Binding
+from .models import Binding, CultivarSnapshot, Note, Phase, RunData
 from .providers_seedfinder import async_search_cultivar
 from .run_resolution import resolve_run_or_raise
 
@@ -150,22 +150,30 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         """Handle the set_cultivar service using SeedFinder provider."""
         run = resolve_target_run(call)
 
-        cultivar_name = call.data["cultivar_name"]
+        cultivar_name = call.data["cultivar_name"].strip()
+        breeder = str(call.data.get("breeder", "")).strip()
+        strain = str(call.data.get("strain", "")).strip()
 
-        # Search SeedFinder
-        results = await async_search_cultivar(cultivar_name)
-        if results:
-            # We pick the first match for automation purposes,
-            # though a full UI would let the user pick.
+        # Compatibility behavior:
+        # - explicit breeder(+optional strain) => provider lookup
+        # - cultivar_name-only => manual snapshot (no provider call)
+        if breeder:
+            lookup_strain = strain or cultivar_name
+            results = await async_search_cultivar(breeder, lookup_strain)
+            if not results:
+                raise ServiceValidationError(
+                    "Cultivar lookup failed: no SeedFinder result for "
+                    f"breeder='{breeder}', strain='{lookup_strain}'."
+                )
             run.cultivar = results[0]
             _LOGGER.info(
-                "Attached Cultivar %s from SeedFinder to run %s", results[0].name, run.id
+                "Attached Cultivar %s from SeedFinder to run %s", run.cultivar.name, run.id
             )
         else:
-            _LOGGER.warning("Cultivar %s not found, continuing without details", cultivar_name)
-            # Create a basic fallback snapshot
-            from .models import CultivarSnapshot
             run.cultivar = CultivarSnapshot(name=cultivar_name, breeder="Unknown (Manual Entry)")
+            _LOGGER.info(
+                "Saved manual cultivar snapshot for run %s (name=%s)", run.id, cultivar_name
+            )
             
         await storage.async_update_run(run)
         await coordinator.async_request_refresh()
@@ -176,14 +184,21 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
         metric_type = call.data["metric_type"]
         sensor_id = call.data["sensor_id"]
-            
-        # Optional: Remove existing binding of same type
-        run.bindings = [b for b in run.bindings if b.metric_type != metric_type]
-        run.bindings.append(Binding(metric_type=metric_type, sensor_id=sensor_id))
+
+        if any(
+            b.metric_type == metric_type and b.sensor_id == sensor_id
+            for b in run.bindings
+        ):
+            raise ServiceValidationError(
+                f"Binding already exists for metric_type='{metric_type}' and sensor_id='{sensor_id}'."
+            )
+
+        binding = Binding(metric_type=metric_type, sensor_id=sensor_id)
+        run.bindings.append(binding)
         
         await storage.async_update_run(run)
         await coordinator.async_request_refresh()
-        _LOGGER.info("Bound %s to %s for run %s", sensor_id, metric_type, run.id)
+        _LOGGER.info("Bound %s to %s for run %s (binding_id=%s)", sensor_id, metric_type, run.id, binding.id)
 
     run_resolution_schema = {
         vol.Optional(ATTR_RUN_ID): str,
@@ -229,6 +244,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         DOMAIN, "set_cultivar", handle_set_cultivar, schema=vol.Schema({
             **run_resolution_schema,
             vol.Required("cultivar_name"): str,
+            vol.Optional("breeder"): str,
+            vol.Optional("strain"): str,
         })
     )
     
