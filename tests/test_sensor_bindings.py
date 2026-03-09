@@ -262,6 +262,27 @@ class TestDynamicBindingEntities(unittest.TestCase):
         coordinator._listeners[0]()
         self.assertFalse(proxy.available)
 
+    def test_metadata_fallback_for_statistics_compat(self) -> None:
+        run = RunData.from_dict(
+            {
+                "id": "runM",
+                "friendly_name": "Tent M",
+                "start_time": "2026-03-01T00:00:00",
+                "bindings": [{"metric_type": "energy", "sensor_id": "sensor.energy_main"}],
+            }
+        )
+        coordinator = FakeCoordinator([run])
+        proxy = SENSOR_MODULE.PlantRunProxySensor(
+            coordinator=coordinator,
+            run_id="runM",
+            run_name="Tent M",
+            binding=run.bindings[0],
+        )
+        proxy._apply_source_metadata({"unit_of_measurement": "Wh"})
+        self.assertEqual(proxy._attr_state_class, "total_increasing")
+        self.assertEqual(proxy._attr_device_class, "energy")
+        self.assertEqual(proxy._attr_native_unit_of_measurement, "Wh")
+
 
 if __name__ == "__main__":
     unittest.main()

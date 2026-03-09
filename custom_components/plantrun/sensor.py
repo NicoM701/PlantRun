@@ -15,6 +15,14 @@ from .models import Binding, RunData
 
 _LOGGER = logging.getLogger(__name__)
 
+METRIC_METADATA: dict[str, dict[str, str]] = {
+    "temperature": {"device_class": "temperature", "state_class": "measurement", "unit": "°C"},
+    "humidity": {"device_class": "humidity", "state_class": "measurement", "unit": "%"},
+    "soil_moisture": {"device_class": "moisture", "state_class": "measurement", "unit": "%"},
+    "energy": {"device_class": "energy", "state_class": "total_increasing", "unit": "kWh"},
+    "water": {"state_class": "measurement"},
+}
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry,
@@ -202,6 +210,27 @@ class PlantRunProxySensor(CoordinatorEntity[PlantRunCoordinator], SensorEntity):
             return any(binding.id == self.binding_id for binding in run.bindings)
         return False
 
+    def _apply_source_metadata(self, attrs: dict) -> None:
+        """Apply metadata with safe metric-specific fallback for recorder/statistics."""
+        expected = METRIC_METADATA.get(self.metric_type, {})
+        source_unit = attrs.get("unit_of_measurement")
+        source_device_class = attrs.get("device_class")
+        source_state_class = attrs.get("state_class")
+
+        expected_unit = expected.get("unit")
+        if expected_unit and source_unit and source_unit != expected_unit:
+            _LOGGER.warning(
+                "Unit drift for %s (%s): source='%s', expected='%s'. Using expected unit.",
+                self.source_entity_id,
+                self.metric_type,
+                source_unit,
+                expected_unit,
+            )
+
+        self._attr_native_unit_of_measurement = source_unit or expected_unit
+        self._attr_device_class = source_device_class or expected.get("device_class")
+        self._attr_state_class = source_state_class or expected.get("state_class")
+
     @property
     def available(self) -> bool:
         """Mark proxy unavailable when binding was removed at runtime."""
@@ -219,10 +248,7 @@ class PlantRunProxySensor(CoordinatorEntity[PlantRunCoordinator], SensorEntity):
             new_state = event.data.get("new_state")
             if new_state:
                 self._attr_native_value = new_state.state
-                # Try to copy unit and device class if available
-                self._attr_native_unit_of_measurement = new_state.attributes.get("unit_of_measurement")
-                self._attr_device_class = new_state.attributes.get("device_class")
-                self._attr_state_class = new_state.attributes.get("state_class")
+                self._apply_source_metadata(new_state.attributes)
                 self.async_write_ha_state()
 
         # Listen to state changes from the real sensor
@@ -236,9 +262,7 @@ class PlantRunProxySensor(CoordinatorEntity[PlantRunCoordinator], SensorEntity):
         state = self.hass.states.get(self.source_entity_id)
         if state:
             self._attr_native_value = state.state
-            self._attr_native_unit_of_measurement = state.attributes.get("unit_of_measurement")
-            self._attr_device_class = state.attributes.get("device_class")
-            self._attr_state_class = state.attributes.get("state_class")
+            self._apply_source_metadata(state.attributes)
             self.async_write_ha_state()
 
 
