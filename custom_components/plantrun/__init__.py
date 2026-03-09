@@ -1,6 +1,7 @@
 """The PlantRun integration."""
 import base64
 import binascii
+import json
 import logging
 import re
 from datetime import datetime
@@ -41,7 +42,10 @@ _LOGGER = logging.getLogger(__name__)
 PANEL_URL_PATH = "plantrun-dashboard"
 PANEL_TITLE = "PlantRun"
 PANEL_ICON = "mdi:sprout"
-PANEL_JS_URL = "/plantrun_frontend/plantrun-panel.js"
+_MANIFEST_VERSION = json.loads((Path(__file__).parent / "manifest.json").read_text(encoding="utf-8"))[
+    "version"
+]
+PANEL_MODULE_URL = f"/plantrun_frontend/plantrun-panel.js?v={_MANIFEST_VERSION}"
 UPLOADS_SUBDIR = "plantrun_uploads"
 
 
@@ -130,7 +134,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     "name": "plantrun-dashboard-panel",
                     "embed_iframe": False,
                     "trust_external": False,
-                    "js_url": PANEL_JS_URL,
+                    "module_url": PANEL_MODULE_URL,
                 }
             },
             require_admin=False,

@@ -1,5 +1,6 @@
 import asyncio
 import importlib.util
+import json
 import sys
 import types
 import unittest
@@ -256,6 +257,9 @@ class StabilityLifecycleTests(unittest.TestCase):
         self.assertEqual(result["reason"], "integration_not_ready")
 
     def test_setup_entry_sets_runtime_data_and_registers_static_once(self):
+        frontend = sys.modules["homeassistant.components.frontend"]
+        frontend._registered.clear()
+
         class FakeHTTP:
             def __init__(self):
                 self.calls = 0
@@ -301,9 +305,29 @@ class StabilityLifecycleTests(unittest.TestCase):
         asyncio.run(self.integration.async_setup_entry(hass, entry))
 
         self.assertEqual(hass.http.calls, 1)
+        self.assertEqual(len(frontend._registered), 1)
+        _, panel_kwargs = frontend._registered[0]
+        self.assertEqual(
+            panel_kwargs["config"]["_panel_custom"]["module_url"],
+            self.integration.PANEL_MODULE_URL,
+        )
         self.assertIn("storage", entry.runtime_data)
         self.assertIn("coordinator", entry.runtime_data)
 
+    def test_panel_script_is_loaded_as_a_versioned_module(self):
+        panel_script = (PLANTRUN_DIR / "www" / "plantrun-panel.js").read_text(encoding="utf-8")
+        manifest_version = json.loads((PLANTRUN_DIR / "manifest.json").read_text(encoding="utf-8"))[
+            "version"
+        ]
+
+        self.assertIn('import { LitElement, html, css }', panel_script)
+        self.assertEqual(
+            self.integration.PANEL_MODULE_URL,
+            f"/plantrun_frontend/plantrun-panel.js?v={manifest_version}",
+        )
+        init_source = (PLANTRUN_DIR / "__init__.py").read_text(encoding="utf-8")
+        self.assertIn('"module_url": PANEL_MODULE_URL', init_source)
+        self.assertNotIn('"js_url"', init_source)
 
 if __name__ == "__main__":
     unittest.main()
