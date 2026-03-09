@@ -25,6 +25,7 @@ class PlantRunStorage:
             "schema_version": STORE_SCHEMA_VERSION,
             "runs": [],
             "active_run_id": None,
+            "daily_rollups": {},
         }
 
     @staticmethod
@@ -36,6 +37,7 @@ class PlantRunStorage:
         migrated = copy.deepcopy(payload)
         migrated.setdefault("runs", [])
         migrated.setdefault("active_run_id", None)
+        migrated.setdefault("daily_rollups", {})
 
         normalized_runs: list[dict[str, Any]] = []
         for run in migrated.get("runs", []):
@@ -59,6 +61,7 @@ class PlantRunStorage:
                     "schema_version": STORE_SCHEMA_VERSION,
                     "runs": [],
                     "active_run_id": None,
+                    "daily_rollups": {},
                 },
                 True,
             )
@@ -75,6 +78,7 @@ class PlantRunStorage:
         current.setdefault("schema_version", STORE_SCHEMA_VERSION)
         current.setdefault("runs", [])
         current.setdefault("active_run_id", None)
+        current.setdefault("daily_rollups", {})
 
         return current, current != original
 
@@ -131,6 +135,22 @@ class PlantRunStorage:
             if run.id == run_id:
                 return run
         return None
+
+    @property
+    def daily_rollups(self) -> dict[str, dict[str, Any]]:
+        """Return persisted daily rollup snapshots."""
+        rollups = self._data.get("daily_rollups")
+        if isinstance(rollups, dict):
+            return rollups
+        return {}
+
+    async def async_set_daily_rollup(self, run_id: str, day: str, summary: dict[str, Any]) -> None:
+        """Persist one run/day summary snapshot."""
+        all_rollups = self.daily_rollups
+        run_rollups = all_rollups.setdefault(run_id, {})
+        run_rollups[day] = summary
+        self._data["daily_rollups"] = all_rollups
+        await self.async_save()
 
     async def async_add_run(self, run: RunData) -> None:
         """Add a new run."""

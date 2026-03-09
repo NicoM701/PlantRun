@@ -79,6 +79,7 @@ class TestStoreMigration(unittest.TestCase):
         payload = {
             "schema_version": 2,
             "active_run_id": None,
+            "daily_rollups": {},
             "runs": [
                 {
                     "id": "run1",

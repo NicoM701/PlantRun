@@ -28,6 +28,7 @@ from .const import (
 from .coordinator import PlantRunCoordinator
 from .models import Binding, CultivarSnapshot, Note, Phase, RunData
 from .providers_seedfinder import async_fetch_cultivar_image_url, async_search_cultivar
+from .retention import async_capture_daily_rollup, get_summary_with_rollup_fallback
 from .run_resolution import resolve_run_or_raise
 from .store import PlantRunStorage
 from .summary import build_run_summary
@@ -86,7 +87,7 @@ async def websocket_get_run_summary(
         connection.send_error(msg["id"], "not_found", f"Run '{msg['run_id']}' not found")
         return
 
-    connection.send_result(msg["id"], build_run_summary(run))
+    connection.send_result(msg["id"], get_summary_with_rollup_fallback(storage, run))
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -156,6 +157,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     async def refresh_after_update() -> None:
         await coordinator.async_request_refresh()
+
+    async def handle_create_daily_rollup(call: ServiceCall) -> None:
+        """Capture one daily summary snapshot for a target run."""
+        run = resolve_target_run(call)
+        await async_capture_daily_rollup(storage, run)
+        await refresh_after_update()
 
     async def handle_create_run(call: ServiceCall) -> None:
         """Handle the create_run service."""
@@ -412,6 +419,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 vol.Optional("planted_date"): str,
             }
         ),
+    )
+
+    register_service(
+        "create_daily_rollup",
+        handle_create_daily_rollup,
+        vol.Schema({**run_resolution_schema}),
     )
 
     register_service(
