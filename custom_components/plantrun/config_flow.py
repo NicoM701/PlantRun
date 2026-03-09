@@ -1,5 +1,6 @@
 """Config flow for PlantRun integration."""
 import logging
+from datetime import datetime
 from typing import Any
 
 import voluptuous as vol
@@ -9,7 +10,7 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers import selector
 
-from .const import DOMAIN
+from .const import ALLOWED_METRIC_TYPES, DOMAIN, METRIC_TYPE_CAMERA
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -42,7 +43,7 @@ class PlantRunConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
 
 from .providers_seedfinder import async_search_cultivar
-from .models import CultivarSnapshot
+from .models import CultivarSnapshot, RunData
 
 class PlantRunOptionsFlowHandler(config_entries.OptionsFlow):
     """Handle options flow for PlantRun wizard."""
@@ -145,48 +146,49 @@ class PlantRunOptionsFlowHandler(config_entries.OptionsFlow):
     async def async_step_create_run_details(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         """Step 2 of Run Creation: Pick SeedFinder result and bind sensors."""
         if user_input is not None:
-            # 1. Create the run
-            create_data = {"friendly_name": self._create_friendly_name}
-            if self._create_planted_date:
-                create_data["planted_date"] = self._create_planted_date
+            # 1) Deterministically create and persist a specific run object.
+            new_run = RunData(
+                friendly_name=self._create_friendly_name or "Unnamed Run",
+                start_time="",
+                planted_date=self._create_planted_date,
+            )
+            # Keep service-compatible start_time format.
+            new_run.start_time = datetime.utcnow().isoformat()
 
-            await self.hass.services.async_call(DOMAIN, "create_run", create_data)
-            
-            # Re-fetch storage to get newly created run ID (it will be the last active one)
-            active_runs = [r for r in self._storage.runs if r.status == "active"]
-            if active_runs:
-                new_run = active_runs[-1]
-                new_run_id = new_run.id
-                
-                # 2. Assign Cultivar if selected
-                selected_cultivar_name = user_input.get("cultivar_result", "None")
-                if selected_cultivar_name != "None" and self._create_seedfinder_results:
-                    for cv in self._create_seedfinder_results:
-                        if cv.name == selected_cultivar_name:
-                            new_run.cultivar = cv
-                            await self._storage.async_update_run(new_run)
-                            break
-                            
-                # 3. Bind Sensors
-                metrics_map = {
-                    "temperature_sensor": "temperature",
-                    "humidity_sensor": "humidity",
-                    "soil_moisture_sensor": "soil_moisture",
-                    "conductivity_sensor": "conductivity",
-                    "light_sensor": "light",
-                    "energy_sensor": "energy"
-                }
-                
-                for field, metric in metrics_map.items():
-                    sensor_id = user_input.get(field)
-                    if sensor_id:
-                        bind_data = {
-                            "run_id": new_run_id,
-                            "metric_type": metric,
-                            "sensor_id": sensor_id
-                        }
-                        await self.hass.services.async_call(DOMAIN, "add_binding", bind_data)
-            
+            await self._storage.async_add_run(new_run)
+            await self._storage.async_set_active_run_id(new_run.id)
+
+            # 2) Assign cultivar if selected.
+            selected_cultivar_name = user_input.get("cultivar_result", "None")
+            if selected_cultivar_name != "None" and self._create_seedfinder_results:
+                for cv in self._create_seedfinder_results:
+                    if cv.name == selected_cultivar_name:
+                        new_run.cultivar = cv
+                        break
+
+            if new_run.cultivar:
+                await self._storage.async_update_run(new_run)
+
+            # 3) Bind sensors explicitly to the created run id.
+            metrics_map = {
+                "temperature_sensor": "temperature",
+                "humidity_sensor": "humidity",
+                "soil_moisture_sensor": "soil_moisture",
+                "conductivity_sensor": "conductivity",
+                "light_sensor": "light",
+                "energy_sensor": "energy",
+            }
+
+            for field, metric in metrics_map.items():
+                sensor_id = user_input.get(field)
+                if sensor_id:
+                    bind_data = {
+                        "run_id": new_run.id,
+                        "metric_type": metric,
+                        "sensor_id": sensor_id,
+                    }
+                    await self.hass.services.async_call(DOMAIN, "add_binding", bind_data)
+
             return self.async_create_entry(title="", data={})
 
         schema_dict = {}
@@ -294,33 +296,41 @@ class PlantRunOptionsFlowHandler(config_entries.OptionsFlow):
         )
 
     async def async_step_add_binding(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+        errors: dict[str, str] = {}
+
         if user_input is not None:
-            run_data = {
-                "run_id": self._target_run_id, 
-                "metric_type": user_input["metric_type"],
-                "sensor_id": user_input["sensor_id"]
-            }
-            await self.hass.services.async_call(DOMAIN, "add_binding", run_data)
-            return self.async_create_entry(title="", data={})
+            if user_input["metric_type"] == METRIC_TYPE_CAMERA:
+                errors["metric_type"] = "camera_not_supported"
+            else:
+                run_data = {
+                    "run_id": self._target_run_id,
+                    "metric_type": user_input["metric_type"],
+                    "sensor_id": user_input["sensor_id"],
+                }
+                await self.hass.services.async_call(DOMAIN, "add_binding", run_data)
+                return self.async_create_entry(title="", data={})
 
         metrics = {
-            "temperature": "Temperature", 
-            "humidity": "Humidity", 
-            "soil_moisture": "Soil Moisture", 
+            "temperature": "Temperature",
+            "humidity": "Humidity",
+            "soil_moisture": "Soil Moisture",
             "conductivity": "Conductivity",
             "light": "Light",
-            "energy": "Energy", 
-            "water": "Water", 
-            "camera": "Camera"
+            "energy": "Energy",
+            "water": "Water",
+            "camera": "Camera (currently unsupported in sensor-only model)",
         }
         return self.async_show_form(
             step_id="add_binding",
-            data_schema=vol.Schema({
-                vol.Required("metric_type"): vol.In(metrics),
-                vol.Required("sensor_id"): selector.EntitySelector(
-                    selector.EntitySelectorConfig(domain=["sensor", "camera"])
-                )
-            })
+            data_schema=vol.Schema(
+                {
+                    vol.Required("metric_type"): vol.In({metric: metrics[metric] for metric in ALLOWED_METRIC_TYPES}),
+                    vol.Required("sensor_id"): selector.EntitySelector(
+                        selector.EntitySelectorConfig(domain=["sensor", "camera"])
+                    ),
+                }
+            ),
+            errors=errors,
         )
 
     async def async_step_end_run(self, user_input: dict[str, Any] | None = None) -> FlowResult:

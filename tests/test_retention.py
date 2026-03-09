@@ -52,11 +52,42 @@ class FakeStorage:
 class TestRetention(unittest.TestCase):
     def test_rollup_fallback_used_when_live_data_missing(self):
         storage = FakeStorage()
-        storage.daily_rollups["run1"] = {"2026-03-09": {"run_id": "run1", "energy_kwh": 4.0}}
+        storage.daily_rollups["run1"] = {
+            "2026-03-09": {
+                "run_id": "run1",
+                "energy_kwh": 4.0,
+                "temperature": {"avg": 23.1},
+            }
+        }
         run = RunData(id="run1", friendly_name="Tent", start_time="2026-03-01", sensor_history={})
 
         summary = RETENTION.get_summary_with_rollup_fallback(storage, run)
         self.assertEqual(summary["energy_kwh"], 4.0)
+        self.assertEqual(summary["summary_meta"]["source"], "rollup")
+        self.assertEqual(summary["summary_meta"]["fallback_reason"], "no_live_history")
+
+    def test_live_summary_preferred_when_any_metric_history_exists(self):
+        storage = FakeStorage()
+        storage.daily_rollups["run1"] = {"2026-03-09": {"run_id": "run1", "energy_kwh": 9.9}}
+        run = RunData(
+            id="run1",
+            friendly_name="Tent",
+            start_time="2026-03-01",
+            sensor_history={"temperature": [{"value": 21.5}]},
+        )
+
+        summary = RETENTION.get_summary_with_rollup_fallback(storage, run)
+        self.assertEqual(summary["summary_meta"]["source"], "live")
+        self.assertIsNone(summary["energy_kwh"])
+        self.assertAlmostEqual(summary["temperature"]["avg"], 21.5)
+
+    def test_explicit_meta_when_history_and_rollup_absent(self):
+        storage = FakeStorage()
+        run = RunData(id="run1", friendly_name="Tent", start_time="2026-03-01", sensor_history={})
+
+        summary = RETENTION.get_summary_with_rollup_fallback(storage, run)
+        self.assertEqual(summary["summary_meta"]["source"], "live")
+        self.assertEqual(summary["summary_meta"]["fallback_reason"], "no_history_no_rollup")
 
 
 if __name__ == "__main__":

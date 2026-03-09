@@ -85,7 +85,8 @@
             }
         },
         "error": {
-            "no_active_runs": "There are no active runs. Please create one first."
+            "no_active_runs": "There are no active runs. Please create one first.",
+            "camera_not_supported": "Camera binding is not yet supported in the current sensor-only model."
         },
         "abort": {
             "no_active_runs": "There are no active runs. Please create one first."
