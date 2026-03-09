@@ -6,6 +6,7 @@ import voluptuous as vol
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.exceptions import ServiceValidationError
 
 from .const import (
     ACTIVE_RUN_STRATEGIES,
@@ -68,7 +69,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         await coordinator.async_request_refresh()
         _LOGGER.info("Created new run: %s", new_run.id)
 
-    def resolve_target_run(call: ServiceCall) -> RunData | None:
+    def resolve_target_run(call: ServiceCall) -> RunData:
         """Resolve target run from explicit id/name or active run compatibility args."""
         try:
             return resolve_run_or_raise(
@@ -82,14 +83,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 ),
             )
         except ValueError as err:
-            _LOGGER.error("Run resolution failed: %s", err)
-            return None
+            raise ServiceValidationError(f"Run resolution failed: {err}") from err
 
     async def handle_add_phase(call: ServiceCall) -> None:
         """Handle the add_phase service."""
         run = resolve_target_run(call)
-        if not run:
-            return
 
         phase_name = call.data["phase_name"]
 
@@ -121,8 +119,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     async def handle_add_note(call: ServiceCall) -> None:
         """Handle the add_note service."""
         run = resolve_target_run(call)
-        if not run:
-            return
 
         text = call.data["text"]
 
@@ -135,8 +131,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     async def handle_end_run(call: ServiceCall) -> None:
         """Handle the end_run service."""
         run = resolve_target_run(call)
-        if not run:
-            return
 
         end_time = call.data.get("end_time", datetime.utcnow().isoformat())
 
@@ -155,8 +149,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     async def handle_set_cultivar(call: ServiceCall) -> None:
         """Handle the set_cultivar service using SeedFinder provider."""
         run = resolve_target_run(call)
-        if not run:
-            return
 
         cultivar_name = call.data["cultivar_name"]
 
@@ -181,8 +173,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     async def handle_add_binding(call: ServiceCall) -> None:
         """Handle the add_binding service."""
         run = resolve_target_run(call)
-        if not run:
-            return
 
         metric_type = call.data["metric_type"]
         sensor_id = call.data["sensor_id"]
