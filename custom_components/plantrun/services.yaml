@@ -83,6 +83,16 @@ end_run:
       required: false
       selector:
         boolean:
+    active_run_strategy:
+      name: Active run strategy
+      description: Optional multi-active fallback when no run_id/run_name is provided. `legacy` preserves existing behavior.
+      required: false
+      selector:
+        select:
+          options:
+            - legacy
+            - active_run_id
+            - first_active
 
 set_phase:
   name: Set phase
@@ -118,6 +128,16 @@ set_phase:
       required: false
       selector:
         boolean:
+    active_run_strategy:
+      name: Active run strategy
+      description: Optional multi-active fallback when no run_id/run_name is provided. `legacy` preserves existing behavior.
+      required: false
+      selector:
+        select:
+          options:
+            - legacy
+            - active_run_id
+            - first_active
 
 add_note:
   name: Add note
@@ -149,6 +169,16 @@ add_note:
       required: false
       selector:
         boolean:
+    active_run_strategy:
+      name: Active run strategy
+      description: Optional multi-active fallback when no run_id/run_name is provided. `legacy` preserves existing behavior.
+      required: false
+      selector:
+        select:
+          options:
+            - legacy
+            - active_run_id
+            - first_active
 
 search_cultivar:
   name: Search cultivar (SeedFinder)
@@ -202,6 +232,16 @@ attach_cultivar_to_run:
       required: false
       selector:
         boolean:
+    active_run_strategy:
+      name: Active run strategy
+      description: Optional multi-active fallback when no run_id/run_name is provided. `legacy` preserves existing behavior.
+      required: false
+      selector:
+        select:
+          options:
+            - legacy
+            - active_run_id
+            - first_active
 
 refresh_cultivar:
   name: Refresh cultivar
@@ -256,6 +296,16 @@ bind_sensor_to_run:
       required: false
       selector:
         boolean:
+    active_run_strategy:
+      name: Active run strategy
+      description: Optional multi-active fallback when no run_id/run_name is provided. `legacy` preserves existing behavior.
+      required: false
+      selector:
+        select:
+          options:
+            - legacy
+            - active_run_id
+            - first_active
 
 unbind_sensor_from_run:
   name: Unbind sensor/camera from run
@@ -294,3 +344,13 @@ unbind_sensor_from_run:
       required: false
       selector:
         boolean:
+    active_run_strategy:
+      name: Active run strategy
+      description: Optional multi-active fallback when no run_id/run_name is provided. `legacy` preserves existing behavior.
+      required: false
+      selector:
+        select:
+          options:
+            - legacy
+            - active_run_id
+            - first_active

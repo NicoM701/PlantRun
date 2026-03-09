@@ -148,7 +148,13 @@ _install_external_lib_stubs()
 from homeassistant.exceptions import HomeAssistantError
 
 from custom_components.plantrun import async_setup
-from custom_components.plantrun.const import DATA_MANAGER, DOMAIN, SERVICE_SEARCH_CULTIVAR
+from custom_components.plantrun.const import (
+    DATA_MANAGER,
+    DOMAIN,
+    SERVICE_END_RUN,
+    SERVICE_SEARCH_CULTIVAR,
+    SERVICE_START_RUN,
+)
 
 
 class _FakeServices:
@@ -167,6 +173,26 @@ class _FakeHass:
 
 
 class ServiceCompatibilityTests(unittest.IsolatedAsyncioTestCase):
+    async def test_end_run_service_respects_explicit_first_active_strategy(self):
+        hass = _FakeHass()
+        await async_setup(hass, {})
+        start_handler = hass.services.handlers[(DOMAIN, SERVICE_START_RUN)]
+        end_handler = hass.services.handlers[(DOMAIN, SERVICE_END_RUN)]
+        manager = hass.data[DOMAIN][DATA_MANAGER]
+
+        first = await start_handler(types.SimpleNamespace(data={"run_name": "Run A"}))
+        second = await start_handler(types.SimpleNamespace(data={"run_name": "Run B"}))
+        manager.data["active_run_id"] = second["run_id"]
+
+        await end_handler(
+            types.SimpleNamespace(
+                data={"use_active_run": True, "active_run_strategy": "first_active"}
+            )
+        )
+
+        self.assertIsNotNone(manager.data["runs"][first["run_id"]]["ended_at"])
+        self.assertIsNone(manager.data["runs"][second["run_id"]]["ended_at"])
+
     async def test_search_cultivar_without_breeder_uses_local_cache(self):
         hass = _FakeHass()
         await async_setup(hass, {})

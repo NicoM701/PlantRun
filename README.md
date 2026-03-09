@@ -74,7 +74,14 @@ PlantRun is a Home Assistant custom integration project for documenting cultivat
    - `plantrun.add_note`
 7. End run:
    - `plantrun.end_run`
-   - Optional `strict_active_resolution: true` keeps strict behavior when multiple runs are active.
+   - Optional `strict_active_resolution: true` errors if multiple runs are active and no `run_id`/`run_name` is passed.
+   - Optional `active_run_strategy` can be set to `legacy` (default), `active_run_id`, or `first_active`.
+
+## 🤖 Automation compatibility (recommended)
+
+- For automations/scripts, pass explicit `run_id` (preferred) or `run_name` to avoid multi-active ambiguity.
+- If you intentionally rely on active-run fallback, set `active_run_strategy` explicitly so behavior remains predictable.
+- Keep `legacy` only for backward compatibility with existing flows.
 
 ---
 
@@ -93,6 +100,8 @@ PlantRun is a Home Assistant custom integration project for documenting cultivat
 - `plantrun.unbind_sensor_from_run`
 
 See `custom_components/plantrun/services.yaml` for fields.
+
+Release notes for compatibility-related behavior are tracked in `docs/release-notes.md`.
 
 ---
 

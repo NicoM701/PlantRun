@@ -214,6 +214,26 @@ class PlantRunManagerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(resolved["id"], run_b)
         self.assertNotEqual(resolved["id"], run_a)
 
+    async def test_resolve_active_first_active_strategy_ignores_active_run_id_alias(self):
+        manager = PlantRunManager(FakeStorage())
+
+        run_a = await manager.start_run("Run A", started_at="2026-03-01T00:00:00+00:00")
+        run_b = await manager.start_run("Run B", started_at="2026-03-02T00:00:00+00:00")
+        manager.data["active_run_id"] = run_b
+
+        resolved = manager.resolve_run_or_raise(use_active_run=True, active_run_strategy="first_active")
+        self.assertEqual(resolved["id"], run_a)
+
+    async def test_resolve_active_active_run_id_strategy_errors_when_alias_invalid(self):
+        manager = PlantRunManager(FakeStorage())
+
+        await manager.start_run("Run A", started_at="2026-03-01T00:00:00+00:00")
+        await manager.start_run("Run B", started_at="2026-03-02T00:00:00+00:00")
+        manager.data["active_run_id"] = "missing-id"
+
+        with self.assertRaises(HomeAssistantError):
+            manager.resolve_run_or_raise(use_active_run=True, active_run_strategy="active_run_id")
+
     async def test_list_runs_sorted_desc_by_started_at(self):
         manager = PlantRunManager(FakeStorage())
 

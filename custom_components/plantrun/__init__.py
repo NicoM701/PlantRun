@@ -13,6 +13,9 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers import config_validation as cv
 
 from .const import (
+    ACTIVE_RUN_STRATEGIES,
+    ACTIVE_RUN_STRATEGY_LEGACY,
+    ATTR_ACTIVE_RUN_STRATEGY,
     BINDABLE_SENSOR_KEYS,
     ATTR_BINDING_KEY,
     ATTR_BREEDER,
@@ -88,6 +91,9 @@ RUN_SELECTOR_FIELDS = {
     vol.Optional(ATTR_RUN_NAME): _non_empty_text,
     vol.Optional(ATTR_USE_ACTIVE_RUN, default=True): bool,
     vol.Optional(ATTR_STRICT_ACTIVE_RESOLUTION, default=False): bool,
+    vol.Optional(ATTR_ACTIVE_RUN_STRATEGY, default=ACTIVE_RUN_STRATEGY_LEGACY): vol.In(
+        ACTIVE_RUN_STRATEGIES
+    ),
 }
 
 START_RUN_SCHEMA = vol.Schema(
@@ -230,6 +236,7 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
                 run_name=call.data.get(ATTR_RUN_NAME),
                 use_active_run=bool(call.data.get(ATTR_USE_ACTIVE_RUN, True)),
                 strict_active_resolution=bool(call.data.get(ATTR_STRICT_ACTIVE_RESOLUTION, False)),
+                active_run_strategy=str(call.data.get(ATTR_ACTIVE_RUN_STRATEGY, ACTIVE_RUN_STRATEGY_LEGACY)),
             )
         )
 
@@ -241,6 +248,7 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
                 run_name=call.data.get(ATTR_RUN_NAME),
                 use_active_run=bool(call.data.get(ATTR_USE_ACTIVE_RUN, True)),
                 strict_active_resolution=bool(call.data.get(ATTR_STRICT_ACTIVE_RESOLUTION, False)),
+                active_run_strategy=str(call.data.get(ATTR_ACTIVE_RUN_STRATEGY, ACTIVE_RUN_STRATEGY_LEGACY)),
             )
         )
 
@@ -252,6 +260,7 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
                 run_name=call.data.get(ATTR_RUN_NAME),
                 use_active_run=bool(call.data.get(ATTR_USE_ACTIVE_RUN, True)),
                 strict_active_resolution=bool(call.data.get(ATTR_STRICT_ACTIVE_RESOLUTION, False)),
+                active_run_strategy=str(call.data.get(ATTR_ACTIVE_RUN_STRATEGY, ACTIVE_RUN_STRATEGY_LEGACY)),
             )
         )
 
@@ -309,6 +318,7 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
                 run_name=call.data.get(ATTR_RUN_NAME),
                 use_active_run=bool(call.data.get(ATTR_USE_ACTIVE_RUN, True)),
                 strict_active_resolution=bool(call.data.get(ATTR_STRICT_ACTIVE_RESOLUTION, False)),
+                active_run_strategy=str(call.data.get(ATTR_ACTIVE_RUN_STRATEGY, ACTIVE_RUN_STRATEGY_LEGACY)),
             )
         )
 
@@ -337,6 +347,7 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
                 run_name=call.data.get(ATTR_RUN_NAME),
                 use_active_run=bool(call.data.get(ATTR_USE_ACTIVE_RUN, True)),
                 strict_active_resolution=bool(call.data.get(ATTR_STRICT_ACTIVE_RESOLUTION, False)),
+                active_run_strategy=str(call.data.get(ATTR_ACTIVE_RUN_STRATEGY, ACTIVE_RUN_STRATEGY_LEGACY)),
             )
         )
 
@@ -348,6 +359,7 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
                 run_name=call.data.get(ATTR_RUN_NAME),
                 use_active_run=bool(call.data.get(ATTR_USE_ACTIVE_RUN, True)),
                 strict_active_resolution=bool(call.data.get(ATTR_STRICT_ACTIVE_RESOLUTION, False)),
+                active_run_strategy=str(call.data.get(ATTR_ACTIVE_RUN_STRATEGY, ACTIVE_RUN_STRATEGY_LEGACY)),
             )
         )
 

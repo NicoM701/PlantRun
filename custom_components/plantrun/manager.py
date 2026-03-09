@@ -13,7 +13,16 @@ from typing import Any
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 
-from .const import BINDABLE_SENSOR_KEYS, PHASES, PHASE_GROWTH, SIGNAL_DATA_UPDATED
+from .const import (
+    ACTIVE_RUN_STRATEGIES,
+    ACTIVE_RUN_STRATEGY_ACTIVE_RUN_ID,
+    ACTIVE_RUN_STRATEGY_FIRST_ACTIVE,
+    ACTIVE_RUN_STRATEGY_LEGACY,
+    BINDABLE_SENSOR_KEYS,
+    PHASES,
+    PHASE_GROWTH,
+    SIGNAL_DATA_UPDATED,
+)
 from .storage import PlantRunStorage
 
 _LOGGER = logging.getLogger(__name__)
@@ -81,7 +90,14 @@ class PlantRunManager:
         run_name: str | None = None,
         use_active_run: bool = False,
         strict_active_resolution: bool = False,
+        active_run_strategy: str = ACTIVE_RUN_STRATEGY_LEGACY,
     ) -> dict[str, Any]:
+        if active_run_strategy not in ACTIVE_RUN_STRATEGIES:
+            raise HomeAssistantError(
+                f"Invalid active_run_strategy '{active_run_strategy}'. "
+                f"Expected one of: {', '.join(ACTIVE_RUN_STRATEGIES)}"
+            )
+
         if run_id:
             return self.get_run_or_raise(run_id)
 
@@ -113,18 +129,32 @@ class PlantRunManager:
                 )
 
             active_run_id = self.data.get("active_run_id")
-            if active_run_id and active_run_id in active_ids:
-                _LOGGER.warning(
-                    "Multiple active runs; using active_run_id '%s' as compatibility fallback.",
-                    active_run_id,
-                )
-                return self.get_run_or_raise(active_run_id)
+            if active_run_strategy in (ACTIVE_RUN_STRATEGY_LEGACY, ACTIVE_RUN_STRATEGY_ACTIVE_RUN_ID):
+                if active_run_id and active_run_id in active_ids:
+                    log_msg = (
+                        "Multiple active runs; using active_run_id '%s' as compatibility fallback."
+                        if active_run_strategy == ACTIVE_RUN_STRATEGY_LEGACY
+                        else "Multiple active runs; using explicit active_run_id strategy with '%s'."
+                    )
+                    _LOGGER.warning(log_msg, active_run_id)
+                    return self.get_run_or_raise(active_run_id)
+
+                if active_run_strategy == ACTIVE_RUN_STRATEGY_ACTIVE_RUN_ID:
+                    raise HomeAssistantError(
+                        "active_run_strategy='active_run_id' requires a valid active_run_id in storage."
+                    )
 
             fallback_id = active_ids[0]
-            _LOGGER.warning(
-                "Multiple active runs; using first active run '%s' as deterministic compatibility fallback.",
-                fallback_id,
-            )
+            if active_run_strategy == ACTIVE_RUN_STRATEGY_FIRST_ACTIVE:
+                _LOGGER.warning(
+                    "Multiple active runs; using first active run '%s' as explicit first_active strategy.",
+                    fallback_id,
+                )
+            else:
+                _LOGGER.warning(
+                    "Multiple active runs; using first active run '%s' as deterministic compatibility fallback.",
+                    fallback_id,
+                )
             return self.get_run_or_raise(fallback_id)
 
         raise HomeAssistantError("Provide run_id, run_name, or set use_active_run=true")
@@ -279,12 +309,14 @@ class PlantRunManager:
         run_name: str | None = None,
         use_active_run: bool = True,
         strict_active_resolution: bool = False,
+        active_run_strategy: str = ACTIVE_RUN_STRATEGY_LEGACY,
     ) -> None:
         run = self.resolve_run_or_raise(
             run_id=run_id,
             run_name=run_name,
             use_active_run=use_active_run,
             strict_active_resolution=strict_active_resolution,
+            active_run_strategy=active_run_strategy,
         )
         if run.get("ended_at"):
             raise HomeAssistantError(f"Run already ended: {run.get('id')}")
@@ -305,6 +337,7 @@ class PlantRunManager:
         run_name: str | None = None,
         use_active_run: bool = True,
         strict_active_resolution: bool = False,
+        active_run_strategy: str = ACTIVE_RUN_STRATEGY_LEGACY,
     ) -> None:
         if phase not in PHASES:
             raise HomeAssistantError(f"Invalid phase: {phase}")
@@ -314,6 +347,7 @@ class PlantRunManager:
             run_name=run_name,
             use_active_run=use_active_run,
             strict_active_resolution=strict_active_resolution,
+            active_run_strategy=active_run_strategy,
         )
         run["phase"] = phase
         run.setdefault("phase_history", []).append(
@@ -329,6 +363,7 @@ class PlantRunManager:
         run_name: str | None = None,
         use_active_run: bool = True,
         strict_active_resolution: bool = False,
+        active_run_strategy: str = ACTIVE_RUN_STRATEGY_LEGACY,
     ) -> None:
         note = note.strip()
         if not note:
@@ -339,6 +374,7 @@ class PlantRunManager:
             run_name=run_name,
             use_active_run=use_active_run,
             strict_active_resolution=strict_active_resolution,
+            active_run_strategy=active_run_strategy,
         )
         run.setdefault("notes", []).append({"at": self.storage.utc_now_iso(), "text": note})
 
@@ -367,12 +403,14 @@ class PlantRunManager:
         run_name: str | None = None,
         use_active_run: bool = True,
         strict_active_resolution: bool = False,
+        active_run_strategy: str = ACTIVE_RUN_STRATEGY_LEGACY,
     ) -> None:
         run = self.resolve_run_or_raise(
             run_id=run_id,
             run_name=run_name,
             use_active_run=use_active_run,
             strict_active_resolution=strict_active_resolution,
+            active_run_strategy=active_run_strategy,
         )
         cultivar = self.get_cultivar_or_raise(cultivar_id)
         run["cultivar_id"] = cultivar_id
@@ -396,6 +434,7 @@ class PlantRunManager:
         run_name: str | None = None,
         use_active_run: bool = True,
         strict_active_resolution: bool = False,
+        active_run_strategy: str = ACTIVE_RUN_STRATEGY_LEGACY,
     ) -> None:
         if binding_key not in BINDABLE_SENSOR_KEYS:
             raise HomeAssistantError(
@@ -409,6 +448,7 @@ class PlantRunManager:
             run_name=run_name,
             use_active_run=use_active_run,
             strict_active_resolution=strict_active_resolution,
+            active_run_strategy=active_run_strategy,
         )
         run.setdefault("bindings", _default_bindings())
         run["bindings"][binding_key] = entity_id.strip()
@@ -426,6 +466,7 @@ class PlantRunManager:
         run_name: str | None = None,
         use_active_run: bool = True,
         strict_active_resolution: bool = False,
+        active_run_strategy: str = ACTIVE_RUN_STRATEGY_LEGACY,
     ) -> None:
         if binding_key not in BINDABLE_SENSOR_KEYS:
             raise HomeAssistantError(
@@ -437,6 +478,7 @@ class PlantRunManager:
             run_name=run_name,
             use_active_run=use_active_run,
             strict_active_resolution=strict_active_resolution,
+            active_run_strategy=active_run_strategy,
         )
         run.setdefault("bindings", _default_bindings())
         run["bindings"][binding_key] = None
