@@ -280,3 +280,216 @@ add_binding:
       required: true
       selector:
         text:
+
+update_note:
+  name: Update Note
+  description: Update an existing run note.
+  fields:
+    run_id:
+      name: Run ID
+      required: false
+      selector:
+        text:
+    run_name:
+      name: Run Name
+      required: false
+      selector:
+        text:
+    use_active_run:
+      name: Use Active Run
+      required: false
+      default: false
+      selector:
+        boolean:
+    strict_active_resolution:
+      name: Strict Active Resolution
+      required: false
+      default: false
+      selector:
+        boolean:
+    active_run_strategy:
+      name: Active Run Strategy
+      required: false
+      default: legacy
+      selector:
+        select:
+          options:
+            - legacy
+            - active_run_id
+            - first_active
+    note_id:
+      name: Note ID
+      required: true
+      selector:
+        text:
+    text:
+      name: Updated Text
+      required: true
+      selector:
+        text:
+
+delete_note:
+  name: Delete Note
+  description: Delete an existing run note.
+  fields:
+    run_id:
+      name: Run ID
+      required: false
+      selector:
+        text:
+    run_name:
+      name: Run Name
+      required: false
+      selector:
+        text:
+    use_active_run:
+      name: Use Active Run
+      required: false
+      default: false
+      selector:
+        boolean:
+    strict_active_resolution:
+      name: Strict Active Resolution
+      required: false
+      default: false
+      selector:
+        boolean:
+    active_run_strategy:
+      name: Active Run Strategy
+      required: false
+      default: legacy
+      selector:
+        select:
+          options:
+            - legacy
+            - active_run_id
+            - first_active
+    note_id:
+      name: Note ID
+      required: true
+      selector:
+        text:
+
+update_run:
+  name: Update Run
+  description: Update run metadata fields for dashboard CRUD workflows.
+  fields:
+    run_id:
+      name: Run ID
+      required: false
+      selector:
+        text:
+    run_name:
+      name: Run Name
+      required: false
+      selector:
+        text:
+    use_active_run:
+      name: Use Active Run
+      required: false
+      default: false
+      selector:
+        boolean:
+    strict_active_resolution:
+      name: Strict Active Resolution
+      required: false
+      default: false
+      selector:
+        boolean:
+    active_run_strategy:
+      name: Active Run Strategy
+      required: false
+      default: legacy
+      selector:
+        select:
+          options:
+            - legacy
+            - active_run_id
+            - first_active
+    friendly_name:
+      name: Friendly Name
+      required: false
+      selector:
+        text:
+    planted_date:
+      name: Planted Date
+      required: false
+      selector:
+        text:
+    notes_summary:
+      name: Summary
+      required: false
+      selector:
+        text:
+    dry_yield_grams:
+      name: Dry Yield (g)
+      required: false
+      selector:
+        number:
+    image_url:
+      name: Image URL
+      required: false
+      selector:
+        text:
+    image_source:
+      name: Image Source
+      required: false
+      selector:
+        text:
+
+set_run_image:
+  name: Set Run Image
+  description: Set image URL or upload base64 image data for a run.
+  fields:
+    run_id:
+      name: Run ID
+      required: false
+      selector:
+        text:
+    run_name:
+      name: Run Name
+      required: false
+      selector:
+        text:
+    use_active_run:
+      name: Use Active Run
+      required: false
+      default: false
+      selector:
+        boolean:
+    strict_active_resolution:
+      name: Strict Active Resolution
+      required: false
+      default: false
+      selector:
+        boolean:
+    active_run_strategy:
+      name: Active Run Strategy
+      required: false
+      default: legacy
+      selector:
+        select:
+          options:
+            - legacy
+            - active_run_id
+            - first_active
+    image_data:
+      name: Image Data (Base64/Data URL)
+      required: false
+      selector:
+        text:
+    file_name:
+      name: Filename
+      required: false
+      selector:
+        text:
+    image_url:
+      name: Image URL
+      required: false
+      selector:
+        text:
+    image_source:
+      name: Source Label
+      required: false
+      selector:
+        text:
