@@ -151,6 +151,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         run = resolve_target_run(call)
 
         cultivar_name = call.data["cultivar_name"].strip()
+        if not cultivar_name:
+            raise ServiceValidationError("cultivar_name must not be empty after trimming whitespace.")
         breeder = str(call.data.get("breeder", "")).strip()
         strain = str(call.data.get("strain", "")).strip()
 
