@@ -65,8 +65,8 @@ class PlantRunOptionsFlowHandler(config_entries.OptionsFlow):
         """Return the storage instance attached to this config entry."""
         return self.hass.data[DOMAIN][self.plantrun_config_entry.entry_id]["storage"]
 
-    def _get_active_runs_dict(self):
-        """Get a dict of run_id -> friendly_name for active runs."""
+    def _get_runs_dict(self, *, include_ended: bool = True):
+        """Get a dict of run_id -> human-friendly run label."""
         runs = {}
         if not hasattr(self, "hass") or DOMAIN not in self.hass.data:
             return runs
@@ -74,8 +74,10 @@ class PlantRunOptionsFlowHandler(config_entries.OptionsFlow):
         if not storage:
             return runs
         for run in storage.runs:
-            if run.status == "active":
-                runs[run.id] = f"{run.friendly_name} ({run.id[-6:]})"
+            if not include_ended and run.status != "active":
+                continue
+            status_label = "active" if run.status == "active" else "ended"
+            runs[run.id] = f"{run.friendly_name} ({status_label}, {run.id[-6:]})"
         return runs
 
     async def async_step_init(
@@ -216,9 +218,9 @@ class PlantRunOptionsFlowHandler(config_entries.OptionsFlow):
 
     async def async_step_manage_run(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         """Step 1 of Management: Select the run."""
-        runs = self._get_active_runs_dict()
+        runs = self._get_runs_dict(include_ended=True)
         if not runs:
-            return self.async_abort(reason="no_active_runs")
+            return self.async_abort(reason="no_runs")
 
         if user_input is not None:
             self._target_run_id = user_input["run_id"]
