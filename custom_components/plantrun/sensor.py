@@ -19,9 +19,13 @@ METRIC_METADATA: dict[str, dict[str, str]] = {
     "temperature": {"device_class": "temperature", "state_class": "measurement", "unit": "°C"},
     "humidity": {"device_class": "humidity", "state_class": "measurement", "unit": "%"},
     "soil_moisture": {"device_class": "moisture", "state_class": "measurement", "unit": "%"},
+    "light": {"state_class": "measurement"},
     "energy": {"device_class": "energy", "state_class": "total_increasing", "unit": "kWh"},
     "water": {"state_class": "measurement"},
 }
+
+# Accept common illuminance aliases and normalize to canonical "lx".
+LIGHT_ILLUMINANCE_UNIT_ALIASES = {"lx", "lux"}
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -217,6 +221,13 @@ class PlantRunProxySensor(CoordinatorEntity[PlantRunCoordinator], SensorEntity):
         source_device_class = attrs.get("device_class")
         source_state_class = attrs.get("state_class")
 
+        if self.metric_type == "light":
+            normalized_light_unit = _normalize_light_unit(source_unit)
+            self._attr_native_unit_of_measurement = normalized_light_unit
+            self._attr_device_class = source_device_class or _light_device_class_for_unit(normalized_light_unit)
+            self._attr_state_class = source_state_class or expected.get("state_class")
+            return
+
         expected_unit = expected.get("unit")
         if expected_unit and source_unit and source_unit != expected_unit:
             _LOGGER.warning(
@@ -290,3 +301,27 @@ def _binding_unique_id(run_id: str, binding: Binding) -> str:
     if binding.id == f"legacy_{binding.metric_type}":
         return f"plantrun_{binding.metric_type}_{run_id}"
     return f"plantrun_{binding.metric_type}_{run_id}_{binding.id}"
+
+
+def _normalize_light_unit(unit: str | None) -> str | None:
+    """Normalize recognized light-unit aliases to their canonical representation."""
+    if unit is None:
+        return None
+
+    normalized = unit.strip().casefold()
+    if normalized in LIGHT_ILLUMINANCE_UNIT_ALIASES:
+        return "lx"
+
+    return unit
+
+
+def _light_device_class_for_unit(unit: str | None) -> str | None:
+    """Return a safe light device class fallback for known illuminance units."""
+    if unit is None:
+        return None
+
+    normalized = unit.strip().casefold()
+    if normalized in LIGHT_ILLUMINANCE_UNIT_ALIASES:
+        return "illuminance"
+
+    return None
