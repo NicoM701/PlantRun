@@ -220,13 +220,17 @@ class PlantRunCard extends LitElement {
       .sort();
   }
 
-  _getResolvedRunId() {
+  _getConfiguredRunId() {
     const configuredRunId = this.config?.run_id;
-    if (configuredRunId && configuredRunId !== "example_run_id") {
-      return configuredRunId;
+    if (!configuredRunId || configuredRunId === "example_run_id") {
+      return null;
     }
 
-    return this._getAvailableRunIds()[0];
+    return configuredRunId;
+  }
+
+  _getResolvedRunId() {
+    return this._getConfiguredRunId() || this._getAvailableRunIds()[0];
   }
 
   render() {
@@ -284,6 +288,7 @@ class PlantRunCard extends LitElement {
     });
 
     const isRunning = statusSensor.state === "active";
+    const canRunActions = this._canRunMutatingActions();
     const runName = statusSensor.attributes.friendly_name?.replace(" Status", "") || "GrowZelt Steuerung";
 
     return html`
@@ -339,40 +344,55 @@ class PlantRunCard extends LitElement {
         </div>
 
         ${isRunning ? html`
-          <div class="action-row">
-            <div class="action-btn" @click="${this._changePhase}">
-              <div class="action-icon">
-                <ha-icon icon="mdi:update"></ha-icon>
+          ${canRunActions ? html`
+            <div class="action-row">
+              <div class="action-btn" @click="${this._changePhase}">
+                <div class="action-icon">
+                  <ha-icon icon="mdi:update"></ha-icon>
+                </div>
+                <div class="action-text">
+                  <div class="action-title">Change Phase</div>
+                  <div class="action-subtitle">Enter next stage</div>
+                </div>
               </div>
-              <div class="action-text">
-                <div class="action-title">Change Phase</div>
-                <div class="action-subtitle">Enter next stage</div>
-              </div>
-            </div>
 
-            <div class="action-btn" @click="${this._addNote}">
-              <div class="action-icon">
-                <ha-icon icon="mdi:notebook-edit"></ha-icon>
+              <div class="action-btn" @click="${this._addNote}">
+                <div class="action-icon">
+                  <ha-icon icon="mdi:notebook-edit"></ha-icon>
+                </div>
+                <div class="action-text">
+                  <div class="action-title">Add Note</div>
+                  <div class="action-subtitle">Log an event</div>
+                </div>
               </div>
-              <div class="action-text">
-                <div class="action-title">Add Note</div>
-                <div class="action-subtitle">Log an event</div>
-              </div>
-            </div>
 
-            <div class="action-btn end" @click="${this._endRun}">
-              <div class="action-icon">
-                <ha-icon icon="mdi:power"></ha-icon>
-              </div>
-              <div class="action-text">
-                <div class="action-title">End Run</div>
-                <div class="action-subtitle">Lock timeline</div>
+              <div class="action-btn end" @click="${this._endRun}">
+                <div class="action-icon">
+                  <ha-icon icon="mdi:power"></ha-icon>
+                </div>
+                <div class="action-text">
+                  <div class="action-title">End Run</div>
+                  <div class="action-subtitle">Lock timeline</div>
+                </div>
               </div>
             </div>
-          </div>
+          ` : html`
+            <div class="error">
+              <ha-icon icon="mdi:alert-outline"></ha-icon>
+              Multiple PlantRun runs are available. Set a run ID in card configuration to enable actions.
+            </div>
+          `}
         ` : ""}
       </ha-card>
     `;
+  }
+
+  _canRunMutatingActions() {
+    if (this._getConfiguredRunId()) {
+      return true;
+    }
+
+    return this._getAvailableRunIds().length === 1;
   }
 
   _changePhase() {
@@ -431,7 +451,22 @@ class PlantRunCard extends LitElement {
       return null;
     }
 
-    return this._getResolvedRunId() || null;
+    const configuredRunId = this._getConfiguredRunId();
+    if (configuredRunId) {
+      return configuredRunId;
+    }
+
+    const discoveredRunIds = this._getAvailableRunIds();
+    if (discoveredRunIds.length === 1) {
+      return discoveredRunIds[0];
+    }
+
+    // Never mutate an arbitrary discovered run when card config is ambiguous.
+    if (discoveredRunIds.length > 1) {
+      alert("Multiple PlantRun runs were discovered. Set a run ID in the card configuration before using actions.");
+    }
+
+    return null;
   }
 }
 
