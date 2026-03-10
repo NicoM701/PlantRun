@@ -120,6 +120,11 @@ Planned extension:
 - Must provide Config Flow (no YAML required for normal users).
 - Setup language must be human-friendly and self-explanatory.
 - Avoid technical/internal naming in user-visible forms.
+- Issue #35 Slice A is delivered in the sidebar setup flow:
+  - 3-step structure: Basics, Cultivar lookup, Planning defaults
+  - clearer labels for cultivar, grow space, root medium, and target days
+  - lower-cognitive-load defaults for grow space, medium, and target days
+  - payload compatibility remains unchanged
 
 ### 4.2 Run UX
 - Must provide a **multi-step wizard** for:
@@ -229,6 +234,10 @@ Planned major tracks:
 4. Multi-sensor-per-type support at scale
 5. Rich media workflow + timelapse pipeline
 6. Cultivar provider adapter architecture (multiple sources)
+
+Issue #35 remaining slices:
+- Slice B: empty states, helper hints, and setup guardrails for unclear or incomplete input
+- Slice C: final consistency/polish pass and closeout criteria for the simplified setup flow
 
 ---
 

@@ -26,8 +26,10 @@ PlantRun turns Home Assistant into a dedicated grow diary. It groups your chosen
 1. Go to **Settings** -> **Devices & Services** -> **Add Integration**.
 2. Search for **PlantRun**.
 3. Use the guided UI Wizard to click **Start New Run**.
-4. Enter the Breeder and Strain to fetch the genetics, optionally set the Planting Date, and pick your sensors.
-5. Go to your **Devices** page and search for the newly created Run name to view your proxy sensors and run status!
+4. Follow the new 3-step setup flow: **Basics**, **Cultivar lookup**, and **Planning defaults**.
+5. Use the clearer labels for cultivar, grow space, root medium, and target days. Default values now start from low-friction planning choices (`Main grow space`, `Soil`, `84` days).
+6. Optional SeedFinder enrichment still works, and the underlying create/update payloads remain unchanged for compatibility.
+7. Go to your **Devices** page and search for the newly created Run name to view your proxy sensors and run status!
 
 ## 📚 Sidebar Dashboard UI
 
@@ -35,6 +37,7 @@ PlantRun now exposes a dedicated sidebar panel at **PlantRun** (`/plantrun-dashb
 
 What it supports:
 - Empty-state first-run initialization with planted-date defaulting and optional SeedFinder target-day suggestions
+- Lower-cognitive-load setup defaults for grow space, medium, and target days
 - Dynamic runtime cards for all runs with graceful missing-sensor handling
 - Click sensor values to open Home Assistant more-info/details for the source entity
 - Phase timeline dots with double-confirm before phase change service calls
