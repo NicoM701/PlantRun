@@ -37,6 +37,55 @@ def _score_match(query_species: str, row_species: str, prefer_automatic: bool = 
 
     return base
 
+
+def parse_flower_window_days(raw_value: str | None) -> int | None:
+    """Parse a SeedFinder flowering duration string into midpoint days."""
+    if not raw_value:
+        return None
+
+    normalized = " ".join(str(raw_value).strip().lower().split())
+    if not normalized:
+        return None
+
+    normalized = normalized.replace("–", "-").replace("—", "-")
+    normalized = normalized.replace(",", ".")
+    pattern = re.compile(
+        r"(?:(?:~|about|approx(?:\.|imately)?|ca\.?|around)\s*)?"
+        r"(?P<start>\d+(?:\.\d+)?)"
+        r"(?:\s*(?:-|to)\s*(?P<end>\d+(?:\.\d+)?))?"
+        r"\s*(?P<unit>days?|d|weeks?|w)\b"
+    )
+
+    match = pattern.search(normalized)
+    if not match:
+        return None
+
+    start = float(match.group("start"))
+    end = float(match.group("end") or start)
+    midpoint = (start + end) / 2
+    unit = match.group("unit")
+
+    if unit.startswith("w"):
+        midpoint *= 7
+
+    parsed = int(round(midpoint))
+    return parsed if parsed > 0 else None
+
+
+def _extract_flower_window_days(cells: list[Any]) -> int | None:
+    """Return the first parseable flowering duration from a breeder result row."""
+    for cell in cells[2:]:
+        value = parse_flower_window_days(cell.get_text(" ", strip=True))
+        if value is not None:
+            return value
+
+    for cell in cells:
+        value = parse_flower_window_days(cell.get_text(" ", strip=True))
+        if value is not None:
+            return value
+
+    return None
+
 async def async_search_cultivar(
     breeder: str,
     strain: str,
@@ -105,6 +154,7 @@ async def async_search_cultivar(
             match_name = anchor.get_text(strip=True)
             match_breeder = cells[1].get_text(strip=True) if len(cells) > 1 else breeder
             detail_url = anchor.get("href")
+            flower_window_days = _extract_flower_window_days(cells)
             if detail_url and detail_url.startswith("/"):
                 detail_url = f"https://seedfinder.eu{detail_url}"
 
@@ -112,7 +162,7 @@ async def async_search_cultivar(
                 CultivarSnapshot(
                     name=match_name,
                     breeder=match_breeder,
-                    flower_window_days=None,
+                    flower_window_days=flower_window_days,
                     detail_url=detail_url,
                 )
             )
