@@ -23,6 +23,7 @@ class PlantRunDashboardPanel extends LitElement {
       _setupForm: { type: Object },
       _newNotes: { type: Object },
       _editNotes: { type: Object },
+      _collapsedNotes: { type: Object },
     };
   }
 
@@ -47,6 +48,7 @@ class PlantRunDashboardPanel extends LitElement {
     };
     this._newNotes = {};
     this._editNotes = {};
+    this._collapsedNotes = {};
   }
 
   connectedCallback() {
@@ -361,6 +363,58 @@ class PlantRunDashboardPanel extends LitElement {
         display: grid;
         gap: 8px;
       }
+      .notes-panel {
+        margin-top: 12px;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.02);
+        overflow: hidden;
+      }
+      .notes-toggle {
+        width: 100%;
+        border: 0;
+        background: transparent;
+        color: inherit;
+        padding: 10px 12px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        cursor: pointer;
+        text-align: left;
+      }
+      .notes-toggle-main {
+        min-width: 0;
+        display: grid;
+        gap: 4px;
+      }
+      .notes-label-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .notes-label {
+        font-size: 10px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--t2);
+      }
+      .notes-stack {
+        color: var(--t3);
+        font-size: 10px;
+      }
+      .notes-preview {
+        min-width: 0;
+        color: var(--t1);
+        font-size: 11px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .notes-body {
+        padding: 0 12px 12px;
+        border-top: 1px solid var(--border);
+      }
       .note {
         border: 1px solid var(--border);
         border-radius: 10px;
@@ -532,6 +586,10 @@ class PlantRunDashboardPanel extends LitElement {
     const unavailableCount = sensorRows.length - availableSensors.length;
     const imageUrl = run.image_url || run.cultivar?.image_url || "";
     const imageSource = run.image_url ? run.image_source || "custom" : run.cultivar?.image_url ? "seedfinder (fallback)" : "placeholder";
+    const notes = (run.notes || []).slice().reverse();
+    const latestNote = notes[0];
+    const notesCollapsed = this._notesCollapsed(run.id);
+    const extraNotesCount = latestNote ? Math.max(notes.length - 1, 0) : 0;
 
     return html`
       <article class="card">
@@ -588,31 +646,42 @@ class PlantRunDashboardPanel extends LitElement {
                     })}
                   </div>
 
-                  <div class="notes">
-                    ${(run.notes || []).length
-                      ? run.notes
-                          .slice()
-                          .reverse()
-                          .map((note) => this._renderNote(run, note))
-                      : html`<div class="note"><div class="note-ts">No notes yet</div>Add one below.</div>`}
+                  <div class="notes-panel">
+                    <button class="notes-toggle" @click=${() => this._toggleNotes(run.id)}>
+                      <div class="notes-toggle-main">
+                        <div class="notes-label-row">
+                          <span class="notes-label">Notes</span>
+                          <span class="notes-stack">${notes.length}${extraNotesCount ? html` (+${extraNotesCount} earlier)` : null}</span>
+                        </div>
+                        <div class="notes-preview">${latestNote ? latestNote.text : "No notes yet. Add one below."}</div>
+                      </div>
+                      <span>${notesCollapsed ? "▾" : "▴"}</span>
+                    </button>
+                    ${notesCollapsed
+                      ? null
+                      : html`<div class="notes-body"><div class="notes">${notes.length
+                        ? notes.map((note) => this._renderNote(run, note))
+                        : html`<div class="note"><div class="note-ts">No notes yet</div>Add one below.</div>`}</div></div>`}
                   </div>
 
-                  <div class="actions">
-                    <textarea
-                      class="textarea"
-                      placeholder="Add note"
-                      .value=${this._newNotes[run.id] || ""}
-                      @input=${(e) => this._setNewNote(run.id, e.target.value)}
-                    ></textarea>
-                    <button class="mini" @click=${() => this._addNote(run.id)}>Add note</button>
-                    <input class="input" type="number" placeholder="Dry yield (g)" .value=${run.dry_yield_grams ?? ""} @change=${(e) => this._changeYield(run.id, e.target.value)} />
-                    <input class="input" placeholder="Summary" .value=${run.notes_summary || ""} @change=${(e) => this._updateRun(run.id, { notes_summary: e.target.value })} />
-                    <input class="input" type="file" accept="image/png,image/jpeg,image/webp" @change=${(e) => this._uploadImage(run.id, e)} />
-                    ${run.cultivar?.image_url
-                      ? html`<button class="mini" @click=${() => this._setSeedfinderImage(run.id, run.cultivar.image_url)}>Use SeedFinder image</button>`
-                      : null}
-                    <button class="mini danger" @click=${() => this._endRun(run.id)}>Finish run</button>
-                  </div>
+                  ${notesCollapsed
+                    ? null
+                    : html`<div class="actions">
+                        <textarea
+                          class="textarea"
+                          placeholder="Add note"
+                          .value=${this._newNotes[run.id] || ""}
+                          @input=${(e) => this._setNewNote(run.id, e.target.value)}
+                        ></textarea>
+                        <button class="mini" @click=${() => this._addNote(run.id)}>Add note</button>
+                        <input class="input" type="number" placeholder="Dry yield (g)" .value=${run.dry_yield_grams ?? ""} @change=${(e) => this._changeYield(run.id, e.target.value)} />
+                        <input class="input" placeholder="Summary" .value=${run.notes_summary || ""} @change=${(e) => this._updateRun(run.id, { notes_summary: e.target.value })} />
+                        <input class="input" type="file" accept="image/png,image/jpeg,image/webp" @change=${(e) => this._uploadImage(run.id, e)} />
+                        ${run.cultivar?.image_url
+                          ? html`<button class="mini" @click=${() => this._setSeedfinderImage(run.id, run.cultivar.image_url)}>Use SeedFinder image</button>`
+                          : null}
+                        <button class="mini danger" @click=${() => this._endRun(run.id)}>Finish run</button>
+                      </div>`}
                 </div>
               `
             : null}
@@ -652,6 +721,17 @@ class PlantRunDashboardPanel extends LitElement {
 
   _toggleExpand(runId) {
     this._expandedRunId = this._expandedRunId === runId ? "" : runId;
+  }
+
+  _toggleNotes(runId) {
+    this._collapsedNotes = {
+      ...this._collapsedNotes,
+      [runId]: !this._notesCollapsed(runId),
+    };
+  }
+
+  _notesCollapsed(runId) {
+    return this._collapsedNotes[runId] !== false;
   }
 
   _sensorRows(run) {
