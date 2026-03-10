@@ -557,7 +557,7 @@ class PlantRunDashboardPanel extends LitElement {
   _renderRunCard(run) {
     const expanded = this._expandedRunId === run.id;
     const currentPhase = run.phases?.length ? run.phases[run.phases.length - 1].name : "None";
-    const runAgeDays = this._runAgeDays(run.start_time);
+    const runAgeDays = this._runAgeDays(run.start_time, run.end_time);
     const sensorRows = this._sensorRows(run);
     const availableSensors = sensorRows.filter((s) => s.available);
     const unavailableCount = sensorRows.length - availableSensors.length;
@@ -949,11 +949,13 @@ class PlantRunDashboardPanel extends LitElement {
     return date.toLocaleString();
   }
 
-  _runAgeDays(input) {
-    if (!input) return 0;
-    const start = new Date(input);
+  _runAgeDays(startInput, endInput) {
+    if (!startInput) return 0;
+    const start = new Date(startInput);
     if (Number.isNaN(start.getTime())) return 0;
-    const diffMs = Date.now() - start.getTime();
+    const end = endInput ? new Date(endInput) : new Date();
+    const endTime = Number.isNaN(end.getTime()) ? Date.now() : end.getTime();
+    const diffMs = endTime - start.getTime();
     if (diffMs <= 0) return 1;
     return Math.floor(diffMs / 86400000) + 1;
   }
