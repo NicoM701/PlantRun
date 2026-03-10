@@ -122,6 +122,8 @@ class ParseFlowerWindowDaysTest(unittest.TestCase):
             "about 10 weeks": 70,
             "70 days": 70,
             "flowering time: 56 - 63 days": 60,
+            "55-65 tage": 60,
+            "8-9 wochen": 60,
         }
 
         for raw_value, expected in cases.items():
