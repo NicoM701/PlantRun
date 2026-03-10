@@ -726,6 +726,7 @@ class PlantRunDashboardPanel extends LitElement {
   _renderRunCard(run) {
     const expanded = this._expandedRunId === run.id;
     const currentPhase = run.phases?.length ? run.phases[run.phases.length - 1].name : "None";
+    const showHarvestFields = this._hasReachedPostHarvest(run);
     const runAgeDays = this._runAgeDays(run.start_time, run.end_time);
     const sensorRows = this._sensorRows(run);
     const availableSensors = sensorRows.filter((s) => s.available);
@@ -832,18 +833,22 @@ class PlantRunDashboardPanel extends LitElement {
                           @input=${(e) => this._setNewNote(run.id, e.target.value)}
                         ></textarea>
                         <button class="mini" @click=${() => this._addNote(run.id)}>Add note</button>
-                        <input class="input" type="number" placeholder="Dry yield (g)" .value=${run.dry_yield_grams ?? ""} @change=${(e) => this._changeYield(run.id, e.target.value)} />
-                        <div class="field">
-                          <label class="field-label" for="notes-summary-${run.id}">Summary (optional)</label>
-                          <input
-                            id="notes-summary-${run.id}"
-                            class="input"
-                            placeholder="Example: Strong terpene profile, steady finish, 84g dried"
-                            .value=${run.notes_summary || ""}
-                            @change=${(e) => this._updateRun(run.id, { notes_summary: e.target.value })}
-                          />
-                          <div class="hint">Optional short recap of the run for quick scanning later.</div>
-                        </div>
+                        ${showHarvestFields
+                          ? html`
+                              <input class="input" type="number" placeholder="Dry yield (g)" .value=${run.dry_yield_grams ?? ""} @change=${(e) => this._changeYield(run.id, e.target.value)} />
+                              <div class="field">
+                                <label class="field-label" for="notes-summary-${run.id}">Summary (optional)</label>
+                                <input
+                                  id="notes-summary-${run.id}"
+                                  class="input"
+                                  placeholder="Example: Strong terpene profile, steady finish, 84g dried"
+                                  .value=${run.notes_summary || ""}
+                                  @change=${(e) => this._updateRun(run.id, { notes_summary: e.target.value })}
+                                />
+                                <div class="hint">Optional short recap of the run for quick scanning later.</div>
+                              </div>
+                            `
+                          : html`<div class="hint">Dry yield and recap fields unlock from Harvest onward.</div>`}
                         <input class="input" type="file" accept="image/png,image/jpeg,image/webp" @change=${(e) => this._uploadImage(run.id, e)} />
                         ${run.cultivar?.image_url
                           ? html`<button class="mini" @click=${() => this._setSeedfinderImage(run.id, run.cultivar.image_url)}>Use SeedFinder image</button>`
@@ -900,6 +905,16 @@ class PlantRunDashboardPanel extends LitElement {
 
   _notesCollapsed(runId) {
     return this._collapsedNotes[runId] !== false;
+  }
+
+  _hasReachedPostHarvest(run) {
+    const phases = Array.isArray(run?.phases) ? run.phases : [];
+    return phases.some((phase) => this._isPostHarvestPhase(phase?.name));
+  }
+
+  _isPostHarvestPhase(phaseName) {
+    const phase = String(phaseName || "").trim().toLowerCase();
+    return ["harvest", "drying", "curing"].includes(phase);
   }
 
   _sensorRows(run) {
