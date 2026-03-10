@@ -53,7 +53,7 @@ def parse_flower_window_days(raw_value: str | None) -> int | None:
         r"(?:(?:~|about|approx(?:\.|imately)?|ca\.?|around)\s*)?"
         r"(?P<start>\d+(?:\.\d+)?)"
         r"(?:\s*(?:-|to)\s*(?P<end>\d+(?:\.\d+)?))?"
-        r"\s*(?P<unit>days?|d|weeks?|w)\b"
+        r"\s*(?P<unit>days?|d|weeks?|w|tage?|wochen?)\b"
     )
 
     match = pattern.search(normalized)
