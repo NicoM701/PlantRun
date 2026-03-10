@@ -494,6 +494,16 @@ class PlantRunDashboardPanel extends LitElement {
         gap: 8px;
         margin-top: 10px;
       }
+      .field {
+        flex: 1 1 240px;
+        min-width: 240px;
+      }
+      .field-label {
+        display: block;
+        margin-bottom: 4px;
+        color: var(--t2);
+        font-size: 11px;
+      }
       .setup {
         max-width: 760px;
         border: 1px solid var(--border);
@@ -718,7 +728,17 @@ class PlantRunDashboardPanel extends LitElement {
                         ></textarea>
                         <button class="mini" @click=${() => this._addNote(run.id)}>Add note</button>
                         <input class="input" type="number" placeholder="Dry yield (g)" .value=${run.dry_yield_grams ?? ""} @change=${(e) => this._changeYield(run.id, e.target.value)} />
-                        <input class="input" placeholder="Summary" .value=${run.notes_summary || ""} @change=${(e) => this._updateRun(run.id, { notes_summary: e.target.value })} />
+                        <div class="field">
+                          <label class="field-label" for="notes-summary-${run.id}">Summary (optional)</label>
+                          <input
+                            id="notes-summary-${run.id}"
+                            class="input"
+                            placeholder="Example: Strong terpene profile, steady finish, 84g dried"
+                            .value=${run.notes_summary || ""}
+                            @change=${(e) => this._updateRun(run.id, { notes_summary: e.target.value })}
+                          />
+                          <div class="hint">Optional short recap of the run for quick scanning later.</div>
+                        </div>
                         <input class="input" type="file" accept="image/png,image/jpeg,image/webp" @change=${(e) => this._uploadImage(run.id, e)} />
                         ${run.cultivar?.image_url
                           ? html`<button class="mini" @click=${() => this._setSeedfinderImage(run.id, run.cultivar.image_url)}>Use SeedFinder image</button>`
