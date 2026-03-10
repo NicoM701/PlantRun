@@ -1,67 +1,102 @@
 # PlantRun 🌱
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg?style=for-the-badge)](https://github.com/hacs/integration)
 
-A Home Assistant custom integration designed to relentlessly track and document complete plant cultivation runs, built with "infinite memory" in mind.
+PlantRun is a Home Assistant custom integration for tracking cultivation runs end-to-end.
 
-PlantRun turns Home Assistant into a dedicated grow diary. It groups your chosen environmental sensors, automatically fetches genetic data from Seedfinder.eu, and creates a unified Device for every plant run that permanently archives data – ensuring you never lose a harvest log just because a sensor went offline.
+It combines:
+- guided run setup,
+- optional SeedFinder enrichment,
+- sensor bindings and proxy entities,
+- a dedicated sidebar dashboard,
+- persistent run storage for long-term run history.
 
-## ✨ Features
-- **Guided Setup Wizard:** A multi-step UI Configuration Flow to easily create runs, search genetics, and bind sensors.
-- **SeedFinder Integration:** Automatically scrapes and links detailed cultivar/genetic data directly from [Seedfinder.eu](https://en.seedfinder.eu/).
-- **Intelligent Proxy Sensors:** Bind your existing Home Assistant sensors (Temperature, Soil Moisture, Light, Energy, etc.). PlantRun spawns dedicated "Proxy Sensors" attached directly to your Run's HA Device, allowing you to view all relevant stats on a single dashboard page.
-- **Phase & Date Tracking:** Track the exact Planting Date, and log Phase changes (Seedling, Vegetative, Flowering). 
-- **Auto-Harvest Timespan Locks:** Set a run's phase to `Harvest` to automatically lock the end date.
-- **Permanent Archiving:** Your run data, notes, and exact phases are saved permanently in a local `plantrun_store.json` – surviving standard HA Recorder db purges.
+---
 
-## 📦 Installation via HACS
+## Current Status (March 2026)
 
-1. Go to **HACS** -> **Integrations**.
-2. Click the three dots in the top right corner and select **Custom repositories**.
-3. Add the URL of this repository and select category **Integration**.
-4. Click **Add** and then **Download** the integration.
-5. **Restart Home Assistant**.
+PlantRun is actively developed and already supports a full day-to-day workflow:
 
-## 🚀 Usage
+- ✅ create/manage runs via UI
+- ✅ multiple runs with run selection in dashboard card
+- ✅ notes CRUD (add/edit/delete)
+- ✅ phase changes + end-run flow
+- ✅ SeedFinder cultivar search/enrichment
+- ✅ default run preview image from cultivar match
+- ✅ target-days prefill support from SeedFinder flower window data
+- ✅ configurable energy price + currency in summary settings
+- ✅ phase-aware detail fields in dashboard (harvest-only fields gated)
+- ✅ multi-unit light sensor compatibility (`lx`/`lux` normalization)
 
-1. Go to **Settings** -> **Devices & Services** -> **Add Integration**.
-2. Search for **PlantRun**.
-3. Use the guided UI Wizard to click **Start New Run**.
-4. Enter the Breeder and Strain to fetch the genetics, optionally set the Planting Date, and pick your sensors.
-5. Go to your **Devices** page and search for the newly created Run name to view your proxy sensors and run status!
+---
 
-## 📚 Sidebar Dashboard UI
+## Features
 
-PlantRun now exposes a dedicated sidebar panel at **PlantRun** (`/plantrun-dashboard`) with an app-like dashboard UI.
+### Setup & Run Management
+- Guided configuration flow in Home Assistant (no YAML required for normal use)
+- Start new runs and manage existing runs
+- Friendly setup wording and improved setup field clarity
+- Cultivar input with suggestions/autocomplete improvements
 
-What it supports:
-- Empty-state first-run initialization with planted-date defaulting and optional SeedFinder target-day suggestions
-- Dynamic runtime cards for all runs with graceful missing-sensor handling
-- Click sensor values to open Home Assistant more-info/details for the source entity
-- Phase timeline dots with double-confirm before phase change service calls
-- Full notes CRUD (add/edit/delete), with double-confirm on destructive deletes
-- Run image management:
-  - Upload from local file system (saved to `/config/www/plantrun_uploads`)
-  - Use SeedFinder cultivar image when available
-  - Clear source labeling (`uploaded`, `seedfinder`, fallback placeholder)
+### Dashboard UI
+PlantRun provides a sidebar dashboard at:
+- **PlantRun** (`/plantrun-dashboard`)
 
-### Service hooks used by the sidebar
+Includes:
+- run cards with status/phase/sensor chips
+- run-age visibility (days running)
+- collapsible notes panel with preview + count
+- image upload + SeedFinder image usage
+- safer action handling when run selection is ambiguous
 
-Existing:
+### Sensor & Summary Layer
+- Proxy sensors per run for dashboarding and grouping
+- Robust handling of light units (`lx`, `lux`, case variants)
+- Summary pipeline supports:
+  - energy kWh
+  - configurable energy cost
+  - explicit energy currency in summary outputs
+
+### Data Persistence
+- Run state persisted in local store (`plantrun_store.json`)
+- Designed to retain run context beyond recorder retention windows
+
+---
+
+## Installation (HACS)
+
+1. Open **HACS → Integrations**
+2. Add this repo as a **Custom repository** (category: Integration)
+3. Install PlantRun
+4. Restart Home Assistant
+5. Add integration via **Settings → Devices & Services**
+
+---
+
+## Main Services
+
 - `plantrun.create_run`
 - `plantrun.add_phase`
 - `plantrun.add_note`
-- `plantrun.end_run`
-- `plantrun.set_cultivar`
-
-Added for dashboard CRUD:
 - `plantrun.update_note`
 - `plantrun.delete_note`
 - `plantrun.update_run`
+- `plantrun.set_cultivar`
 - `plantrun.set_run_image`
+- `plantrun.end_run`
 
-## ⚙️ Managing Runs
+---
 
-You can manage active runs (change phases, add log notes, or end runs) by returning to the PlantRun Integration panel:
-1. Click **Configure** on the PlantRun integration card.
-2. Select **Manage Existing Run**.
-3. Choose the run, select an action (e.g. Change Phase, Add Note), and submit.
+## Known Focus Area
+
+The remaining open UX epic is:
+- **#35 — Simplify and clarify run-creation setup flow**
+
+Work is being delivered in mergeable slices to keep changes safe and testable.
+
+---
+
+## Development Notes
+
+- Tests: `python3 -m unittest discover -s tests -q`
+- Keep changes scoped and production-runnable per PR
+- Prefer backward-compatible UX/data changes
