@@ -606,9 +606,39 @@ class PlantRunDashboardPanel extends LitElement {
           <input class="input" .value=${this._setupForm.strain} placeholder="Strain (optional)" @input=${(e) => this._setSetup("strain", e.target.value)} />
         </div>
         <div class="row">
-          <input class="input" .value=${this._setupForm.grow_space} placeholder="Grow space / tent" @input=${(e) => this._setSetup("grow_space", e.target.value)} />
-          <input class="input" .value=${this._setupForm.medium} placeholder="Medium" @input=${(e) => this._setSetup("medium", e.target.value)} />
-          <input class="input" type="number" .value=${this._setupForm.target_days} placeholder="Target days" @input=${(e) => this._setSetup("target_days", e.target.value)} />
+          <div class="field">
+            <label class="field-label" for="setup-grow-space">Grow space</label>
+            <input
+              id="setup-grow-space"
+              class="input"
+              .value=${this._setupForm.grow_space}
+              placeholder="Tent, room, closet, box"
+              @input=${(e) => this._setSetup("grow_space", e.target.value)}
+            />
+            <div class="hint">Where the plant is growing: the container or location.</div>
+          </div>
+          <div class="field">
+            <label class="field-label" for="setup-medium">Root medium</label>
+            <input
+              id="setup-medium"
+              class="input"
+              .value=${this._setupForm.medium}
+              placeholder="Soil, coco, hydro, rockwool"
+              @input=${(e) => this._setSetup("medium", e.target.value)}
+            />
+            <div class="hint">What the roots grow in, not the tent or room.</div>
+          </div>
+          <div class="field">
+            <label class="field-label" for="setup-target-days">Target days</label>
+            <input
+              id="setup-target-days"
+              class="input"
+              type="number"
+              .value=${this._setupForm.target_days}
+              placeholder="Target days"
+              @input=${(e) => this._setSetup("target_days", e.target.value)}
+            />
+          </div>
         </div>
         <div class="actions">
           <button class="btn primary" @click=${this._submitSetup}>Create run</button>
