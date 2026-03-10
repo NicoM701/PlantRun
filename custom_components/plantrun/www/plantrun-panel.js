@@ -807,7 +807,7 @@ class PlantRunDashboardPanel extends LitElement {
                 autocomplete="off"
                 aria-label="Cultivar"
               />
-              <div class="field-copy">Optional. If Breeder is set and Lookup strain is blank, this name becomes the fallback lookup strain. If this is blank, Lookup strain can still drive enrichment.</div>
+              <div class="field-copy">Optional. If Breeder is set and Lookup strain is blank, this name becomes the fallback lookup strain. Without a cultivar name, strain-only input will not set cultivar details.</div>
               ${this._cultivarSuggestions.length
                 ? html`<ul class="suggest-list" role="listbox" aria-label="Cultivar suggestions">
                     ${this._cultivarSuggestions.map(
@@ -833,8 +833,8 @@ class PlantRunDashboardPanel extends LitElement {
             </div>
             <div class="field">
               <label class="field-label">Lookup strain</label>
-              <input class="input" .value=${this._setupForm.strain} placeholder="Leave blank to reuse the cultivar name" @input=${(e) => this._setSetup("strain", e.target.value)} />
-              <div class="field-copy">Optional. Override this when the external strain name differs from your display cultivar. If Cultivar is blank, this value is reused for the cultivar lookup.</div>
+              <input class="input" .value=${this._setupForm.strain} placeholder="Leave blank to reuse the cultivar name when breeder is set" @input=${(e) => this._setSetup("strain", e.target.value)} />
+              <div class="field-copy">Optional. Override this when the external strain name differs from your display cultivar. This only backfills the cultivar lookup when Breeder is also set.</div>
             </div>
           </div>
           <p class="hint ${seedfinderHint.tone === "warn" ? "warn" : ""}">${seedfinderHint.message}</p>
@@ -1166,7 +1166,7 @@ class PlantRunDashboardPanel extends LitElement {
       const run = this._runs.find((r) => r.friendly_name === name) || this._runs[this._runs.length - 1];
       if (!run) return;
 
-      const cultivarNameForLookup = normalizedForm.cultivar_name || normalizedForm.strain;
+      const cultivarNameForLookup = normalizedForm.cultivar_name || (normalizedForm.breeder ? normalizedForm.strain : "");
       if (cultivarNameForLookup) {
         await this.hass.callService("plantrun", "set_cultivar", {
           run_id: run.id,
@@ -1444,7 +1444,7 @@ class PlantRunDashboardPanel extends LitElement {
 
     return {
       tone: "",
-      message: "Tip: Breeder + Strain provide the most precise SeedFinder lookup. If Strain is blank and Breeder is set, Cultivar is used as the lookup strain. If Cultivar is blank, Strain is reused so enrichment still runs.",
+      message: "Tip: Breeder + Strain provide the most precise SeedFinder lookup. If Strain is blank and Breeder is set, Cultivar is used as the lookup strain. Without Breeder, Strain alone will not set cultivar details.",
     };
   }
 
