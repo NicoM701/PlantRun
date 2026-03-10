@@ -621,7 +621,7 @@ class PlantRunDashboardPanel extends LitElement {
   _renderRunCard(run) {
     const expanded = this._expandedRunId === run.id;
     const currentPhase = run.phases?.length ? run.phases[run.phases.length - 1].name : "None";
-    const showHarvestFields = this._isPostHarvestPhase(currentPhase);
+    const showHarvestFields = this._hasReachedPostHarvest(run);
     const runAgeDays = this._runAgeDays(run.start_time, run.end_time);
     const sensorRows = this._sensorRows(run);
     const availableSensors = sensorRows.filter((s) => s.available);
@@ -800,6 +800,11 @@ class PlantRunDashboardPanel extends LitElement {
 
   _notesCollapsed(runId) {
     return this._collapsedNotes[runId] !== false;
+  }
+
+  _hasReachedPostHarvest(run) {
+    const phases = Array.isArray(run?.phases) ? run.phases : [];
+    return phases.some((phase) => this._isPostHarvestPhase(phase?.name));
   }
 
   _isPostHarvestPhase(phaseName) {
