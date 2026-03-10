@@ -287,7 +287,7 @@ class TestDynamicBindingEntities(unittest.TestCase):
         proxy._apply_source_metadata({"unit_of_measurement": "Wh"})
         self.assertEqual(proxy._attr_state_class, "total_increasing")
         self.assertEqual(proxy._attr_device_class, "energy")
-        self.assertEqual(proxy._attr_native_unit_of_measurement, "kWh")
+        self.assertEqual(proxy._attr_native_unit_of_measurement, "Wh")
 
     def test_proxy_unavailable_when_source_entity_missing_or_unavailable(self) -> None:
         run = RunData.from_dict(

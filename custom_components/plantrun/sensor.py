@@ -220,17 +220,16 @@ class PlantRunProxySensor(CoordinatorEntity[PlantRunCoordinator], SensorEntity):
         expected_unit = expected.get("unit")
         if expected_unit and source_unit and source_unit != expected_unit:
             _LOGGER.warning(
-                "Unit drift for %s (%s): source='%s', expected='%s'. Using expected unit.",
+                "Unit drift for %s (%s): source='%s', expected='%s'. Keeping source unit.",
                 self.source_entity_id,
                 self.metric_type,
                 source_unit,
                 expected_unit,
             )
 
-        if expected_unit and source_unit and source_unit != expected_unit:
-            self._attr_native_unit_of_measurement = expected_unit
-        else:
-            self._attr_native_unit_of_measurement = source_unit or expected_unit
+        # Never relabel units without converting values first.
+        # Keep source unit to avoid corrupt recorder/statistics semantics.
+        self._attr_native_unit_of_measurement = source_unit or expected_unit
         self._attr_device_class = source_device_class or expected.get("device_class")
         self._attr_state_class = source_state_class or expected.get("state_class")
 
