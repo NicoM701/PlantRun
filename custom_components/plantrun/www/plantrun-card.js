@@ -19,7 +19,7 @@ class PlantRunCard extends LitElement {
   }
 
   static getStubConfig() {
-    return { run_id: "example_run_id" };
+    return {};
   }
 
   static get styles() {
@@ -206,18 +206,46 @@ class PlantRunCard extends LitElement {
   }
 
   setConfig(config) {
-    if (!config.run_id) {
-      throw new Error("You need to define a run_id for PlantRun");
+    this.config = config || {};
+  }
+
+  _getAvailableRunIds() {
+    if (!this.hass) {
+      return [];
     }
-    this.config = config;
+
+    return Object.keys(this.hass.states)
+      .filter((entityId) => entityId.startsWith("sensor.plantrun_status_"))
+      .map((entityId) => entityId.replace("sensor.plantrun_status_", ""))
+      .sort();
+  }
+
+  _getResolvedRunId() {
+    const configuredRunId = this.config?.run_id;
+    if (configuredRunId && configuredRunId !== "example_run_id") {
+      return configuredRunId;
+    }
+
+    return this._getAvailableRunIds()[0];
   }
 
   render() {
-    if (!this.hass || !this.config) {
+    if (!this.hass) {
       return html``;
     }
 
-    const runId = this.config.run_id;
+    const runId = this._getResolvedRunId();
+    if (!runId) {
+      return html`
+        <ha-card>
+          <div class="error">
+            <ha-icon icon="mdi:information-outline"></ha-icon>
+            No PlantRun runs were discovered yet. Start a run or set a run ID once sensors exist.
+          </div>
+        </ha-card>
+      `;
+    }
+
     const statusSensor = this.hass.states[`sensor.plantrun_status_${runId}`];
     const phaseSensor = this.hass.states[`sensor.plantrun_active_phase_${runId}`];
     const cultivarSensor = this.hass.states[`sensor.plantrun_cultivar_${runId}`];
@@ -227,7 +255,7 @@ class PlantRunCard extends LitElement {
         <ha-card>
           <div class="error">
             <ha-icon icon="mdi:alert-circle"></ha-icon>
-            Run ID "${runId}" not found or sensors not yet initialized.
+            Run ID "${runId}" was not found. Pick a discovered run in the card editor or enter one manually.
           </div>
         </ha-card>
       `;
