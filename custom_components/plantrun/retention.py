@@ -87,17 +87,19 @@ def _normalize_rollup_summary_energy(
     legacy_currency_missing = not isinstance(stored_currency, str) or not stored_currency.strip()
 
     if legacy_currency_missing:
-        # Legacy rollups did not persist an explicit currency. Backfill the
-        # configured label, and only recompute cost when it was never stored.
-        # This avoids rewriting historical snapshots with current tariffs.
+        # Legacy rollups did not persist an explicit currency. Avoid assigning
+        # a potentially wrong label to already-stored costs.
+        if summary.get("energy_cost") is not None:
+            return enriched
+
+        # If no cost was stored, compute from current preferences and label it.
         enriched["energy_currency"] = configured_currency
-        if summary.get("energy_cost") is None:
-            energy_kwh = summary.get("energy_kwh")
-            parsed_kwh = normalize_energy_price_per_kwh(energy_kwh)
-            if parsed_kwh is None or energy_price_per_kwh is None:
-                enriched["energy_cost"] = None
-            else:
-                enriched["energy_cost"] = parsed_kwh * energy_price_per_kwh
+        energy_kwh = summary.get("energy_kwh")
+        parsed_kwh = normalize_energy_price_per_kwh(energy_kwh)
+        if parsed_kwh is None or energy_price_per_kwh is None:
+            enriched["energy_cost"] = None
+        else:
+            enriched["energy_cost"] = parsed_kwh * energy_price_per_kwh
         return enriched
 
     enriched["energy_currency"] = normalize_energy_currency(stored_currency)
