@@ -749,7 +749,7 @@ class PlantRunDashboardPanel extends LitElement {
         <div class="setup-intro">
           <div>
             <h3>${isFirstRun ? "Start your first run" : "Start a new run"}</h3>
-            <p class="hint">Move top to bottom: create the run, add cultivar lookup details only if you want them, then keep or change the planning defaults.</p>
+            <p class="hint">Move top to bottom: create the run, add cultivar details if you want persistence and SeedFinder enrichment, then keep or change the planning defaults.</p>
           </div>
           <div class="setup-steps" aria-label="Setup steps">
             <div class="setup-step">
@@ -763,7 +763,7 @@ class PlantRunDashboardPanel extends LitElement {
               <div class="setup-step-no">2</div>
               <div>
                 <div class="setup-step-title">Cultivar lookup</div>
-                <div class="setup-step-copy">Only needed when you want SeedFinder enrichment.</div>
+                <div class="setup-step-copy">Cultivar is required to persist and enrich; breeder and lookup strain only refine the match.</div>
               </div>
             </div>
             <div class="setup-step">
@@ -792,9 +792,9 @@ class PlantRunDashboardPanel extends LitElement {
             </div>
           </div>
         </div>
-        <div class="setup-section">
+          <div class="setup-section">
           <div class="section-kicker">Step 2</div>
-          <div class="section-title">Optional cultivar lookup details</div>
+          <div class="section-title">Cultivar and optional lookup refinements</div>
           <div class="row">
             <div class="field suggest-wrap">
               <label class="field-label">Cultivar shown on the run</label>
@@ -807,7 +807,7 @@ class PlantRunDashboardPanel extends LitElement {
                 autocomplete="off"
                 aria-label="Cultivar"
               />
-              <div class="field-copy">Optional. If Breeder is set and Lookup strain is blank, this name becomes the fallback lookup strain. Without a cultivar name, strain-only input will not set cultivar details.</div>
+              <div class="field-copy">Required if you want cultivar details saved on the run or SeedFinder enrichment. Breeder and Lookup strain only narrow the lookup for this cultivar.</div>
               ${this._cultivarSuggestions.length
                 ? html`<ul class="suggest-list" role="listbox" aria-label="Cultivar suggestions">
                     ${this._cultivarSuggestions.map(
@@ -829,12 +829,12 @@ class PlantRunDashboardPanel extends LitElement {
             <div class="field">
               <label class="field-label">Breeder</label>
               <input class="input" .value=${this._setupForm.breeder} placeholder="Example: Humboldt Seed Company" @input=${(e) => this._setSetup("breeder", e.target.value)} />
-              <div class="field-copy">Optional. Use this only when you want a tighter SeedFinder match.</div>
+              <div class="field-copy">Optional. Adds breeder context to refine SeedFinder matching for the cultivar above.</div>
             </div>
             <div class="field">
               <label class="field-label">Lookup strain</label>
-              <input class="input" .value=${this._setupForm.strain} placeholder="Leave blank to reuse the cultivar name when breeder is set" @input=${(e) => this._setSetup("strain", e.target.value)} />
-              <div class="field-copy">Optional. Override this when the external strain name differs from your display cultivar. This only backfills the cultivar lookup when Breeder is also set.</div>
+              <input class="input" .value=${this._setupForm.strain} placeholder="Optional if the lookup strain differs from the cultivar" @input=${(e) => this._setSetup("strain", e.target.value)} />
+              <div class="field-copy">Optional. Use this only when the external lookup strain differs from the cultivar name. It refines lookup only and does not create cultivar details by itself.</div>
             </div>
           </div>
           <p class="hint ${seedfinderHint.tone === "warn" ? "warn" : ""}">${seedfinderHint.message}</p>
@@ -1166,11 +1166,10 @@ class PlantRunDashboardPanel extends LitElement {
       const run = this._runs.find((r) => r.friendly_name === name) || this._runs[this._runs.length - 1];
       if (!run) return;
 
-      const cultivarNameForLookup = normalizedForm.cultivar_name || (normalizedForm.breeder ? normalizedForm.strain : "");
-      if (cultivarNameForLookup) {
+      if (normalizedForm.cultivar_name) {
         await this.hass.callService("plantrun", "set_cultivar", {
           run_id: run.id,
-          cultivar_name: cultivarNameForLookup,
+          cultivar_name: normalizedForm.cultivar_name,
           ...(normalizedForm.breeder ? { breeder: normalizedForm.breeder } : {}),
           ...(normalizedForm.strain ? { strain: normalizedForm.strain } : {}),
         });
@@ -1438,13 +1437,20 @@ class PlantRunDashboardPanel extends LitElement {
     if (normalizedForm.breeder && !normalizedForm.cultivar_name && !normalizedForm.strain) {
       return {
         tone: "warn",
-        message: "Breeder by itself will not trigger SeedFinder enrichment. Add Cultivar or Strain if you want lookup details, or leave Breeder blank for now.",
+        message: "Breeder by itself will not trigger SeedFinder enrichment. Add a cultivar if you want persistence or enrichment, or leave breeder blank for now.",
+      };
+    }
+
+    if (normalizedForm.strain && !normalizedForm.cultivar_name) {
+      return {
+        tone: "warn",
+        message: "Lookup strain does not persist cultivar details on its own. Add a cultivar if you want to save and enrich this run, then use lookup strain only to refine matching.",
       };
     }
 
     return {
       tone: "",
-      message: "Tip: Breeder + Strain provide the most precise SeedFinder lookup. If Strain is blank and Breeder is set, Cultivar is used as the lookup strain. Without Breeder, Strain alone will not set cultivar details.",
+      message: "Tip: Cultivar is the value that persists on the run and enables SeedFinder enrichment. Add breeder and lookup strain only when you need a tighter external match.",
     };
   }
 
