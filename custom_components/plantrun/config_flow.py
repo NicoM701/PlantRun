@@ -11,7 +11,16 @@ from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers import selector
 
-from .const import ALLOWED_METRIC_TYPES, DOMAIN, INITIAL_PHASE_NAME, METRIC_TYPE_CAMERA
+from .const import (
+    ALLOWED_METRIC_TYPES,
+    CONF_CURRENCY,
+    CONF_ELECTRICITY_PRICE_PER_KWH,
+    DEFAULT_CURRENCY,
+    DEFAULT_ELECTRICITY_PRICE_PER_KWH,
+    DOMAIN,
+    INITIAL_PHASE_NAME,
+    METRIC_TYPE_CAMERA,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -99,12 +108,15 @@ class PlantRunOptionsFlowHandler(config_entries.OptionsFlow):
 
         if user_input is not None:
             self._action = user_input["action"]
+            if self._action == "summary_settings":
+                return await self.async_step_summary_settings()
             if self._action == "create_run":
                 return await self.async_step_create_run_start()
             elif self._action == "manage_run":
                 return await self.async_step_manage_run()
 
         actions = {
+            "summary_settings": "Summary Energy Settings",
             "create_run": "Start a New Grow Run",
             "manage_run": "Manage an Existing Run"
         }
@@ -114,6 +126,44 @@ class PlantRunOptionsFlowHandler(config_entries.OptionsFlow):
             data_schema=vol.Schema({
                 vol.Required("action"): vol.In(actions)
             }),
+        )
+
+    async def async_step_summary_settings(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Manage summary pricing defaults stored as config entry options."""
+        if user_input is not None:
+            currency = str(user_input.get(CONF_CURRENCY, DEFAULT_CURRENCY)).strip().upper()
+            if not currency:
+                currency = DEFAULT_CURRENCY
+            price = float(user_input.get(CONF_ELECTRICITY_PRICE_PER_KWH, DEFAULT_ELECTRICITY_PRICE_PER_KWH))
+            return self.async_create_entry(
+                title="",
+                data={
+                    **self.plantrun_config_entry.options,
+                    CONF_ELECTRICITY_PRICE_PER_KWH: max(0.0, price),
+                    CONF_CURRENCY: currency,
+                },
+            )
+
+        current_options = self.plantrun_config_entry.options
+        return self.async_show_form(
+            step_id="summary_settings",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(
+                        CONF_ELECTRICITY_PRICE_PER_KWH,
+                        default=current_options.get(
+                            CONF_ELECTRICITY_PRICE_PER_KWH,
+                            DEFAULT_ELECTRICITY_PRICE_PER_KWH,
+                        ),
+                    ): vol.All(vol.Coerce(float), vol.Range(min=0)),
+                    vol.Required(
+                        CONF_CURRENCY,
+                        default=current_options.get(CONF_CURRENCY, DEFAULT_CURRENCY),
+                    ): str,
+                }
+            ),
         )
 
     # --- BRANCH A: STAR NEW RUN ---

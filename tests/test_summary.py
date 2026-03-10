@@ -39,10 +39,38 @@ class TestSummary(unittest.TestCase):
                 "temperature": [{"value": 21.2}, {"value": 22.8}],
             },
         )
-        summary = SUMMARY.build_run_summary(run, energy_price_per_kwh=0.30)
+        summary = SUMMARY.build_run_summary(
+            run,
+            energy_price_per_kwh=0.30,
+            energy_currency="usd",
+        )
         self.assertEqual(summary["energy_kwh"], 2.5)
         self.assertAlmostEqual(summary["energy_cost"], 0.75)
+        self.assertEqual(summary["energy_currency"], "USD")
         self.assertEqual(summary["humidity"]["avg"], None)
+
+    def test_summary_defaults_currency_without_price(self) -> None:
+        run = RunData(
+            id="run2",
+            friendly_name="Tent B",
+            start_time="2026-03-01T00:00:00",
+            sensor_history={"energy": [{"value": 1.0}, {"value": 4.0}]},
+        )
+
+        summary = SUMMARY.build_run_summary(run)
+        self.assertEqual(summary["energy_kwh"], 3.0)
+        self.assertIsNone(summary["energy_cost"])
+        self.assertEqual(summary["energy_currency"], "EUR")
+
+    def test_summary_energy_preferences_from_options_uses_safe_defaults(self) -> None:
+        prefs = SUMMARY.summary_energy_preferences_from_options(
+            {
+                "electricity_price_per_kwh": -1,
+                "currency": " gbp ",
+            }
+        )
+        self.assertEqual(prefs["energy_price_per_kwh"], 0.0)
+        self.assertEqual(prefs["energy_currency"], "GBP")
 
 
 if __name__ == "__main__":

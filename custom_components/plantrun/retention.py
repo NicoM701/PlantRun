@@ -7,7 +7,11 @@ from typing import Any
 
 from .models import RunData
 from .store import PlantRunStorage
-from .summary import build_run_summary
+from .summary import (
+    build_run_summary,
+    normalize_energy_currency,
+    normalize_energy_price_per_kwh,
+)
 
 
 def snapshot_day(ts: datetime | None = None) -> str:
@@ -70,17 +74,69 @@ def _with_summary_meta(
     return enriched
 
 
-async def async_capture_daily_rollup(storage: PlantRunStorage, run: RunData) -> dict[str, Any]:
+def _normalize_rollup_summary_energy(
+    summary: dict[str, Any],
+    *,
+    energy_price_per_kwh: float | None,
+    energy_currency: str | None,
+) -> dict[str, Any]:
+    """Backfill explicit currency and recompute legacy unlabeled rollup cost safely."""
+    enriched = dict(summary)
+    configured_currency = normalize_energy_currency(energy_currency)
+    stored_currency = summary.get("energy_currency")
+    legacy_currency_missing = not isinstance(stored_currency, str) or not stored_currency.strip()
+
+    if legacy_currency_missing:
+        enriched["energy_currency"] = configured_currency
+        energy_kwh = summary.get("energy_kwh")
+        if energy_kwh is None:
+            enriched["energy_cost"] = None
+        else:
+            parsed_kwh = normalize_energy_price_per_kwh(energy_kwh)
+            if parsed_kwh is None or energy_price_per_kwh is None:
+                enriched["energy_cost"] = None
+            else:
+                enriched["energy_cost"] = parsed_kwh * energy_price_per_kwh
+        return enriched
+
+    enriched["energy_currency"] = normalize_energy_currency(stored_currency)
+    return enriched
+
+
+async def async_capture_daily_rollup(
+    storage: PlantRunStorage,
+    run: RunData,
+    *,
+    energy_price_per_kwh: float | None = None,
+    energy_currency: str | None = None,
+) -> dict[str, Any]:
     """Capture and persist one daily rollup summary for a run."""
-    summary = _with_summary_meta(build_run_summary(run), source="live")
+    summary = _with_summary_meta(
+        build_run_summary(
+            run,
+            energy_price_per_kwh=energy_price_per_kwh,
+            energy_currency=energy_currency,
+        ),
+        source="live",
+    )
     day = snapshot_day()
     await storage.async_set_daily_rollup(run.id, day, summary)
     return summary
 
 
-def get_summary_with_rollup_fallback(storage: PlantRunStorage, run: RunData) -> dict[str, Any]:
+def get_summary_with_rollup_fallback(
+    storage: PlantRunStorage,
+    run: RunData,
+    *,
+    energy_price_per_kwh: float | None = None,
+    energy_currency: str | None = None,
+) -> dict[str, Any]:
     """Get summary with fallback to latest stored rollup when live history is sparse."""
-    live = build_run_summary(run)
+    live = build_run_summary(
+        run,
+        energy_price_per_kwh=energy_price_per_kwh,
+        energy_currency=energy_currency,
+    )
     run_rollups = storage.daily_rollups.get(run.id, {})
     if _summary_has_live_history(live):
         return _with_summary_meta(live, source="live")
@@ -89,5 +145,9 @@ def get_summary_with_rollup_fallback(storage: PlantRunStorage, run: RunData) -> 
         return _with_summary_meta(live, source="live", fallback_reason="no_history_no_rollup")
 
     latest_day = sorted(run_rollups.keys())[-1]
-    latest_summary = run_rollups[latest_day]
+    latest_summary = _normalize_rollup_summary_energy(
+        run_rollups[latest_day],
+        energy_price_per_kwh=energy_price_per_kwh,
+        energy_currency=energy_currency,
+    )
     return _with_summary_meta(latest_summary, source="rollup", fallback_reason="no_live_history", day=latest_day)
