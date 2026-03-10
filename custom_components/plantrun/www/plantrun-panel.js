@@ -1385,7 +1385,9 @@ class PlantRunDashboardPanel extends LitElement {
   }
 
   _openNewRunSetup = () => {
-    this._resetSetupForm();
+    if (this._expandedRunId !== "__new__") {
+      this._resetSetupForm();
+    }
     this._expandedRunId = "__new__";
   };
 
