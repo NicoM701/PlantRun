@@ -307,6 +307,36 @@ class PlantRunDashboardPanel extends LitElement {
         margin-top: 4px;
         font-size: 17px;
       }
+      .run-age {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-top: 14px;
+        margin-bottom: 8px;
+        padding: 14px 16px;
+        border: 1px solid var(--border-hi);
+        border-radius: 14px;
+        background: linear-gradient(135deg, rgba(120, 200, 90, 0.2), rgba(30, 64, 24, 0.95));
+        box-shadow: 0 0 0 1px rgba(120, 200, 90, 0.08), 0 12px 26px rgba(0, 0, 0, 0.22);
+      }
+      .run-age-label {
+        color: var(--t2);
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+      .run-age-day {
+        font-family: "Fraunces", Georgia, serif;
+        font-size: 28px;
+        line-height: 1;
+        color: #f2ffe8;
+      }
+      .run-age-total {
+        color: var(--t1);
+        font-size: 13px;
+        text-align: right;
+      }
       .phase-title {
         margin-top: 14px;
         margin-bottom: 8px;
@@ -527,6 +557,7 @@ class PlantRunDashboardPanel extends LitElement {
   _renderRunCard(run) {
     const expanded = this._expandedRunId === run.id;
     const currentPhase = run.phases?.length ? run.phases[run.phases.length - 1].name : "None";
+    const runAgeDays = this._runAgeDays(run.start_time, run.end_time);
     const sensorRows = this._sensorRows(run);
     const availableSensors = sensorRows.filter((s) => s.available);
     const unavailableCount = sensorRows.length - availableSensors.length;
@@ -577,6 +608,18 @@ class PlantRunDashboardPanel extends LitElement {
                         )
                       : html`<div class="sg-cell"><div class="sg-label">Sensors</div><div class="sg-val">No data</div><div class="sg-label">Bind entities to populate</div></div>`}
                   </div>
+
+                  ${runAgeDays
+                    ? html`
+                        <div class="run-age">
+                          <div>
+                            <div class="run-age-label">Days Running</div>
+                            <div class="run-age-day">Day ${runAgeDays}</div>
+                          </div>
+                          <div class="run-age-total">${runAgeDays} ${runAgeDays === 1 ? "day" : "days"} running</div>
+                        </div>
+                      `
+                    : null}
 
                   <div class="phase-title">Growth phase (click dot to request change)</div>
                   <div class="phase-line">
@@ -904,6 +947,17 @@ class PlantRunDashboardPanel extends LitElement {
     const date = new Date(input);
     if (Number.isNaN(date.getTime())) return input;
     return date.toLocaleString();
+  }
+
+  _runAgeDays(startInput, endInput) {
+    if (!startInput) return 0;
+    const start = new Date(startInput);
+    if (Number.isNaN(start.getTime())) return 0;
+    const end = endInput ? new Date(endInput) : new Date();
+    const endTime = Number.isNaN(end.getTime()) ? Date.now() : end.getTime();
+    const diffMs = endTime - start.getTime();
+    if (diffMs <= 0) return 1;
+    return Math.floor(diffMs / 86400000) + 1;
   }
 
   _titleCase(raw) {
