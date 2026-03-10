@@ -34,7 +34,7 @@ PlantRun turns Home Assistant into a dedicated grow diary. It groups your chosen
 PlantRun now exposes a dedicated sidebar panel at **PlantRun** (`/plantrun-dashboard`) with an app-like dashboard UI.
 
 What it supports:
-- Empty-state first-run initialization (date/seed/base config)
+- Empty-state first-run initialization with planted-date defaulting and optional SeedFinder target-day suggestions
 - Dynamic runtime cards for all runs with graceful missing-sensor handling
 - Click sensor values to open Home Assistant more-info/details for the source entity
 - Phase timeline dots with double-confirm before phase change service calls
