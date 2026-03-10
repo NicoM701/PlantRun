@@ -162,6 +162,7 @@ def _install_homeassistant_stubs() -> None:
 
     helpers_mod = types.ModuleType("homeassistant.helpers")
     selector_mod = types.ModuleType("homeassistant.helpers.selector")
+    entity_registry_mod = types.ModuleType("homeassistant.helpers.entity_registry")
 
     class DateSelector:
         pass
@@ -177,8 +178,19 @@ def _install_homeassistant_stubs() -> None:
     selector_mod.DateSelector = DateSelector
     selector_mod.EntitySelectorConfig = EntitySelectorConfig
     selector_mod.EntitySelector = EntitySelector
+    def async_get(hass):
+        return hass.entity_registry
+
+    def async_entries_for_config_entry(registry, entry_id):
+        return [entry for entry in registry.entries.values() if entry.config_entry_id == entry_id]
+
+    helpers_mod.__path__ = []
+    helpers_mod.entity_registry = entity_registry_mod
     sys.modules["homeassistant.helpers"] = helpers_mod
     sys.modules["homeassistant.helpers.selector"] = selector_mod
+    entity_registry_mod.async_get = async_get
+    entity_registry_mod.async_entries_for_config_entry = async_entries_for_config_entry
+    sys.modules["homeassistant.helpers.entity_registry"] = entity_registry_mod
 
     aiohttp_client = types.ModuleType("homeassistant.helpers.aiohttp_client")
     aiohttp_client._session = object()
@@ -289,6 +301,24 @@ class FakeConfig:
         return str(self._root.joinpath(*parts))
 
 
+class FakeEntityRegistryEntry:
+    def __init__(self, entity_id: str, unique_id: str, config_entry_id: str):
+        self.entity_id = entity_id
+        self.unique_id = unique_id
+        self.config_entry_id = config_entry_id
+
+
+class FakeEntityRegistry:
+    def __init__(self, entries=None):
+        self.entries = {entry.entity_id: entry for entry in (entries or [])}
+        self.removed = []
+
+    def async_remove(self, entity_id: str) -> None:
+        if entity_id in self.entries:
+            self.removed.append(entity_id)
+            self.entries.pop(entity_id, None)
+
+
 class StabilityLifecycleTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -367,6 +397,7 @@ class StabilityLifecycleTests(unittest.TestCase):
             services=services,
             config_entries=FakeConfigEntries(),
             async_add_executor_job=async_add_executor_job,
+            entity_registry=FakeEntityRegistry(),
         )
         hass._executor_calls = executor_calls
         return hass
@@ -399,6 +430,76 @@ class StabilityLifecycleTests(unittest.TestCase):
         )
         self.assertIn("storage", entry.runtime_data)
         self.assertIn("coordinator", entry.runtime_data)
+
+    def test_setup_entry_removes_only_known_legacy_singleton_entities(self):
+        hass = self._build_hass()
+        entry = sys.modules["homeassistant.config_entries"].ConfigEntry("entry-cleanup")
+        hass.entity_registry = FakeEntityRegistry(
+            [
+                FakeEntityRegistryEntry(
+                    "sensor.plantrun_active_cultivar",
+                    "plantrun_active_cultivar_name",
+                    entry.entry_id,
+                ),
+                FakeEntityRegistryEntry(
+                    "sensor.plantrun_active_phase",
+                    "plantrun_active_phase",
+                    entry.entry_id,
+                ),
+                FakeEntityRegistryEntry(
+                    "sensor.plantrun_total_plant_runs",
+                    "plantrun_total_runs",
+                    entry.entry_id,
+                ),
+                FakeEntityRegistryEntry(
+                    "sensor.plantrun_active_phase_other_entry",
+                    "plantrun_active_phase",
+                    "other-entry",
+                ),
+                FakeEntityRegistryEntry(
+                    "sensor.plantrun_active_phase_run123",
+                    "plantrun_active_phase_run123",
+                    entry.entry_id,
+                ),
+            ]
+        )
+
+        asyncio.run(self.integration.async_setup_entry(hass, entry))
+
+        self.assertEqual(
+            hass.entity_registry.removed,
+            [
+                "sensor.plantrun_active_cultivar",
+                "sensor.plantrun_active_phase",
+            ],
+        )
+        self.assertIn("sensor.plantrun_total_plant_runs", hass.entity_registry.entries)
+        self.assertIn("sensor.plantrun_active_phase_other_entry", hass.entity_registry.entries)
+        self.assertIn("sensor.plantrun_active_phase_run123", hass.entity_registry.entries)
+
+    def test_setup_entry_cleanup_is_idempotent(self):
+        hass = self._build_hass()
+        entry = sys.modules["homeassistant.config_entries"].ConfigEntry("entry-cleanup")
+        hass.entity_registry = FakeEntityRegistry(
+            [
+                FakeEntityRegistryEntry(
+                    "sensor.plantrun_last_event",
+                    "plantrun_last_event",
+                    entry.entry_id,
+                ),
+                FakeEntityRegistryEntry(
+                    "sensor.plantrun_total_plant_runs",
+                    "plantrun_total_runs",
+                    entry.entry_id,
+                ),
+            ]
+        )
+
+        asyncio.run(self.integration.async_setup_entry(hass, entry))
+        asyncio.run(self.integration.async_setup_entry(hass, entry))
+
+        self.assertEqual(hass.entity_registry.removed, ["sensor.plantrun_last_event"])
+        self.assertIn("sensor.plantrun_total_plant_runs", hass.entity_registry.entries)
 
     def test_panel_script_is_loaded_as_a_versioned_module(self):
         panel_script = (PLANTRUN_DIR / "www" / "plantrun-panel.js").read_text(encoding="utf-8")
