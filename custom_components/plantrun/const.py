@@ -3,6 +3,12 @@
 DOMAIN = "plantrun"
 PLATFORMS = ["sensor"]
 
+# Summary/config options
+CONF_ELECTRICITY_PRICE_PER_KWH = "electricity_price_per_kwh"
+CONF_CURRENCY = "currency"
+DEFAULT_ELECTRICITY_PRICE_PER_KWH = 0.0
+DEFAULT_CURRENCY = "EUR"
+
 # Store constants
 STORE_KEY = "plantrun_store"
 STORE_VERSION = 2

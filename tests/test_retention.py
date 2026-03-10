@@ -56,13 +56,21 @@ class TestRetention(unittest.TestCase):
             "2026-03-09": {
                 "run_id": "run1",
                 "energy_kwh": 4.0,
+                "energy_cost": 999.0,
                 "temperature": {"avg": 23.1},
             }
         }
         run = RunData(id="run1", friendly_name="Tent", start_time="2026-03-01", sensor_history={})
 
-        summary = RETENTION.get_summary_with_rollup_fallback(storage, run)
+        summary = RETENTION.get_summary_with_rollup_fallback(
+            storage,
+            run,
+            energy_price_per_kwh=0.25,
+            energy_currency="usd",
+        )
         self.assertEqual(summary["energy_kwh"], 4.0)
+        self.assertEqual(summary["energy_cost"], 999.0)
+        self.assertIsNone(summary.get("energy_currency"))
         self.assertEqual(summary["summary_meta"]["source"], "rollup")
         self.assertEqual(summary["summary_meta"]["fallback_reason"], "no_live_history")
 
@@ -76,9 +84,15 @@ class TestRetention(unittest.TestCase):
             sensor_history={"temperature": [{"value": 21.5}]},
         )
 
-        summary = RETENTION.get_summary_with_rollup_fallback(storage, run)
+        summary = RETENTION.get_summary_with_rollup_fallback(
+            storage,
+            run,
+            energy_price_per_kwh=0.4,
+            energy_currency="eur",
+        )
         self.assertEqual(summary["summary_meta"]["source"], "live")
         self.assertIsNone(summary["energy_kwh"])
+        self.assertEqual(summary["energy_currency"], "EUR")
         self.assertAlmostEqual(summary["temperature"]["avg"], 21.5)
         self.assertEqual(summary["summary_meta"]["history_state"], "complete")
         self.assertIsNone(summary["summary_meta"]["fallback_reason"])
@@ -87,10 +101,16 @@ class TestRetention(unittest.TestCase):
         storage = FakeStorage()
         run = RunData(id="run1", friendly_name="Tent", start_time="2026-03-01", sensor_history={})
 
-        summary = RETENTION.get_summary_with_rollup_fallback(storage, run)
+        summary = RETENTION.get_summary_with_rollup_fallback(
+            storage,
+            run,
+            energy_price_per_kwh=0.2,
+            energy_currency="cad",
+        )
         self.assertEqual(summary["summary_meta"]["source"], "live")
         self.assertEqual(summary["summary_meta"]["fallback_reason"], "no_history_no_rollup")
         self.assertEqual(summary["summary_meta"]["history_state"], "empty")
+        self.assertEqual(summary["energy_currency"], "CAD")
 
 
 if __name__ == "__main__":
