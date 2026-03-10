@@ -21,6 +21,7 @@ class PlantRunDashboardPanel extends LitElement {
       _loading: { type: Boolean },
       _error: { type: String },
       _setupForm: { type: Object },
+      _showAdvancedSeedfinder: { type: Boolean },
       _newNotes: { type: Object },
       _editNotes: { type: Object },
       _collapsedNotes: { type: Object },
@@ -36,9 +37,10 @@ class PlantRunDashboardPanel extends LitElement {
     this._loading = true;
     this._error = "";
     this._refreshInterval = null;
+    this._showAdvancedSeedfinder = false;
     this._setupForm = {
       friendly_name: "",
-      planted_date: "",
+      planted_date: this._todayDateValue(),
       cultivar_name: "",
       breeder: "",
       strain: "",
@@ -519,6 +521,17 @@ class PlantRunDashboardPanel extends LitElement {
         color: var(--t3);
         font-size: 11px;
       }
+      .setup-toggle {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        margin: 8px 0 4px;
+        color: var(--t2);
+        font-size: 11px;
+      }
+      .setup-toggle input {
+        accent-color: var(--g-bright);
+      }
       .loading,
       .error,
       .empty {
@@ -595,20 +608,46 @@ class PlantRunDashboardPanel extends LitElement {
     return html`
       <section class="setup">
         <h3>Initialize your first run</h3>
-        <p class="hint">Dashboard starts empty. Create a run with seed/date/base config. Yield and additional details remain editable later.</p>
+        <p class="hint">Create the run basics now. Cultivar is the display name shown on this run. Add Breeder (and optional Strain) to refine the SeedFinder match.</p>
         <div class="row">
-          <input class="input" .value=${this._setupForm.friendly_name} placeholder="Run name" @input=${(e) => this._setSetup("friendly_name", e.target.value)} />
-          <input class="input" type="date" .value=${this._setupForm.planted_date} @input=${(e) => this._setSetup("planted_date", e.target.value)} />
+          <div class="field">
+            <label class="field-label">Run name</label>
+            <input class="input" .value=${this._setupForm.friendly_name} placeholder="Example: Tent A · Spring 2026" @input=${(e) => this._setSetup("friendly_name", e.target.value)} />
+          </div>
+          <div class="field">
+            <label class="field-label">Planted date</label>
+            <input class="input" type="date" .value=${this._setupForm.planted_date} @input=${(e) => this._setSetup("planted_date", e.target.value)} />
+          </div>
         </div>
         <div class="row">
-          <input class="input" .value=${this._setupForm.cultivar_name} placeholder="Cultivar / Seed" @input=${(e) => this._setSetup("cultivar_name", e.target.value)} />
-          <input class="input" .value=${this._setupForm.breeder} placeholder="Breeder (optional)" @input=${(e) => this._setSetup("breeder", e.target.value)} />
-          <input class="input" .value=${this._setupForm.strain} placeholder="Strain (optional)" @input=${(e) => this._setSetup("strain", e.target.value)} />
+          <div class="field">
+            <label class="field-label">Cultivar</label>
+            <input class="input" .value=${this._setupForm.cultivar_name} placeholder="Displayed cultivar name" @input=${(e) => this._setSetup("cultivar_name", e.target.value)} />
+          </div>
+          <div class="field">
+            <label class="field-label">Breeder</label>
+            <input class="input" .value=${this._setupForm.breeder} placeholder="Optional SeedFinder hint" @input=${(e) => this._setSetup("breeder", e.target.value)} />
+          </div>
         </div>
+        <label class="setup-toggle">
+          <input type="checkbox" .checked=${this._showAdvancedSeedfinder} @change=${(e) => (this._showAdvancedSeedfinder = e.target.checked)} />
+          Advanced SeedFinder fields
+        </label>
+        ${this._showAdvancedSeedfinder
+          ? html`
+              <div class="row">
+                <div class="field">
+                  <label class="field-label">Strain</label>
+                  <input class="input" .value=${this._setupForm.strain} placeholder="Optional SeedFinder override" @input=${(e) => this._setSetup("strain", e.target.value)} />
+                </div>
+              </div>
+            `
+          : null}
+        <p class="hint">Tip: Breeder triggers SeedFinder lookup. Leave Strain blank to fall back to the cultivar name.</p>
         <div class="row">
           <input class="input" .value=${this._setupForm.grow_space} placeholder="Grow space / tent" @input=${(e) => this._setSetup("grow_space", e.target.value)} />
           <input class="input" .value=${this._setupForm.medium} placeholder="Medium" @input=${(e) => this._setSetup("medium", e.target.value)} />
-          <input class="input" type="number" .value=${this._setupForm.target_days} placeholder="Target days" @input=${(e) => this._setSetup("target_days", e.target.value)} />
+          <input class="input" type="number" .value=${this._setupForm.target_days} placeholder="Target days (optional, can auto-fill)" @input=${(e) => this._setSetup("target_days", e.target.value)} />
         </div>
         <div class="actions">
           <button class="btn primary" @click=${this._submitSetup}>Create run</button>
@@ -858,6 +897,11 @@ class PlantRunDashboardPanel extends LitElement {
     }
 
     try {
+      const breeder = this._setupForm.breeder.trim();
+      const cultivarName = this._setupForm.cultivar_name.trim();
+      const strain = this._setupForm.strain.trim();
+      const enteredTargetDays = String(this._setupForm.target_days ?? "").trim();
+
       await this.hass.callService("plantrun", "create_run", {
         friendly_name: name,
         ...(this._setupForm.planted_date ? { planted_date: this._setupForm.planted_date } : {}),
@@ -866,26 +910,50 @@ class PlantRunDashboardPanel extends LitElement {
       const run = this._runs.find((r) => r.friendly_name === name) || this._runs[this._runs.length - 1];
       if (!run) return;
 
-      if (this._setupForm.cultivar_name.trim()) {
+      let suggestedTargetDays = null;
+      if (cultivarName) {
         await this.hass.callService("plantrun", "set_cultivar", {
           run_id: run.id,
-          cultivar_name: this._setupForm.cultivar_name.trim(),
-          ...(this._setupForm.breeder.trim() ? { breeder: this._setupForm.breeder.trim() } : {}),
-          ...(this._setupForm.strain.trim() ? { strain: this._setupForm.strain.trim() } : {}),
+          cultivar_name: cultivarName,
+          ...(breeder ? { breeder } : {}),
+          ...(strain ? { strain } : {}),
         });
+        await this._refreshRuns();
+        const refreshedRun = this._runs.find((candidate) => candidate.id === run.id);
+        if (breeder && !enteredTargetDays) {
+          const flowerWindowDays = refreshedRun?.cultivar?.flower_window_days;
+          if (Number.isFinite(flowerWindowDays)) {
+            suggestedTargetDays = flowerWindowDays;
+          }
+        }
       }
 
       await this.hass.callService("plantrun", "update_run", {
         run_id: run.id,
         base_config: {
           grow_space: this._setupForm.grow_space,
-          target_days: this._setupForm.target_days,
+          target_days: enteredTargetDays || suggestedTargetDays || "",
           medium: this._setupForm.medium,
         },
       });
 
       this._expandedRunId = run.id;
-      this._toast("Run initialized.");
+      this._setupForm = {
+        friendly_name: "",
+        planted_date: this._todayDateValue(),
+        cultivar_name: "",
+        breeder: "",
+        strain: "",
+        grow_space: "",
+        target_days: "",
+        medium: "",
+      };
+      this._showAdvancedSeedfinder = false;
+      if (suggestedTargetDays) {
+        this._toast(`Run initialized. Applied SeedFinder target days: ${suggestedTargetDays}.`);
+      } else {
+        this._toast("Run initialized.");
+      }
       await this._refreshRuns();
     } catch (err) {
       this._toast(`Setup failed: ${err?.message || err}`);
@@ -1033,6 +1101,12 @@ class PlantRunDashboardPanel extends LitElement {
 
   _setEditNote(key, value) {
     this._editNotes = { ...this._editNotes, [key]: value };
+  }
+
+  _todayDateValue() {
+    const now = new Date();
+    const localDate = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
+    return localDate.toISOString().slice(0, 10);
   }
 
   _shortDate(input) {
