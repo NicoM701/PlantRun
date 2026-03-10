@@ -24,6 +24,8 @@ class PlantRunDashboardPanel extends LitElement {
       _newNotes: { type: Object },
       _editNotes: { type: Object },
       _collapsedNotes: { type: Object },
+      _cultivarSuggestions: { type: Array },
+      _highlightedCultivarSuggestion: { type: Number },
     };
   }
 
@@ -49,6 +51,8 @@ class PlantRunDashboardPanel extends LitElement {
     this._newNotes = {};
     this._editNotes = {};
     this._collapsedNotes = {};
+    this._cultivarSuggestions = [];
+    this._highlightedCultivarSuggestion = -1;
   }
 
   connectedCallback() {
@@ -504,6 +508,38 @@ class PlantRunDashboardPanel extends LitElement {
         color: var(--t2);
         font-size: 11px;
       }
+      .suggest-wrap {
+        position: relative;
+      }
+      .suggest-list {
+        position: absolute;
+        z-index: 5;
+        left: 0;
+        right: 0;
+        top: calc(100% + 4px);
+        margin: 0;
+        padding: 6px;
+        list-style: none;
+        border: 1px solid var(--border-hi);
+        border-radius: 10px;
+        background: var(--bg-elevated);
+      }
+      .suggest-item {
+        width: 100%;
+        border: 0;
+        border-radius: 8px;
+        background: transparent;
+        color: var(--t1);
+        text-align: left;
+        font-family: inherit;
+        font-size: 11px;
+        padding: 7px 8px;
+        cursor: pointer;
+      }
+      .suggest-item:hover,
+      .suggest-item.on {
+        background: var(--g-glow);
+      }
       .setup {
         max-width: 760px;
         border: 1px solid var(--border);
@@ -601,7 +637,32 @@ class PlantRunDashboardPanel extends LitElement {
           <input class="input" type="date" .value=${this._setupForm.planted_date} @input=${(e) => this._setSetup("planted_date", e.target.value)} />
         </div>
         <div class="row">
-          <input class="input" .value=${this._setupForm.cultivar_name} placeholder="Cultivar / Seed" @input=${(e) => this._setSetup("cultivar_name", e.target.value)} />
+          <div class="field suggest-wrap">
+            <input
+              class="input"
+              .value=${this._setupForm.cultivar_name}
+              placeholder="Cultivar / Seed"
+              @input=${(e) => this._onCultivarInput(e)}
+              @keydown=${(e) => this._onCultivarKeydown(e)}
+              autocomplete="off"
+              aria-label="Cultivar"
+            />
+            ${this._cultivarSuggestions.length
+              ? html`<ul class="suggest-list" role="listbox" aria-label="Cultivar suggestions">
+                  ${this._cultivarSuggestions.map(
+                    (name, index) => html`<li>
+                      <button
+                        class="suggest-item ${this._highlightedCultivarSuggestion === index ? "on" : ""}"
+                        type="button"
+                        @click=${() => this._applyCultivarSuggestion(name)}
+                      >
+                        ${name}
+                      </button>
+                    </li>`,
+                  )}
+                </ul>`
+              : null}
+          </div>
           <input class="input" .value=${this._setupForm.breeder} placeholder="Breeder (optional)" @input=${(e) => this._setSetup("breeder", e.target.value)} />
           <input class="input" .value=${this._setupForm.strain} placeholder="Strain (optional)" @input=${(e) => this._setSetup("strain", e.target.value)} />
         </div>
@@ -885,6 +946,8 @@ class PlantRunDashboardPanel extends LitElement {
       });
 
       this._expandedRunId = run.id;
+      this._cultivarSuggestions = [];
+      this._highlightedCultivarSuggestion = -1;
       this._toast("Run initialized.");
       await this._refreshRuns();
     } catch (err) {
@@ -1021,6 +1084,64 @@ class PlantRunDashboardPanel extends LitElement {
       reader.onerror = () => resolve("");
       reader.readAsDataURL(file);
     });
+  }
+
+  _onCultivarInput(event) {
+    const value = event?.target?.value ?? "";
+    this._setSetup("cultivar_name", value);
+    this._refreshCultivarSuggestions(value);
+  }
+
+  _onCultivarKeydown(event) {
+    if (!this._cultivarSuggestions.length) return;
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      this._highlightedCultivarSuggestion = Math.min(
+        this._highlightedCultivarSuggestion + 1,
+        this._cultivarSuggestions.length - 1,
+      );
+      return;
+    }
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      this._highlightedCultivarSuggestion = Math.max(this._highlightedCultivarSuggestion - 1, 0);
+      return;
+    }
+    if (event.key === "Enter" && this._highlightedCultivarSuggestion >= 0) {
+      event.preventDefault();
+      this._applyCultivarSuggestion(this._cultivarSuggestions[this._highlightedCultivarSuggestion]);
+    }
+  }
+
+  _refreshCultivarSuggestions(rawQuery) {
+    const query = String(rawQuery || "").trim().toLowerCase();
+    if (!query) {
+      this._cultivarSuggestions = [];
+      this._highlightedCultivarSuggestion = -1;
+      return;
+    }
+
+    const seen = new Set();
+    const matches = [];
+    for (const run of this._runs || []) {
+      const candidate = String(run?.cultivar?.name || "").trim();
+      if (!candidate) continue;
+      const key = candidate.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      if (!key.includes(query) || key === query) continue;
+      matches.push(candidate);
+      if (matches.length >= 6) break;
+    }
+
+    this._cultivarSuggestions = matches;
+    this._highlightedCultivarSuggestion = matches.length ? 0 : -1;
+  }
+
+  _applyCultivarSuggestion(name) {
+    this._setSetup("cultivar_name", name);
+    this._cultivarSuggestions = [];
+    this._highlightedCultivarSuggestion = -1;
   }
 
   _setSetup(field, value) {
