@@ -24,8 +24,8 @@ METRIC_METADATA: dict[str, dict[str, str]] = {
     "water": {"state_class": "measurement"},
 }
 
-# HA illuminance device_class expects canonical "lx" units.
-LIGHT_ILLUMINANCE_UNIT_ALIASES = {"lx"}
+# Accept common illuminance aliases and normalize to canonical "lx".
+LIGHT_ILLUMINANCE_UNIT_ALIASES = {"lx", "lux"}
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -222,8 +222,9 @@ class PlantRunProxySensor(CoordinatorEntity[PlantRunCoordinator], SensorEntity):
         source_state_class = attrs.get("state_class")
 
         if self.metric_type == "light":
-            self._attr_native_unit_of_measurement = source_unit
-            self._attr_device_class = source_device_class or _light_device_class_for_unit(source_unit)
+            normalized_light_unit = _normalize_light_unit(source_unit)
+            self._attr_native_unit_of_measurement = normalized_light_unit
+            self._attr_device_class = source_device_class or _light_device_class_for_unit(normalized_light_unit)
             self._attr_state_class = source_state_class or expected.get("state_class")
             return
 
@@ -302,8 +303,20 @@ def _binding_unique_id(run_id: str, binding: Binding) -> str:
     return f"plantrun_{binding.metric_type}_{run_id}_{binding.id}"
 
 
+def _normalize_light_unit(unit: str | None) -> str | None:
+    """Normalize recognized light-unit aliases to their canonical representation."""
+    if unit is None:
+        return None
+
+    normalized = unit.strip().casefold()
+    if normalized in LIGHT_ILLUMINANCE_UNIT_ALIASES:
+        return "lx"
+
+    return unit
+
+
 def _light_device_class_for_unit(unit: str | None) -> str | None:
-    """Return a safe light device class fallback for known illuminance unit aliases."""
+    """Return a safe light device class fallback for known illuminance units."""
     if unit is None:
         return None
 
