@@ -217,18 +217,22 @@ class FakeStorage:
         self.runs = []
         self.active_run_id = None
         self.saved_runs = []
+        self.calls = []
         FakeStorage.instances.append(self)
 
     async def async_load(self):
         return None
 
     async def async_add_run(self, run):
+        self.calls.append(("add_run", run.id))
         self.runs.append(run)
 
     async def async_set_active_run_id(self, run_id):
+        self.calls.append(("set_active_run_id", run_id))
         self.active_run_id = run_id
 
     async def async_update_run(self, run):
+        self.calls.append(("update_run", run.id))
         self.saved_runs.append(run.id)
         for index, existing in enumerate(self.runs):
             if existing.id == run.id:
@@ -568,10 +572,21 @@ class StabilityLifecycleTests(unittest.TestCase):
         self.assertEqual(data["sensor_id"], "sensor.tent_temp")
         self.assertTrue(blocking)
 
-    def test_options_flow_fetches_cultivar_image_from_detail_url(self):
+    def test_options_flow_backfills_cultivar_image_before_persisting_run(self):
         ConfigEntry = sys.modules["homeassistant.config_entries"].ConfigEntry
-        entry = ConfigEntry("entry-cultivar-image")
-        storage = FakeStorage()
+        entry = ConfigEntry("entry-options-image")
+        events = []
+
+        class RecordingStorage(FakeStorage):
+            async def async_add_run(self, run):
+                events.append(("add_run", run.id))
+                await super().async_add_run(run)
+
+            async def async_set_active_run_id(self, run_id):
+                events.append(("set_active_run_id", run_id))
+                await super().async_set_active_run_id(run_id)
+
+        storage = RecordingStorage()
         entry.runtime_data = {"storage": storage}
         flow = self.config_flow.PlantRunOptionsFlowHandler(entry)
         flow.hass = self._build_hass()
@@ -585,25 +600,32 @@ class StabilityLifecycleTests(unittest.TestCase):
             )
         ]
 
-        result = asyncio.run(
-            flow.async_step_create_run_details(
-                {
-                    "cultivar_result": "Runtz Layer Cake",
-                }
+        original_fetch = self.config_flow.async_fetch_cultivar_image_url
+
+        async def record_fetch(detail_url, session=None):
+            events.append(("fetch_image", detail_url, session))
+            return await original_fetch(detail_url, session=session)
+
+        self.config_flow.async_fetch_cultivar_image_url = record_fetch
+        try:
+            result = asyncio.run(
+                flow.async_step_create_run_details(
+                    {
+                        "cultivar_result": "Runtz Layer Cake",
+                    }
+                )
             )
-        )
+        finally:
+            self.config_flow.async_fetch_cultivar_image_url = original_fetch
 
         self.assertEqual(result["type"], "create_entry")
-        run = storage.runs[0]
-        self.assertIsNotNone(run.cultivar)
-        self.assertEqual([name for name, _session in self.providers.calls], ["image"])
-        self.assertIs(
-            self.providers.calls[0][1],
-            sys.modules["homeassistant.helpers.aiohttp_client"]._session,
-        )
-        self.assertEqual(run.cultivar.image_url, "https://example.invalid/image.jpg")
-        self.assertEqual(run.image_url, "https://example.invalid/image.jpg")
-        self.assertEqual(run.image_source, "seedfinder")
+        self.assertEqual([event[0] for event in events[:3]], ["fetch_image", "add_run", "set_active_run_id"])
+        self.assertEqual(storage.calls, [("add_run", storage.runs[0].id), ("set_active_run_id", storage.runs[0].id)])
+        self.assertFalse(storage.saved_runs)
+        self.assertEqual(storage.runs[0].cultivar.image_url, "https://example.invalid/image.jpg")
+        self.assertEqual(storage.runs[0].image_url, "https://example.invalid/image.jpg")
+        self.assertEqual(storage.runs[0].image_source, "seedfinder")
+        self.assertEqual(self.providers.calls, [("image", sys.modules["homeassistant.helpers.aiohttp_client"]._session)])
 
     def test_create_run_service_initializes_default_phase(self):
         hass = self._build_hass()
