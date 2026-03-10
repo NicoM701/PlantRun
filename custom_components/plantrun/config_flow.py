@@ -43,7 +43,7 @@ class PlantRunConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return PlantRunOptionsFlowHandler(config_entry)
 
 
-from .providers_seedfinder import async_search_cultivar
+from .providers_seedfinder import async_fetch_cultivar_image_url, async_search_cultivar
 from .models import CultivarSnapshot, Phase, RunData
 
 class PlantRunOptionsFlowHandler(config_entries.OptionsFlow):
@@ -175,19 +175,24 @@ class PlantRunOptionsFlowHandler(config_entries.OptionsFlow):
                 phases=[Phase(name=INITIAL_PHASE_NAME, start_time=start_time)],
             )
 
-            await storage.async_add_run(new_run)
-            await storage.async_set_active_run_id(new_run.id)
-
-            # 2) Assign cultivar if selected.
+            # 2) Resolve cultivar before persisting so there are no external awaits after storage writes.
             selected_cultivar_name = user_input.get("cultivar_result", "None")
             if selected_cultivar_name != "None" and self._create_seedfinder_results:
                 for cv in self._create_seedfinder_results:
                     if cv.name == selected_cultivar_name:
                         new_run.cultivar = cv
+                        if cv.detail_url and not cv.image_url:
+                            cv.image_url = await async_fetch_cultivar_image_url(
+                                cv.detail_url,
+                                session=async_get_clientsession(self.hass),
+                            )
+                        if cv.image_url and not new_run.image_url:
+                            new_run.image_url = cv.image_url
+                            new_run.image_source = "seedfinder"
                         break
 
-            if new_run.cultivar:
-                await storage.async_update_run(new_run)
+            await storage.async_add_run(new_run)
+            await storage.async_set_active_run_id(new_run.id)
 
             # 3) Bind sensors explicitly to the created run id.
             metrics_map = {
