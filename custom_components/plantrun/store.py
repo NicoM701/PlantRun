@@ -7,7 +7,7 @@ from typing import Any
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
 
-from .const import DOMAIN, STORE_KEY, STORE_SCHEMA_VERSION, STORE_VERSION
+from .const import DOMAIN, INITIAL_PHASE_NAME, STORE_KEY, STORE_SCHEMA_VERSION, STORE_VERSION
 from .models import RunData
 
 _LOGGER = logging.getLogger(__name__)
@@ -47,6 +47,8 @@ class PlantRunStorage:
             run_copy.setdefault("notes", [])
             run_copy.setdefault("phases", [])
             run_copy.setdefault("bindings", [])
+            if not run_copy["phases"] and isinstance(run_copy.get("start_time"), str) and run_copy["start_time"]:
+                run_copy["phases"] = [{"name": INITIAL_PHASE_NAME, "start_time": run_copy["start_time"]}]
             normalized_runs.append(run_copy)
         migrated["runs"] = normalized_runs
         migrated["schema_version"] = STORE_SCHEMA_VERSION
@@ -79,6 +81,15 @@ class PlantRunStorage:
         current.setdefault("runs", [])
         current.setdefault("active_run_id", None)
         current.setdefault("daily_rollups", {})
+
+        for run in current["runs"]:
+            if not isinstance(run, dict):
+                continue
+            run.setdefault("notes", [])
+            run.setdefault("phases", [])
+            run.setdefault("bindings", [])
+            if not run["phases"] and isinstance(run.get("start_time"), str) and run["start_time"]:
+                run["phases"] = [{"name": INITIAL_PHASE_NAME, "start_time": run["start_time"]}]
 
         return current, current != original
 

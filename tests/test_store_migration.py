@@ -74,6 +74,7 @@ class TestStoreMigration(unittest.TestCase):
         self.assertIn("active_run_id", migrated)
         self.assertEqual(migrated["active_run_id"], None)
         self.assertEqual(migrated["runs"][0]["notes"], [])
+        self.assertEqual(migrated["runs"][0]["phases"][0]["name"], "Seedling")
 
     def test_migration_is_idempotent(self) -> None:
         payload = {
@@ -86,7 +87,7 @@ class TestStoreMigration(unittest.TestCase):
                     "friendly_name": "Run A",
                     "start_time": "2026-03-01T00:00:00",
                     "notes": [],
-                    "phases": [],
+                    "phases": [{"name": "Seedling", "start_time": "2026-03-01T00:00:00"}],
                     "bindings": [],
                 }
             ],
@@ -96,6 +97,26 @@ class TestStoreMigration(unittest.TestCase):
         self.assertFalse(first_changed)
         self.assertFalse(second_changed)
         self.assertEqual(first, second)
+
+    def test_schema_v2_run_without_phases_gets_default_phase(self) -> None:
+        payload = {
+            "schema_version": 2,
+            "active_run_id": None,
+            "daily_rollups": {},
+            "runs": [
+                {
+                    "id": "run2",
+                    "friendly_name": "Run B",
+                    "start_time": "2026-03-02T00:00:00",
+                    "notes": [],
+                    "phases": [],
+                    "bindings": [],
+                }
+            ],
+        }
+        migrated, changed = PlantRunStorage._normalize_payload(payload)
+        self.assertTrue(changed)
+        self.assertEqual(migrated["runs"][0]["phases"][0]["name"], "Seedling")
 
     def test_async_load_skips_malformed_runs_and_clears_invalid_active_run(self) -> None:
         storage = PlantRunStorage(object())

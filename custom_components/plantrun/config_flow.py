@@ -11,7 +11,7 @@ from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers import selector
 
-from .const import ALLOWED_METRIC_TYPES, DOMAIN, METRIC_TYPE_CAMERA
+from .const import ALLOWED_METRIC_TYPES, DOMAIN, INITIAL_PHASE_NAME, METRIC_TYPE_CAMERA
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -44,7 +44,7 @@ class PlantRunConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
 
 from .providers_seedfinder import async_search_cultivar
-from .models import CultivarSnapshot, RunData
+from .models import CultivarSnapshot, Phase, RunData
 
 class PlantRunOptionsFlowHandler(config_entries.OptionsFlow):
     """Handle options flow for PlantRun wizard."""
@@ -167,13 +167,13 @@ class PlantRunOptionsFlowHandler(config_entries.OptionsFlow):
 
         if user_input is not None:
             # 1) Deterministically create and persist a specific run object.
+            start_time = datetime.now(timezone.utc).isoformat()
             new_run = RunData(
                 friendly_name=self._create_friendly_name or "Unnamed Run",
-                start_time="",
+                start_time=start_time,
                 planted_date=self._create_planted_date,
+                phases=[Phase(name=INITIAL_PHASE_NAME, start_time=start_time)],
             )
-            # Keep service-compatible start_time format.
-            new_run.start_time = datetime.now(timezone.utc).isoformat()
 
             await storage.async_add_run(new_run)
             await storage.async_set_active_run_id(new_run.id)

@@ -561,11 +561,31 @@ class StabilityLifecycleTests(unittest.TestCase):
         )
 
         self.assertEqual(result["type"], "create_entry")
+        self.assertEqual(storage.runs[0].phases[0].name, "Seedling")
         self.assertEqual(len(flow.hass.services.calls), 1)
         domain, name, data, blocking = flow.hass.services.calls[0]
         self.assertEqual((domain, name), (self.config_flow.DOMAIN, "add_binding"))
         self.assertEqual(data["sensor_id"], "sensor.tent_temp")
         self.assertTrue(blocking)
+
+    def test_create_run_service_initializes_default_phase(self):
+        hass = self._build_hass()
+        entry = sys.modules["homeassistant.config_entries"].ConfigEntry("entry-create-run")
+        asyncio.run(self.integration.async_setup_entry(hass, entry))
+
+        storage = FakeStorage.instances[-1]
+        handler = hass.services.get_handler(self.integration.DOMAIN, "create_run")
+        call = sys.modules["homeassistant.core"].ServiceCall(
+            {
+                "friendly_name": "Tent Fresh",
+                "start_time": "2026-03-10T00:00:00+00:00",
+            }
+        )
+
+        asyncio.run(handler(call))
+
+        self.assertEqual(len(storage.runs), 1)
+        self.assertEqual(storage.runs[0].phases[0].name, "Seedling")
 
     def test_set_cultivar_service_uses_shared_session(self):
         hass = self._build_hass()
