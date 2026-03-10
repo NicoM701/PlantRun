@@ -376,31 +376,62 @@ class PlantRunCard extends LitElement {
   }
 
   _changePhase() {
-    const newPhase = prompt("Enter new phase name (e.g., Vegetative, Flowering, Harvest):");
-    if (newPhase) {
-      this.hass.callService("plantrun", "add_phase", {
-        run_id: this.config.run_id,
-        phase_name: newPhase,
-      });
+    const runId = this._getActionRunId();
+    if (!runId) {
+      return;
     }
+
+    const newPhase = prompt("Enter new phase name (e.g., Vegetative, Flowering, Harvest):");
+    const phaseName = newPhase?.trim();
+    if (!phaseName) {
+      return;
+    }
+
+    this.hass.callService("plantrun", "add_phase", {
+      run_id: runId,
+      phase_name: phaseName,
+    });
   }
 
   _addNote() {
-    const text = prompt("Enter your note:");
-    if (text) {
-      this.hass.callService("plantrun", "add_note", {
-        run_id: this.config.run_id,
-        text: text,
-      });
+    const runId = this._getActionRunId();
+    if (!runId) {
+      return;
     }
+
+    const text = prompt("Enter your note:");
+    const noteText = text?.trim();
+    if (!noteText) {
+      return;
+    }
+
+    this.hass.callService("plantrun", "add_note", {
+      run_id: runId,
+      text: noteText,
+    });
   }
 
   _endRun() {
-    if (confirm("Are you sure you want to end this run? This will lock the current phase timespan.")) {
-      this.hass.callService("plantrun", "end_run", {
-        run_id: this.config.run_id,
-      });
+    const runId = this._getActionRunId();
+    if (!runId) {
+      return;
     }
+
+    if (!confirm("Are you sure you want to end this run? This will lock the current phase timespan.")) {
+      return;
+    }
+
+    this.hass.callService("plantrun", "end_run", {
+      run_id: runId,
+    });
+  }
+
+  _getActionRunId() {
+    if (!this.hass || typeof this.hass.callService !== "function") {
+      return null;
+    }
+
+    return this._getResolvedRunId() || null;
   }
 }
 
