@@ -307,14 +307,22 @@ class TestDynamicBindingEntities(unittest.TestCase):
         self.assertEqual(proxy._attr_device_class, "energy")
         self.assertEqual(proxy._attr_native_unit_of_measurement, "Wh")
 
-    def test_light_metadata_accepts_illuminance_unit_aliases_without_relabeling(self) -> None:
-        for source_unit in ("lx", "lux", "Lux"):
+    def test_light_metadata_sets_illuminance_device_class_only_for_canonical_lx(self) -> None:
+        proxy = _build_proxy_sensor("light", "sensor.light_alias")
+        proxy._apply_source_metadata({"unit_of_measurement": "lx"})
+
+        self.assertEqual(proxy._attr_native_unit_of_measurement, "lx")
+        self.assertEqual(proxy._attr_device_class, "illuminance")
+        self.assertEqual(proxy._attr_state_class, "measurement")
+
+    def test_light_metadata_keeps_lux_alias_without_forcing_illuminance(self) -> None:
+        for source_unit in ("lux", "Lux"):
             with self.subTest(source_unit=source_unit):
                 proxy = _build_proxy_sensor("light", "sensor.light_alias")
                 proxy._apply_source_metadata({"unit_of_measurement": source_unit})
 
                 self.assertEqual(proxy._attr_native_unit_of_measurement, source_unit)
-                self.assertEqual(proxy._attr_device_class, "illuminance")
+                self.assertIsNone(getattr(proxy, "_attr_device_class", None))
                 self.assertEqual(proxy._attr_state_class, "measurement")
 
     def test_light_metadata_keeps_non_illuminance_units_without_relabeling(self) -> None:

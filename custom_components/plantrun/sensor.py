@@ -24,7 +24,8 @@ METRIC_METADATA: dict[str, dict[str, str]] = {
     "water": {"state_class": "measurement"},
 }
 
-LIGHT_ILLUMINANCE_UNIT_ALIASES = {"lx", "lux"}
+# HA illuminance device_class expects canonical "lx" units.
+LIGHT_ILLUMINANCE_UNIT_ALIASES = {"lx"}
 
 async def async_setup_entry(
     hass: HomeAssistant,
