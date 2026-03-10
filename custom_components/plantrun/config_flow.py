@@ -43,7 +43,7 @@ class PlantRunConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return PlantRunOptionsFlowHandler(config_entry)
 
 
-from .providers_seedfinder import async_search_cultivar
+from .providers_seedfinder import async_fetch_cultivar_image_url, async_search_cultivar
 from .models import CultivarSnapshot, Phase, RunData
 
 class PlantRunOptionsFlowHandler(config_entries.OptionsFlow):
@@ -187,6 +187,14 @@ class PlantRunOptionsFlowHandler(config_entries.OptionsFlow):
                         break
 
             if new_run.cultivar:
+                if new_run.cultivar.detail_url and not new_run.cultivar.image_url:
+                    new_run.cultivar.image_url = await async_fetch_cultivar_image_url(
+                        new_run.cultivar.detail_url,
+                        session=async_get_clientsession(self.hass),
+                    )
+                if new_run.cultivar.image_url and not new_run.image_url:
+                    new_run.image_url = new_run.cultivar.image_url
+                    new_run.image_source = "seedfinder"
                 await storage.async_update_run(new_run)
 
             # 3) Bind sensors explicitly to the created run id.
