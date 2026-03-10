@@ -29,6 +29,7 @@ from .const import (
     ATTR_USE_ACTIVE_RUN,
     ALLOWED_METRIC_TYPES,
     DOMAIN,
+    INITIAL_PHASE_NAME,
     PLATFORMS,
     UNSUPPORTED_BINDING_METRIC_TYPES,
 )
@@ -254,6 +255,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             friendly_name=friendly_name,
             start_time=start_time,
             planted_date=planted_date,
+            phases=[Phase(name=INITIAL_PHASE_NAME, start_time=start_time)],
         )
         await storage.async_add_run(new_run)
         await storage.async_set_active_run_id(new_run.id)
