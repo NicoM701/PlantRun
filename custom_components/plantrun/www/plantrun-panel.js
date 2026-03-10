@@ -631,17 +631,24 @@ class PlantRunDashboardPanel extends LitElement {
     return html`
       <section class="setup">
         <h3>Initialize your first run</h3>
-        <p class="hint">Dashboard starts empty. Create a run with seed/date/base config. Yield and additional details remain editable later.</p>
+        <p class="hint">Create the run basics first. Cultivar is shown on the run and also used as the default SeedFinder lookup strain when Strain is left blank.</p>
         <div class="row">
-          <input class="input" .value=${this._setupForm.friendly_name} placeholder="Run name" @input=${(e) => this._setSetup("friendly_name", e.target.value)} />
-          <input class="input" type="date" .value=${this._setupForm.planted_date} @input=${(e) => this._setSetup("planted_date", e.target.value)} />
+          <div class="field">
+            <label class="field-label">Run name</label>
+            <input class="input" .value=${this._setupForm.friendly_name} placeholder="Example: Tent A · Spring 2026" @input=${(e) => this._setSetup("friendly_name", e.target.value)} />
+          </div>
+          <div class="field">
+            <label class="field-label">Planted date</label>
+            <input class="input" type="date" .value=${this._setupForm.planted_date} @input=${(e) => this._setSetup("planted_date", e.target.value)} />
+          </div>
         </div>
         <div class="row">
           <div class="field suggest-wrap">
+            <label class="field-label">Cultivar</label>
             <input
               class="input"
               .value=${this._setupForm.cultivar_name}
-              placeholder="Cultivar / Seed"
+              placeholder="Cultivar name (display + default lookup strain)"
               @input=${(e) => this._onCultivarInput(e)}
               @keydown=${(e) => this._onCultivarKeydown(e)}
               autocomplete="off"
@@ -663,9 +670,16 @@ class PlantRunDashboardPanel extends LitElement {
                 </ul>`
               : null}
           </div>
-          <input class="input" .value=${this._setupForm.breeder} placeholder="Breeder (optional)" @input=${(e) => this._setSetup("breeder", e.target.value)} />
-          <input class="input" .value=${this._setupForm.strain} placeholder="Strain (optional)" @input=${(e) => this._setSetup("strain", e.target.value)} />
+          <div class="field">
+            <label class="field-label">Breeder</label>
+            <input class="input" .value=${this._setupForm.breeder} placeholder="Optional SeedFinder hint" @input=${(e) => this._setSetup("breeder", e.target.value)} />
+          </div>
+          <div class="field">
+            <label class="field-label">Strain</label>
+            <input class="input" .value=${this._setupForm.strain} placeholder="Optional SeedFinder hint" @input=${(e) => this._setSetup("strain", e.target.value)} />
+          </div>
         </div>
+        <p class="hint">Tip: Breeder + Strain provide the most precise SeedFinder lookup. If Strain is blank and Breeder is set, Cultivar is used as the lookup strain.</p>
         <div class="row">
           <div class="field">
             <label class="field-label" for="setup-grow-space">Grow space</label>
