@@ -22,12 +22,12 @@
             },
             "create_run_start": {
                 "title": "Start a New Grow Run",
-                "description": "Give your new plant a name. To search SeedFinder, provide BOTH Breeder and Strain names.",
+                "description": "Set a run name first. Breeder and strain are optional SeedFinder hints that refine cultivar matching when both are provided.",
                 "data": {
-                    "friendly_name": "Friendly Name",
+                    "friendly_name": "Run Name",
                     "planted_date": "Planted Date (Optional)",
-                    "cultivar_breeder": "Cultivar Breeder (Optional)",
-                    "cultivar_strain": "Cultivar Strain Name (Optional)"
+                    "cultivar_breeder": "Breeder (Optional, SeedFinder Hint)",
+                    "cultivar_strain": "Strain (Optional, SeedFinder Hint)"
                 }
             },
             "create_run_details": {

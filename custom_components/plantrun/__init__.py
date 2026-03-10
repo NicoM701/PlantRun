@@ -39,7 +39,7 @@ from .providers_seedfinder import async_fetch_cultivar_image_url, async_search_c
 from .retention import async_capture_daily_rollup, get_summary_with_rollup_fallback
 from .run_resolution import resolve_run_or_raise
 from .store import PlantRunStorage
-from .summary import build_run_summary
+from .summary import summary_energy_preferences_from_options
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -86,6 +86,14 @@ def _storage_for_hass(hass: HomeAssistant) -> PlantRunStorage | None:
             if isinstance(storage, PlantRunStorage):
                 return storage
     return None
+
+
+def _summary_energy_preferences_for_hass(hass: HomeAssistant) -> dict[str, Any]:
+    """Return normalized pricing preferences for the single configured entry."""
+    entries = hass.config_entries.async_entries(DOMAIN)
+    if not entries:
+        return summary_energy_preferences_from_options(None)
+    return summary_energy_preferences_from_options(entries[0].options)
 
 
 def _is_obsolete_legacy_entity(entity_entry: Any) -> bool:
@@ -142,7 +150,14 @@ async def websocket_get_run_summary(
         connection.send_error(msg["id"], "not_found", f"Run '{msg['run_id']}' not found")
         return
 
-    connection.send_result(msg["id"], get_summary_with_rollup_fallback(storage, run))
+    connection.send_result(
+        msg["id"],
+        get_summary_with_rollup_fallback(
+            storage,
+            run,
+            **_summary_energy_preferences_for_hass(hass),
+        ),
+    )
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -242,7 +257,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     async def handle_create_daily_rollup(call: ServiceCall) -> None:
         """Capture one daily summary snapshot for a target run."""
         run = resolve_target_run(call)
-        await async_capture_daily_rollup(storage, run)
+        await async_capture_daily_rollup(
+            storage,
+            run,
+            **_summary_energy_preferences_for_hass(hass),
+        )
         await refresh_after_update()
 
     async def handle_create_run(call: ServiceCall) -> None:
