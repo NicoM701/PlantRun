@@ -80,8 +80,8 @@ class TestRetention(unittest.TestCase):
         self.assertEqual(summary["summary_meta"]["source"], "live")
         self.assertIsNone(summary["energy_kwh"])
         self.assertAlmostEqual(summary["temperature"]["avg"], 21.5)
-        self.assertEqual(summary["summary_meta"]["history_state"], "partial")
-        self.assertEqual(summary["summary_meta"]["fallback_reason"], "partial_live_history")
+        self.assertEqual(summary["summary_meta"]["history_state"], "complete")
+        self.assertIsNone(summary["summary_meta"]["fallback_reason"])
 
     def test_explicit_meta_when_history_and_rollup_absent(self):
         storage = FakeStorage()

@@ -142,7 +142,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     "name": "plantrun-dashboard-panel",
                     "embed_iframe": False,
                     "trust_external": False,
+                    # Keep both for cross-version HA compatibility.
                     "module_url": PANEL_MODULE_URL,
+                    "js_url": "/plantrun_frontend/plantrun-panel.js",
                 }
             },
             require_admin=False,

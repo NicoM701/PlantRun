@@ -30,24 +30,10 @@ def _summary_has_live_history(summary: dict[str, Any]) -> bool:
 
 
 def _history_state(summary: dict[str, Any]) -> str:
-    """Describe whether the live summary is empty, partial, or complete."""
-    metrics_with_history = 0
-
-    if summary.get("energy_kwh") is not None:
-        metrics_with_history += 1
-
-    for metric in ("temperature", "humidity", "soil_moisture", "water"):
-        metric_stats = summary.get(metric)
-        if not isinstance(metric_stats, dict):
-            continue
-        if any(metric_stats.get(key) is not None for key in ("min", "max", "avg", "start", "end")):
-            metrics_with_history += 1
-
-    if metrics_with_history == 0:
-        return "empty"
-    if metrics_with_history == 5:
+    """Describe whether live summary has usable history data."""
+    if _summary_has_live_history(summary):
         return "complete"
-    return "partial"
+    return "empty"
 
 
 def _rollup_health(day: str) -> dict[str, Any]:
@@ -97,10 +83,7 @@ def get_summary_with_rollup_fallback(storage: PlantRunStorage, run: RunData) -> 
     live = build_run_summary(run)
     run_rollups = storage.daily_rollups.get(run.id, {})
     if _summary_has_live_history(live):
-        fallback_reason = None
-        if run_rollups and _history_state(live) == "partial":
-            fallback_reason = "partial_live_history"
-        return _with_summary_meta(live, source="live", fallback_reason=fallback_reason)
+        return _with_summary_meta(live, source="live")
 
     if not run_rollups:
         return _with_summary_meta(live, source="live", fallback_reason="no_history_no_rollup")
