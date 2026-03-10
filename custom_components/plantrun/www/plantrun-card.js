@@ -220,13 +220,17 @@ class PlantRunCard extends LitElement {
       .sort();
   }
 
-  _getResolvedRunId() {
+  _getConfiguredRunId() {
     const configuredRunId = this.config?.run_id;
-    if (configuredRunId && configuredRunId !== "example_run_id") {
-      return configuredRunId;
+    if (!configuredRunId || configuredRunId === "example_run_id") {
+      return null;
     }
 
-    return this._getAvailableRunIds()[0];
+    return configuredRunId;
+  }
+
+  _getResolvedRunId() {
+    return this._getConfiguredRunId() || this._getAvailableRunIds()[0];
   }
 
   render() {
@@ -284,6 +288,7 @@ class PlantRunCard extends LitElement {
     });
 
     const isRunning = statusSensor.state === "active";
+    const canRunActions = this._canRunMutatingActions();
     const runName = statusSensor.attributes.friendly_name?.replace(" Status", "") || "GrowZelt Steuerung";
 
     return html`
@@ -339,68 +344,129 @@ class PlantRunCard extends LitElement {
         </div>
 
         ${isRunning ? html`
-          <div class="action-row">
-            <div class="action-btn" @click="${this._changePhase}">
-              <div class="action-icon">
-                <ha-icon icon="mdi:update"></ha-icon>
+          ${canRunActions ? html`
+            <div class="action-row">
+              <div class="action-btn" @click="${this._changePhase}">
+                <div class="action-icon">
+                  <ha-icon icon="mdi:update"></ha-icon>
+                </div>
+                <div class="action-text">
+                  <div class="action-title">Change Phase</div>
+                  <div class="action-subtitle">Enter next stage</div>
+                </div>
               </div>
-              <div class="action-text">
-                <div class="action-title">Change Phase</div>
-                <div class="action-subtitle">Enter next stage</div>
-              </div>
-            </div>
 
-            <div class="action-btn" @click="${this._addNote}">
-              <div class="action-icon">
-                <ha-icon icon="mdi:notebook-edit"></ha-icon>
+              <div class="action-btn" @click="${this._addNote}">
+                <div class="action-icon">
+                  <ha-icon icon="mdi:notebook-edit"></ha-icon>
+                </div>
+                <div class="action-text">
+                  <div class="action-title">Add Note</div>
+                  <div class="action-subtitle">Log an event</div>
+                </div>
               </div>
-              <div class="action-text">
-                <div class="action-title">Add Note</div>
-                <div class="action-subtitle">Log an event</div>
-              </div>
-            </div>
 
-            <div class="action-btn end" @click="${this._endRun}">
-              <div class="action-icon">
-                <ha-icon icon="mdi:power"></ha-icon>
-              </div>
-              <div class="action-text">
-                <div class="action-title">End Run</div>
-                <div class="action-subtitle">Lock timeline</div>
+              <div class="action-btn end" @click="${this._endRun}">
+                <div class="action-icon">
+                  <ha-icon icon="mdi:power"></ha-icon>
+                </div>
+                <div class="action-text">
+                  <div class="action-title">End Run</div>
+                  <div class="action-subtitle">Lock timeline</div>
+                </div>
               </div>
             </div>
-          </div>
+          ` : html`
+            <div class="error">
+              <ha-icon icon="mdi:alert-outline"></ha-icon>
+              Multiple PlantRun runs are available. Set a run ID in card configuration to enable actions.
+            </div>
+          `}
         ` : ""}
       </ha-card>
     `;
   }
 
-  _changePhase() {
-    const newPhase = prompt("Enter new phase name (e.g., Vegetative, Flowering, Harvest):");
-    if (newPhase) {
-      this.hass.callService("plantrun", "add_phase", {
-        run_id: this.config.run_id,
-        phase_name: newPhase,
-      });
+  _canRunMutatingActions() {
+    if (this._getConfiguredRunId()) {
+      return true;
     }
+
+    return this._getAvailableRunIds().length === 1;
+  }
+
+  _changePhase() {
+    const runId = this._getActionRunId();
+    if (!runId) {
+      return;
+    }
+
+    const newPhase = prompt("Enter new phase name (e.g., Vegetative, Flowering, Harvest):");
+    const phaseName = newPhase?.trim();
+    if (!phaseName) {
+      return;
+    }
+
+    this.hass.callService("plantrun", "add_phase", {
+      run_id: runId,
+      phase_name: phaseName,
+    });
   }
 
   _addNote() {
-    const text = prompt("Enter your note:");
-    if (text) {
-      this.hass.callService("plantrun", "add_note", {
-        run_id: this.config.run_id,
-        text: text,
-      });
+    const runId = this._getActionRunId();
+    if (!runId) {
+      return;
     }
+
+    const text = prompt("Enter your note:");
+    const noteText = text?.trim();
+    if (!noteText) {
+      return;
+    }
+
+    this.hass.callService("plantrun", "add_note", {
+      run_id: runId,
+      text: noteText,
+    });
   }
 
   _endRun() {
-    if (confirm("Are you sure you want to end this run? This will lock the current phase timespan.")) {
-      this.hass.callService("plantrun", "end_run", {
-        run_id: this.config.run_id,
-      });
+    const runId = this._getActionRunId();
+    if (!runId) {
+      return;
     }
+
+    if (!confirm("Are you sure you want to end this run? This will lock the current phase timespan.")) {
+      return;
+    }
+
+    this.hass.callService("plantrun", "end_run", {
+      run_id: runId,
+    });
+  }
+
+  _getActionRunId() {
+    if (!this.hass || typeof this.hass.callService !== "function") {
+      return null;
+    }
+
+    const configuredRunId = this._getConfiguredRunId();
+    if (configuredRunId) {
+      return configuredRunId;
+    }
+
+    const discoveredRunIds = this._getAvailableRunIds();
+    if (discoveredRunIds.length === 1) {
+      return discoveredRunIds[0];
+    }
+
+    // Never mutate an arbitrary discovered run when card config is ambiguous.
+    if (discoveredRunIds.length > 1) {
+      alert("Multiple PlantRun runs were discovered. Set a run ID in the card configuration before using actions.");
+    }
+
+    return null;
   }
 }
 
