@@ -19,6 +19,7 @@ const DEFAULT_SETUP_FORM = Object.freeze({
   target_days: "84",
   medium: "Soil",
 });
+const PLANNING_DEFAULT_FIELDS = ["grow_space", "medium", "target_days"];
 
 class PlantRunDashboardPanel extends LitElement {
   static get properties() {
@@ -740,6 +741,7 @@ class PlantRunDashboardPanel extends LitElement {
   _renderSetup() {
     const isFirstRun = !this._runs.length;
     const seedfinderHint = this._seedfinderHint();
+    const planningHint = this._planningHint();
     const setupFeedbackClass = this._setupFeedback.tone ? `setup-feedback ${this._setupFeedback.tone}` : "setup-feedback";
 
     return html`
@@ -886,10 +888,11 @@ class PlantRunDashboardPanel extends LitElement {
               </div>
             </div>
           </div>
+          <p class="hint ${planningHint.tone === "warn" ? "warn" : ""}">${planningHint.message}</p>
         </div>
         <div class="actions">
           <button class="btn primary" @click=${this._submitSetup}>Create run</button>
-          <button class="btn" @click=${this._resetSetupForm}>Reset defaults</button>
+          <button class="btn" @click=${this._resetPlanningDefaults}>Reset defaults</button>
           ${this._runs.length ? html`<button class="btn" @click=${() => (this._expandedRunId = "")}>Cancel</button>` : null}
         </div>
       </section>
@@ -1154,24 +1157,6 @@ class PlantRunDashboardPanel extends LitElement {
       return;
     }
 
-    if (normalizedForm.breeder && !normalizedForm.cultivar_name && !normalizedForm.strain) {
-      const message = "Breeder alone is too vague. Add Cultivar or Strain, or clear Breeder before creating the run.";
-      this._setSetupFeedback("warn", message);
-      this._toast(message);
-      return;
-    }
-
-    if (
-      normalizedForm.grow_space &&
-      normalizedForm.medium &&
-      normalizedForm.grow_space.toLowerCase() === normalizedForm.medium.toLowerCase()
-    ) {
-      const message = "Grow space and root medium cannot be the same value. Use the location for Grow space and the root material for Medium.";
-      this._setSetupFeedback("warn", message);
-      this._toast(message);
-      return;
-    }
-
     try {
       await this.hass.callService("plantrun", "create_run", {
         friendly_name: name,
@@ -1425,6 +1410,13 @@ class PlantRunDashboardPanel extends LitElement {
     this._setSetupFeedback("", "");
   };
 
+  _resetPlanningDefaults = () => {
+    const defaults = this._defaultSetupForm();
+    const planningDefaults = Object.fromEntries(PLANNING_DEFAULT_FIELDS.map((field) => [field, defaults[field]]));
+    this._setupForm = { ...this._setupForm, ...planningDefaults };
+    this._setSetupFeedback("", "");
+  };
+
   _normalizedSetupForm() {
     return {
       ...this._setupForm,
@@ -1443,13 +1435,32 @@ class PlantRunDashboardPanel extends LitElement {
     if (normalizedForm.breeder && !normalizedForm.cultivar_name && !normalizedForm.strain) {
       return {
         tone: "warn",
-        message: "Breeder needs Cultivar or Strain to be useful. Add one of those, or leave Breeder blank for now.",
+        message: "Breeder by itself will not trigger SeedFinder enrichment. Add Cultivar or Strain if you want lookup details, or leave Breeder blank for now.",
       };
     }
 
     return {
       tone: "",
       message: "Tip: Breeder + Strain provide the most precise SeedFinder lookup. If Strain is blank and Breeder is set, Cultivar is used as the lookup strain.",
+    };
+  }
+
+  _planningHint() {
+    const normalizedForm = this._normalizedSetupForm();
+    if (
+      normalizedForm.grow_space &&
+      normalizedForm.medium &&
+      normalizedForm.grow_space.toLowerCase() === normalizedForm.medium.toLowerCase()
+    ) {
+      return {
+        tone: "warn",
+        message: "Heads-up: Grow space matches Medium. That is allowed, but Grow space is usually the location and Medium is the root material.",
+      };
+    }
+
+    return {
+      tone: "",
+      message: "Tip: Use Grow space for the location and Medium for the root material. Matching values are allowed when that label still makes sense for your run.",
     };
   }
 
