@@ -12,7 +12,7 @@ from .summary import build_run_summary
 
 def snapshot_day(ts: datetime | None = None) -> str:
     """Return UTC day key for rollups."""
-    return (ts or datetime.utcnow()).date().isoformat()
+    return (ts or datetime.now(timezone.utc)).date().isoformat()
 
 
 def _summary_has_live_history(summary: dict[str, Any]) -> bool:
@@ -29,6 +29,13 @@ def _summary_has_live_history(summary: dict[str, Any]) -> bool:
     return False
 
 
+def _history_state(summary: dict[str, Any]) -> str:
+    """Describe whether live summary has usable history data."""
+    if _summary_has_live_history(summary):
+        return "complete"
+    return "empty"
+
+
 def _rollup_health(day: str) -> dict[str, Any]:
     """Return age metadata for a rollup snapshot."""
     try:
@@ -42,11 +49,18 @@ def _rollup_health(day: str) -> dict[str, Any]:
     return {"rollup_day": day, "rollup_age_days": age_days, "rollup_health": health}
 
 
-def _with_summary_meta(summary: dict[str, Any], *, source: str, fallback_reason: str | None = None, day: str | None = None) -> dict[str, Any]:
+def _with_summary_meta(
+    summary: dict[str, Any],
+    *,
+    source: str,
+    fallback_reason: str | None = None,
+    day: str | None = None,
+) -> dict[str, Any]:
     enriched = dict(summary)
     meta: dict[str, Any] = {
         "source": source,
         "fallback_reason": fallback_reason,
+        "history_state": _history_state(summary),
     }
     if day is not None:
         meta.update(_rollup_health(day))
@@ -67,10 +81,10 @@ async def async_capture_daily_rollup(storage: PlantRunStorage, run: RunData) -> 
 def get_summary_with_rollup_fallback(storage: PlantRunStorage, run: RunData) -> dict[str, Any]:
     """Get summary with fallback to latest stored rollup when live history is sparse."""
     live = build_run_summary(run)
+    run_rollups = storage.daily_rollups.get(run.id, {})
     if _summary_has_live_history(live):
         return _with_summary_meta(live, source="live")
 
-    run_rollups = storage.daily_rollups.get(run.id, {})
     if not run_rollups:
         return _with_summary_meta(live, source="live", fallback_reason="no_history_no_rollup")
 

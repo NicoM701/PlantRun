@@ -1,6 +1,6 @@
 """Config flow for PlantRun integration."""
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 import voluptuous as vol
@@ -8,6 +8,7 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.data_entry_flow import FlowResult
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers import selector
 
 from .const import ALLOWED_METRIC_TYPES, DOMAIN, METRIC_TYPE_CAMERA
@@ -138,7 +139,11 @@ class PlantRunOptionsFlowHandler(config_entries.OptionsFlow):
             
             if breeder and strain:
                 # Silently query SeedFinder using specific Breeder and Strain
-                results = await async_search_cultivar(breeder, strain)
+                results = await async_search_cultivar(
+                    breeder,
+                    strain,
+                    session=async_get_clientsession(self.hass),
+                )
                 if results:
                     self._create_seedfinder_results = results
             
@@ -168,7 +173,7 @@ class PlantRunOptionsFlowHandler(config_entries.OptionsFlow):
                 planted_date=self._create_planted_date,
             )
             # Keep service-compatible start_time format.
-            new_run.start_time = datetime.utcnow().isoformat()
+            new_run.start_time = datetime.now(timezone.utc).isoformat()
 
             await storage.async_add_run(new_run)
             await storage.async_set_active_run_id(new_run.id)
@@ -202,7 +207,12 @@ class PlantRunOptionsFlowHandler(config_entries.OptionsFlow):
                         "metric_type": metric,
                         "sensor_id": sensor_id,
                     }
-                    await self.hass.services.async_call(DOMAIN, "add_binding", bind_data)
+                    await self.hass.services.async_call(
+                        DOMAIN,
+                        "add_binding",
+                        bind_data,
+                        blocking=True,
+                    )
 
             return self.async_create_entry(title="", data={})
 
@@ -280,7 +290,7 @@ class PlantRunOptionsFlowHandler(config_entries.OptionsFlow):
     async def async_step_add_phase(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         if user_input is not None:
             run_data = {"run_id": self._target_run_id, "phase_name": user_input["phase_name"]}
-            await self.hass.services.async_call(DOMAIN, "add_phase", run_data)
+            await self.hass.services.async_call(DOMAIN, "add_phase", run_data, blocking=True)
             return self.async_create_entry(title="", data={})
 
         phases = {
@@ -300,7 +310,7 @@ class PlantRunOptionsFlowHandler(config_entries.OptionsFlow):
     async def async_step_add_note(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         if user_input is not None:
             run_data = {"run_id": self._target_run_id, "text": user_input["text"]}
-            await self.hass.services.async_call(DOMAIN, "add_note", run_data)
+            await self.hass.services.async_call(DOMAIN, "add_note", run_data, blocking=True)
             return self.async_create_entry(title="", data={})
 
         return self.async_show_form(
@@ -322,7 +332,12 @@ class PlantRunOptionsFlowHandler(config_entries.OptionsFlow):
                     "metric_type": user_input["metric_type"],
                     "sensor_id": user_input["sensor_id"],
                 }
-                await self.hass.services.async_call(DOMAIN, "add_binding", run_data)
+                await self.hass.services.async_call(
+                    DOMAIN,
+                    "add_binding",
+                    run_data,
+                    blocking=True,
+                )
                 return self.async_create_entry(title="", data={})
 
         metrics = {
@@ -352,7 +367,7 @@ class PlantRunOptionsFlowHandler(config_entries.OptionsFlow):
         if user_input is not None:
             if user_input.get("confirm"):
                 run_data = {"run_id": self._target_run_id}
-                await self.hass.services.async_call(DOMAIN, "end_run", run_data)
+                await self.hass.services.async_call(DOMAIN, "end_run", run_data, blocking=True)
             return self.async_create_entry(title="", data={})
 
         return self.async_show_form(

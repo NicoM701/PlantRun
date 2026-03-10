@@ -2,6 +2,7 @@
 import logging
 import re
 from typing import Any
+
 import aiohttp
 from bs4 import BeautifulSoup
 
@@ -36,7 +37,12 @@ def _score_match(query_species: str, row_species: str, prefer_automatic: bool = 
 
     return base
 
-async def async_search_cultivar(breeder: str, strain: str) -> list[CultivarSnapshot]:
+async def async_search_cultivar(
+    breeder: str,
+    strain: str,
+    *,
+    session: aiohttp.ClientSession | None = None,
+) -> list[CultivarSnapshot]:
     """Search for a cultivar on SeedFinder using the robust breeder scrape."""
     results = []
     
@@ -53,58 +59,63 @@ async def async_search_cultivar(breeder: str, strain: str) -> list[CultivarSnaps
         ]
 
         breeder_html = None
-        async with aiohttp.ClientSession() as session:
-            for breeder_url in breeder_urls:
-                async with session.get(breeder_url, timeout=20) as response:
-                    if response.status == 200:
-                        breeder_html = await response.text()
-                        break
-
-            if not breeder_html:
-                _LOGGER.warning("SeedFinder breeder page not found for %s", breeder)
-                return results
-
-            breeder_soup = BeautifulSoup(breeder_html, "html.parser")
-            table = breeder_soup.find("table", class_="table")
-            if not table or not table.find("tbody"):
-                _LOGGER.warning("No strain table found for breeder %s", breeder)
-                return results
-
-            scored_rows = []
-            for row in table.find("tbody").find_all("tr"):
-                cells = row.find_all("td")
-                if not cells:
-                    continue
-                anchor = cells[0].find("a")
-                if not anchor:
-                    continue
-                score = _score_match(species, anchor.get_text(strip=True))
-                if score > 0:
-                    scored_rows.append((score, cells, anchor))
-
-            if not scored_rows:
-                _LOGGER.warning("Strain '%s' not found for breeder '%s'", species, breeder)
-                return results
-
-            # Get top matches (max 5)
-            scored_rows.sort(key=lambda item: item[0], reverse=True)
-            for _, cells, anchor in scored_rows[:5]:
-                match_name = anchor.get_text(strip=True)
-                match_breeder = cells[1].get_text(strip=True) if len(cells) > 1 else breeder
-                detail_url = anchor.get("href")
-                if detail_url and detail_url.startswith("/"):
-                    detail_url = f"https://seedfinder.eu{detail_url}"
-                
-                # We could fetch detail page here to get flower_time, but for the wizard 
-                # a snapshot with just name/breeder is enough for now to avoid 5 slow requests.
-                results.append(
-                    CultivarSnapshot(
-                        name=match_name,
-                        breeder=match_breeder,
-                        flower_window_days=None,
-                        detail_url=detail_url,
-                    )
+        if session is None:
+            async with aiohttp.ClientSession() as owned_session:
+                return await async_search_cultivar(
+                    breeder,
+                    strain,
+                    session=owned_session,
                 )
+
+        for breeder_url in breeder_urls:
+            async with session.get(breeder_url, timeout=20) as response:
+                if response.status == 200:
+                    breeder_html = await response.text()
+                    break
+
+        if not breeder_html:
+            _LOGGER.warning("SeedFinder breeder page not found for %s", breeder)
+            return results
+
+        breeder_soup = BeautifulSoup(breeder_html, "html.parser")
+        table = breeder_soup.find("table", class_="table")
+        if not table or not table.find("tbody"):
+            _LOGGER.warning("No strain table found for breeder %s", breeder)
+            return results
+
+        scored_rows = []
+        for row in table.find("tbody").find_all("tr"):
+            cells = row.find_all("td")
+            if not cells:
+                continue
+            anchor = cells[0].find("a")
+            if not anchor:
+                continue
+            score = _score_match(species, anchor.get_text(strip=True))
+            if score > 0:
+                scored_rows.append((score, cells, anchor))
+
+        if not scored_rows:
+            _LOGGER.warning("Strain '%s' not found for breeder '%s'", species, breeder)
+            return results
+
+        # We only need a small snapshot for config flows/services.
+        scored_rows.sort(key=lambda item: item[0], reverse=True)
+        for _, cells, anchor in scored_rows[:5]:
+            match_name = anchor.get_text(strip=True)
+            match_breeder = cells[1].get_text(strip=True) if len(cells) > 1 else breeder
+            detail_url = anchor.get("href")
+            if detail_url and detail_url.startswith("/"):
+                detail_url = f"https://seedfinder.eu{detail_url}"
+
+            results.append(
+                CultivarSnapshot(
+                    name=match_name,
+                    breeder=match_breeder,
+                    flower_window_days=None,
+                    detail_url=detail_url,
+                )
+            )
 
     except Exception as err:
         _LOGGER.error("Error searching SeedFinder: %s", err)
@@ -112,17 +123,24 @@ async def async_search_cultivar(breeder: str, strain: str) -> list[CultivarSnaps
     return results
 
 
-async def async_fetch_cultivar_image_url(detail_url: str) -> str | None:
+async def async_fetch_cultivar_image_url(
+    detail_url: str,
+    *,
+    session: aiohttp.ClientSession | None = None,
+) -> str | None:
     """Fetch a cultivar image URL from a SeedFinder detail page when available."""
     if not detail_url:
         return None
 
     try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(detail_url, timeout=20) as response:
-                if response.status != 200:
-                    return None
-                html = await response.text()
+        if session is None:
+            async with aiohttp.ClientSession() as owned_session:
+                return await async_fetch_cultivar_image_url(detail_url, session=owned_session)
+
+        async with session.get(detail_url, timeout=20) as response:
+            if response.status != 200:
+                return None
+            html = await response.text()
     except Exception as err:
         _LOGGER.debug("Cultivar image fetch failed for %s: %s", detail_url, err)
         return None

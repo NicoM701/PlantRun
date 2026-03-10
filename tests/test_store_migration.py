@@ -97,6 +97,39 @@ class TestStoreMigration(unittest.TestCase):
         self.assertFalse(second_changed)
         self.assertEqual(first, second)
 
+    def test_async_load_skips_malformed_runs_and_clears_invalid_active_run(self) -> None:
+        storage = PlantRunStorage(object())
+        storage._store.saved = {
+            "schema_version": 2,
+            "active_run_id": "missing-run",
+            "daily_rollups": {},
+            "runs": [
+                {
+                    "id": "run1",
+                    "friendly_name": "Run A",
+                    "start_time": "2026-03-01T00:00:00",
+                    "notes": [],
+                    "phases": [],
+                    "bindings": [],
+                },
+                {
+                    "id": "broken",
+                    "friendly_name": "Broken Run",
+                    "notes": [],
+                    "phases": [],
+                    "bindings": [],
+                },
+            ],
+        }
+
+        import asyncio
+
+        asyncio.run(storage.async_load())
+
+        self.assertEqual(len(storage.runs), 1)
+        self.assertEqual(storage.runs[0].id, "run1")
+        self.assertIsNone(storage.active_run_id)
+
 
 if __name__ == "__main__":
     unittest.main()
