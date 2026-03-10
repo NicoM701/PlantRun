@@ -915,7 +915,7 @@ class PlantRunDashboardPanel extends LitElement {
     if (key.includes("temp")) return "🌡";
     if (key.includes("humid")) return "💧";
     if (key.includes("light")) return "☀️";
-    if (key.includes("soil") || key.includes("moist")) return "🪴";
+    if (key.includes("soil") || key.includes("moist")) return "💧";
     if (key.includes("energy") || key.includes("power")) return "⚡";
     return "●";
   }
