@@ -13,63 +13,86 @@ class PlantRunCardEditor extends LitElement {
     }
 
     setConfig(config) {
-        this._config = config;
+        this._config = config || {};
+    }
+
+    _getAvailableRuns() {
+        if (!this.hass) {
+            return [];
+        }
+
+        return Object.values(this.hass.states)
+            .filter((state) => state.entity_id.startsWith("sensor.plantrun_status_"))
+            .map((state) => {
+                const id = state.entity_id.replace("sensor.plantrun_status_", "");
+                const friendlyName = state.attributes.friendly_name || state.entity_id;
+                return {
+                    id,
+                    name: friendlyName.replace(/ Status$/, ""),
+                };
+            })
+            .sort((a, b) => a.name.localeCompare(b.name));
     }
 
     render() {
-        if (!this.hass || !this._config) {
+        if (!this.hass) {
             return html``;
         }
 
-        // Find all runs from the proxy sensors
-        const runs = new Set();
-        Object.keys(this.hass.states).forEach((entity_id) => {
-            if (entity_id.startsWith("sensor.plantrun_status_")) {
-                runs.add({
-                    id: entity_id.replace("sensor.plantrun_status_", ""),
-                    name: this.hass.states[entity_id].attributes.friendly_name || entity_id
-                });
-            }
-        });
+        const runs = this._getAvailableRuns();
 
         return html`
       <div class="card-config">
+        <label for="plantrun-run-select">Discovered run</label>
+        <select
+          id="plantrun-run-select"
+          .value="${this._config.run_id || ""}"
+          .configValue="${"run_id"}"
+          @change="${this._valueChanged}"
+        >
+          <option value="">${runs.length ? "Use first discovered run" : "No runs discovered"}</option>
+          ${runs.map((run) => html`<option value="${run.id}">${run.name} (${run.id})</option>`) }
+        </select>
+
         <paper-input
-          label="Run ID"
-          .value="${this._config.run_id}"
+          label="Run ID (manual override)"
+          .value="${this._config.run_id || ""}"
           .configValue="${"run_id"}"
           @value-changed="${this._valueChanged}"
         ></paper-input>
+
         <div class="helper-text">
-          Available Runs:
-          <ul>
-            ${Array.from(runs).map(run => html`<li>${run.name}: <code>${run.id}</code></li>`)}
-          </ul>
+          ${runs.length
+            ? html`Select a discovered run or enter a run ID manually.`
+            : html`No <code>sensor.plantrun_status_*</code> entities were found yet. You can still enter a run ID manually.`}
         </div>
       </div>
     `;
     }
 
     _valueChanged(ev) {
-        if (!this._config || !this.hass) {
+        if (!this.hass || !this._config) {
             return;
         }
         const target = ev.target;
-        if (this[`_${target.configValue}`] === target.value) {
+        if (!target?.configValue) {
             return;
         }
-        if (target.configValue) {
-            if (target.value === "") {
-                const tmpConfig = { ...this._config };
-                delete tmpConfig[target.configValue];
-                this._config = tmpConfig;
-            } else {
-                this._config = {
-                    ...this._config,
-                    [target.configValue]: target.value,
-                };
-            }
+        if (this._config[target.configValue] === target.value) {
+            return;
         }
+
+        if (target.value === "") {
+            const tmpConfig = { ...this._config };
+            delete tmpConfig[target.configValue];
+            this._config = tmpConfig;
+        } else {
+            this._config = {
+                ...this._config,
+                [target.configValue]: target.value,
+            };
+        }
+
         const event = new Event("config-changed", {
             bubbles: true,
             composed: true,
@@ -80,14 +103,25 @@ class PlantRunCardEditor extends LitElement {
 
     static get styles() {
         return css`
+      .card-config {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      label {
+        font-size: 14px;
+        font-weight: 500;
+      }
+      select {
+        padding: 8px;
+        border-radius: 6px;
+        border: 1px solid var(--divider-color);
+        background: var(--card-background-color);
+        color: var(--primary-text-color);
+      }
       .helper-text {
         font-size: 12px;
         color: var(--secondary-text-color);
-        margin-top: 8px;
-      }
-      ul {
-        margin-top: 4px;
-        padding-left: 16px;
       }
     `;
     }

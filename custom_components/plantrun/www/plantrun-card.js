@@ -206,18 +206,31 @@ class PlantRunCard extends LitElement {
   }
 
   setConfig(config) {
-    if (!config.run_id) {
-      throw new Error("You need to define a run_id for PlantRun");
-    }
-    this.config = config;
+    this.config = config || {};
   }
 
   render() {
-    if (!this.hass || !this.config) {
+    if (!this.hass) {
       return html``;
     }
 
-    const runId = this.config.run_id;
+    const discoveredRunIds = Object.keys(this.hass.states)
+      .filter((entityId) => entityId.startsWith("sensor.plantrun_status_"))
+      .map((entityId) => entityId.replace("sensor.plantrun_status_", ""))
+      .sort();
+
+    if (!discoveredRunIds.length) {
+      return html`
+        <ha-card>
+          <div class="error">
+            <ha-icon icon="mdi:information-outline"></ha-icon>
+            No PlantRun runs were discovered yet. Start a run or set a run ID once sensors exist.
+          </div>
+        </ha-card>
+      `;
+    }
+
+    const runId = this.config.run_id || discoveredRunIds[0];
     const statusSensor = this.hass.states[`sensor.plantrun_status_${runId}`];
     const phaseSensor = this.hass.states[`sensor.plantrun_active_phase_${runId}`];
     const cultivarSensor = this.hass.states[`sensor.plantrun_cultivar_${runId}`];
@@ -227,7 +240,7 @@ class PlantRunCard extends LitElement {
         <ha-card>
           <div class="error">
             <ha-icon icon="mdi:alert-circle"></ha-icon>
-            Run ID "${runId}" not found or sensors not yet initialized.
+            Run ID "${runId}" was not found. Pick a discovered run in the card editor or enter one manually.
           </div>
         </ha-card>
       `;
