@@ -22,7 +22,7 @@
             },
             "create_run_start": {
                 "title": "Start a New Grow Run",
-                "description": "Set a run name first. Breeder and strain are optional SeedFinder hints, and the planted date may be prefilled for today.",
+                "description": "Set a run name first. Breeder and strain are optional SeedFinder hints that refine cultivar matching when both are provided.",
                 "data": {
                     "friendly_name": "Run Name",
                     "planted_date": "Planted Date (Optional)",

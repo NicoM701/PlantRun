@@ -21,10 +21,11 @@ class PlantRunDashboardPanel extends LitElement {
       _loading: { type: Boolean },
       _error: { type: String },
       _setupForm: { type: Object },
-      _showAdvancedSeedfinder: { type: Boolean },
       _newNotes: { type: Object },
       _editNotes: { type: Object },
       _collapsedNotes: { type: Object },
+      _cultivarSuggestions: { type: Array },
+      _highlightedCultivarSuggestion: { type: Number },
     };
   }
 
@@ -37,10 +38,9 @@ class PlantRunDashboardPanel extends LitElement {
     this._loading = true;
     this._error = "";
     this._refreshInterval = null;
-    this._showAdvancedSeedfinder = false;
     this._setupForm = {
       friendly_name: "",
-      planted_date: this._todayDateValue(),
+      planted_date: "",
       cultivar_name: "",
       breeder: "",
       strain: "",
@@ -51,6 +51,8 @@ class PlantRunDashboardPanel extends LitElement {
     this._newNotes = {};
     this._editNotes = {};
     this._collapsedNotes = {};
+    this._cultivarSuggestions = [];
+    this._highlightedCultivarSuggestion = -1;
   }
 
   connectedCallback() {
@@ -506,6 +508,38 @@ class PlantRunDashboardPanel extends LitElement {
         color: var(--t2);
         font-size: 11px;
       }
+      .suggest-wrap {
+        position: relative;
+      }
+      .suggest-list {
+        position: absolute;
+        z-index: 5;
+        left: 0;
+        right: 0;
+        top: calc(100% + 4px);
+        margin: 0;
+        padding: 6px;
+        list-style: none;
+        border: 1px solid var(--border-hi);
+        border-radius: 10px;
+        background: var(--bg-elevated);
+      }
+      .suggest-item {
+        width: 100%;
+        border: 0;
+        border-radius: 8px;
+        background: transparent;
+        color: var(--t1);
+        text-align: left;
+        font-family: inherit;
+        font-size: 11px;
+        padding: 7px 8px;
+        cursor: pointer;
+      }
+      .suggest-item:hover,
+      .suggest-item.on {
+        background: var(--g-glow);
+      }
       .setup {
         max-width: 760px;
         border: 1px solid var(--border);
@@ -520,17 +554,6 @@ class PlantRunDashboardPanel extends LitElement {
       .hint {
         color: var(--t3);
         font-size: 11px;
-      }
-      .setup-toggle {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        margin: 8px 0 4px;
-        color: var(--t2);
-        font-size: 11px;
-      }
-      .setup-toggle input {
-        accent-color: var(--g-bright);
       }
       .loading,
       .error,
@@ -608,7 +631,7 @@ class PlantRunDashboardPanel extends LitElement {
     return html`
       <section class="setup">
         <h3>Initialize your first run</h3>
-        <p class="hint">Create the run basics now. Cultivar is the display name shown on this run. Add Breeder (and optional Strain) to refine the SeedFinder match.</p>
+        <p class="hint">Create the run basics first. Cultivar is shown on the run and also used as the default SeedFinder lookup strain when Strain is left blank.</p>
         <div class="row">
           <div class="field">
             <label class="field-label">Run name</label>
@@ -620,34 +643,77 @@ class PlantRunDashboardPanel extends LitElement {
           </div>
         </div>
         <div class="row">
-          <div class="field">
+          <div class="field suggest-wrap">
             <label class="field-label">Cultivar</label>
-            <input class="input" .value=${this._setupForm.cultivar_name} placeholder="Displayed cultivar name" @input=${(e) => this._setSetup("cultivar_name", e.target.value)} />
+            <input
+              class="input"
+              .value=${this._setupForm.cultivar_name}
+              placeholder="Cultivar name (display + default lookup strain)"
+              @input=${(e) => this._onCultivarInput(e)}
+              @keydown=${(e) => this._onCultivarKeydown(e)}
+              autocomplete="off"
+              aria-label="Cultivar"
+            />
+            ${this._cultivarSuggestions.length
+              ? html`<ul class="suggest-list" role="listbox" aria-label="Cultivar suggestions">
+                  ${this._cultivarSuggestions.map(
+                    (name, index) => html`<li>
+                      <button
+                        class="suggest-item ${this._highlightedCultivarSuggestion === index ? "on" : ""}"
+                        type="button"
+                        @click=${() => this._applyCultivarSuggestion(name)}
+                      >
+                        ${name}
+                      </button>
+                    </li>`,
+                  )}
+                </ul>`
+              : null}
           </div>
           <div class="field">
             <label class="field-label">Breeder</label>
             <input class="input" .value=${this._setupForm.breeder} placeholder="Optional SeedFinder hint" @input=${(e) => this._setSetup("breeder", e.target.value)} />
           </div>
+          <div class="field">
+            <label class="field-label">Strain</label>
+            <input class="input" .value=${this._setupForm.strain} placeholder="Optional SeedFinder hint" @input=${(e) => this._setSetup("strain", e.target.value)} />
+          </div>
         </div>
-        <label class="setup-toggle">
-          <input type="checkbox" .checked=${this._showAdvancedSeedfinder} @change=${(e) => this._toggleAdvancedSeedfinder(e.target.checked)} />
-          Advanced SeedFinder fields
-        </label>
-        ${this._showAdvancedSeedfinder
-          ? html`
-              <div class="row">
-                <div class="field">
-                  <label class="field-label">Strain</label>
-                  <input class="input" .value=${this._setupForm.strain} placeholder="Optional SeedFinder override" @input=${(e) => this._setSetup("strain", e.target.value)} />
-                </div>
-              </div>
-            `
-          : null}
-        <p class="hint">Tip: Breeder triggers SeedFinder lookup. Leave Strain blank to fall back to the cultivar name.</p>
+        <p class="hint">Tip: Breeder + Strain provide the most precise SeedFinder lookup. If Strain is blank and Breeder is set, Cultivar is used as the lookup strain.</p>
         <div class="row">
-          <input class="input" .value=${this._setupForm.grow_space} placeholder="Grow space / tent" @input=${(e) => this._setSetup("grow_space", e.target.value)} />
-          <input class="input" .value=${this._setupForm.medium} placeholder="Medium" @input=${(e) => this._setSetup("medium", e.target.value)} />
-          <input class="input" type="number" .value=${this._setupForm.target_days} placeholder="Target days (optional, can auto-fill)" @input=${(e) => this._setSetup("target_days", e.target.value)} />
+          <div class="field">
+            <label class="field-label" for="setup-grow-space">Grow space</label>
+            <input
+              id="setup-grow-space"
+              class="input"
+              .value=${this._setupForm.grow_space}
+              placeholder="Tent, room, closet, box"
+              @input=${(e) => this._setSetup("grow_space", e.target.value)}
+            />
+            <div class="hint">Where the plant is growing: the container or location.</div>
+          </div>
+          <div class="field">
+            <label class="field-label" for="setup-medium">Root medium</label>
+            <input
+              id="setup-medium"
+              class="input"
+              .value=${this._setupForm.medium}
+              placeholder="Soil, coco, hydro, rockwool"
+              @input=${(e) => this._setSetup("medium", e.target.value)}
+            />
+            <div class="hint">What the roots grow in, not the tent or room.</div>
+          </div>
+          <div class="field">
+            <label class="field-label" for="setup-target-days">Target days</label>
+            <input
+              id="setup-target-days"
+              class="input"
+              type="number"
+              .value=${this._setupForm.target_days}
+              placeholder="Target days"
+              @input=${(e) => this._setSetup("target_days", e.target.value)}
+            />
+          </div>
         </div>
         <div class="actions">
           <button class="btn primary" @click=${this._submitSetup}>Create run</button>
@@ -655,13 +721,6 @@ class PlantRunDashboardPanel extends LitElement {
         </div>
       </section>
     `;
-  }
-
-  _toggleAdvancedSeedfinder(enabled) {
-    this._showAdvancedSeedfinder = Boolean(enabled);
-    if (!this._showAdvancedSeedfinder && this._setupForm.strain) {
-      this._setSetup("strain", "");
-    }
   }
 
   _renderRunCard(run) {
@@ -904,11 +963,6 @@ class PlantRunDashboardPanel extends LitElement {
     }
 
     try {
-      const breeder = this._setupForm.breeder.trim();
-      const cultivarName = this._setupForm.cultivar_name.trim();
-      const strain = this._showAdvancedSeedfinder ? this._setupForm.strain.trim() : "";
-      const enteredTargetDays = String(this._setupForm.target_days ?? "").trim();
-
       await this.hass.callService("plantrun", "create_run", {
         friendly_name: name,
         ...(this._setupForm.planted_date ? { planted_date: this._setupForm.planted_date } : {}),
@@ -917,50 +971,28 @@ class PlantRunDashboardPanel extends LitElement {
       const run = this._runs.find((r) => r.friendly_name === name) || this._runs[this._runs.length - 1];
       if (!run) return;
 
-      let suggestedTargetDays = null;
-      if (cultivarName) {
+      if (this._setupForm.cultivar_name.trim()) {
         await this.hass.callService("plantrun", "set_cultivar", {
           run_id: run.id,
-          cultivar_name: cultivarName,
-          ...(breeder ? { breeder } : {}),
-          ...(strain ? { strain } : {}),
+          cultivar_name: this._setupForm.cultivar_name.trim(),
+          ...(this._setupForm.breeder.trim() ? { breeder: this._setupForm.breeder.trim() } : {}),
+          ...(this._setupForm.strain.trim() ? { strain: this._setupForm.strain.trim() } : {}),
         });
-        await this._refreshRuns();
-        const refreshedRun = this._runs.find((candidate) => candidate.id === run.id);
-        if (breeder && !enteredTargetDays) {
-          const flowerWindowDays = refreshedRun?.cultivar?.flower_window_days;
-          if (Number.isFinite(flowerWindowDays)) {
-            suggestedTargetDays = flowerWindowDays;
-          }
-        }
       }
 
       await this.hass.callService("plantrun", "update_run", {
         run_id: run.id,
         base_config: {
           grow_space: this._setupForm.grow_space,
-          target_days: enteredTargetDays || suggestedTargetDays || "",
+          target_days: this._setupForm.target_days,
           medium: this._setupForm.medium,
         },
       });
 
       this._expandedRunId = run.id;
-      this._setupForm = {
-        friendly_name: "",
-        planted_date: this._todayDateValue(),
-        cultivar_name: "",
-        breeder: "",
-        strain: "",
-        grow_space: "",
-        target_days: "",
-        medium: "",
-      };
-      this._showAdvancedSeedfinder = false;
-      if (suggestedTargetDays) {
-        this._toast(`Run initialized. Applied SeedFinder target days: ${suggestedTargetDays}.`);
-      } else {
-        this._toast("Run initialized.");
-      }
+      this._cultivarSuggestions = [];
+      this._highlightedCultivarSuggestion = -1;
+      this._toast("Run initialized.");
       await this._refreshRuns();
     } catch (err) {
       this._toast(`Setup failed: ${err?.message || err}`);
@@ -1098,6 +1130,64 @@ class PlantRunDashboardPanel extends LitElement {
     });
   }
 
+  _onCultivarInput(event) {
+    const value = event?.target?.value ?? "";
+    this._setSetup("cultivar_name", value);
+    this._refreshCultivarSuggestions(value);
+  }
+
+  _onCultivarKeydown(event) {
+    if (!this._cultivarSuggestions.length) return;
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      this._highlightedCultivarSuggestion = Math.min(
+        this._highlightedCultivarSuggestion + 1,
+        this._cultivarSuggestions.length - 1,
+      );
+      return;
+    }
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      this._highlightedCultivarSuggestion = Math.max(this._highlightedCultivarSuggestion - 1, 0);
+      return;
+    }
+    if (event.key === "Enter" && this._highlightedCultivarSuggestion >= 0) {
+      event.preventDefault();
+      this._applyCultivarSuggestion(this._cultivarSuggestions[this._highlightedCultivarSuggestion]);
+    }
+  }
+
+  _refreshCultivarSuggestions(rawQuery) {
+    const query = String(rawQuery || "").trim().toLowerCase();
+    if (!query) {
+      this._cultivarSuggestions = [];
+      this._highlightedCultivarSuggestion = -1;
+      return;
+    }
+
+    const seen = new Set();
+    const matches = [];
+    for (const run of this._runs || []) {
+      const candidate = String(run?.cultivar?.name || "").trim();
+      if (!candidate) continue;
+      const key = candidate.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      if (!key.includes(query) || key === query) continue;
+      matches.push(candidate);
+      if (matches.length >= 6) break;
+    }
+
+    this._cultivarSuggestions = matches;
+    this._highlightedCultivarSuggestion = matches.length ? 0 : -1;
+  }
+
+  _applyCultivarSuggestion(name) {
+    this._setSetup("cultivar_name", name);
+    this._cultivarSuggestions = [];
+    this._highlightedCultivarSuggestion = -1;
+  }
+
   _setSetup(field, value) {
     this._setupForm = { ...this._setupForm, [field]: value };
   }
@@ -1108,12 +1198,6 @@ class PlantRunDashboardPanel extends LitElement {
 
   _setEditNote(key, value) {
     this._editNotes = { ...this._editNotes, [key]: value };
-  }
-
-  _todayDateValue() {
-    const now = new Date();
-    const localDate = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
-    return localDate.toISOString().slice(0, 10);
   }
 
   _shortDate(input) {
