@@ -23,6 +23,7 @@ class PlantRunDashboardPanel extends LitElement {
       _setupForm: { type: Object },
       _newNotes: { type: Object },
       _editNotes: { type: Object },
+      _collapsedNotes: { type: Object },
     };
   }
 
@@ -47,6 +48,7 @@ class PlantRunDashboardPanel extends LitElement {
     };
     this._newNotes = {};
     this._editNotes = {};
+    this._collapsedNotes = {};
   }
 
   connectedCallback() {
@@ -307,6 +309,36 @@ class PlantRunDashboardPanel extends LitElement {
         margin-top: 4px;
         font-size: 17px;
       }
+      .run-age {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-top: 14px;
+        margin-bottom: 8px;
+        padding: 14px 16px;
+        border: 1px solid var(--border-hi);
+        border-radius: 14px;
+        background: linear-gradient(135deg, rgba(120, 200, 90, 0.2), rgba(30, 64, 24, 0.95));
+        box-shadow: 0 0 0 1px rgba(120, 200, 90, 0.08), 0 12px 26px rgba(0, 0, 0, 0.22);
+      }
+      .run-age-label {
+        color: var(--t2);
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+      .run-age-day {
+        font-family: "Fraunces", Georgia, serif;
+        font-size: 28px;
+        line-height: 1;
+        color: #f2ffe8;
+      }
+      .run-age-total {
+        color: var(--t1);
+        font-size: 13px;
+        text-align: right;
+      }
       .phase-title {
         margin-top: 14px;
         margin-bottom: 8px;
@@ -360,6 +392,58 @@ class PlantRunDashboardPanel extends LitElement {
         margin-top: 10px;
         display: grid;
         gap: 8px;
+      }
+      .notes-panel {
+        margin-top: 12px;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.02);
+        overflow: hidden;
+      }
+      .notes-toggle {
+        width: 100%;
+        border: 0;
+        background: transparent;
+        color: inherit;
+        padding: 10px 12px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        cursor: pointer;
+        text-align: left;
+      }
+      .notes-toggle-main {
+        min-width: 0;
+        display: grid;
+        gap: 4px;
+      }
+      .notes-label-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .notes-label {
+        font-size: 10px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--t2);
+      }
+      .notes-stack {
+        color: var(--t3);
+        font-size: 10px;
+      }
+      .notes-preview {
+        min-width: 0;
+        color: var(--t1);
+        font-size: 11px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .notes-body {
+        padding: 0 12px 12px;
+        border-top: 1px solid var(--border);
       }
       .note {
         border: 1px solid var(--border);
@@ -537,11 +621,16 @@ class PlantRunDashboardPanel extends LitElement {
   _renderRunCard(run) {
     const expanded = this._expandedRunId === run.id;
     const currentPhase = run.phases?.length ? run.phases[run.phases.length - 1].name : "None";
+    const runAgeDays = this._runAgeDays(run.start_time, run.end_time);
     const sensorRows = this._sensorRows(run);
     const availableSensors = sensorRows.filter((s) => s.available);
     const unavailableCount = sensorRows.length - availableSensors.length;
     const imageUrl = run.image_url || run.cultivar?.image_url || "";
     const imageSource = run.image_url ? run.image_source || "custom" : run.cultivar?.image_url ? "seedfinder (fallback)" : "placeholder";
+    const notes = (run.notes || []).slice().reverse();
+    const latestNote = notes[0];
+    const notesCollapsed = this._notesCollapsed(run.id);
+    const extraNotesCount = latestNote ? Math.max(notes.length - 1, 0) : 0;
 
     return html`
       <article class="card">
@@ -588,6 +677,18 @@ class PlantRunDashboardPanel extends LitElement {
                       : html`<div class="sg-cell"><div class="sg-label">Sensors</div><div class="sg-val">No data</div><div class="sg-label">Bind entities to populate</div></div>`}
                   </div>
 
+                  ${runAgeDays
+                    ? html`
+                        <div class="run-age">
+                          <div>
+                            <div class="run-age-label">Days Running</div>
+                            <div class="run-age-day">Day ${runAgeDays}</div>
+                          </div>
+                          <div class="run-age-total">${runAgeDays} ${runAgeDays === 1 ? "day" : "days"} running</div>
+                        </div>
+                      `
+                    : null}
+
                   <div class="phase-title">Growth phase (click dot to request change)</div>
                   <div class="phase-line">
                     ${PHASES.map((phase) => {
@@ -598,41 +699,52 @@ class PlantRunDashboardPanel extends LitElement {
                     })}
                   </div>
 
-                  <div class="notes">
-                    ${(run.notes || []).length
-                      ? run.notes
-                          .slice()
-                          .reverse()
-                          .map((note) => this._renderNote(run, note))
-                      : html`<div class="note"><div class="note-ts">No notes yet</div>Add one below.</div>`}
+                  <div class="notes-panel">
+                    <button class="notes-toggle" @click=${() => this._toggleNotes(run.id)}>
+                      <div class="notes-toggle-main">
+                        <div class="notes-label-row">
+                          <span class="notes-label">Notes</span>
+                          <span class="notes-stack">${notes.length}${extraNotesCount ? html` (+${extraNotesCount} earlier)` : null}</span>
+                        </div>
+                        <div class="notes-preview">${latestNote ? latestNote.text : "No notes yet. Add one below."}</div>
+                      </div>
+                      <span>${notesCollapsed ? "▾" : "▴"}</span>
+                    </button>
+                    ${notesCollapsed
+                      ? null
+                      : html`<div class="notes-body"><div class="notes">${notes.length
+                        ? notes.map((note) => this._renderNote(run, note))
+                        : html`<div class="note"><div class="note-ts">No notes yet</div>Add one below.</div>`}</div></div>`}
                   </div>
 
-                  <div class="actions">
-                    <textarea
-                      class="textarea"
-                      placeholder="Add note"
-                      .value=${this._newNotes[run.id] || ""}
-                      @input=${(e) => this._setNewNote(run.id, e.target.value)}
-                    ></textarea>
-                    <button class="mini" @click=${() => this._addNote(run.id)}>Add note</button>
-                    <input class="input" type="number" placeholder="Dry yield (g)" .value=${run.dry_yield_grams ?? ""} @change=${(e) => this._changeYield(run.id, e.target.value)} />
-                    <div class="field">
-                      <label class="field-label" for="notes-summary-${run.id}">Summary (optional)</label>
-                      <input
-                        id="notes-summary-${run.id}"
-                        class="input"
-                        placeholder="Example: Strong terpene profile, steady finish, 84g dried"
-                        .value=${run.notes_summary || ""}
-                        @change=${(e) => this._updateRun(run.id, { notes_summary: e.target.value })}
-                      />
-                      <div class="hint">Optional short recap of the run for quick scanning later.</div>
-                    </div>
-                    <input class="input" type="file" accept="image/png,image/jpeg,image/webp" @change=${(e) => this._uploadImage(run.id, e)} />
-                    ${run.cultivar?.image_url
-                      ? html`<button class="mini" @click=${() => this._setSeedfinderImage(run.id, run.cultivar.image_url)}>Use SeedFinder image</button>`
-                      : null}
-                    <button class="mini danger" @click=${() => this._endRun(run.id)}>Finish run</button>
-                  </div>
+                  ${notesCollapsed
+                    ? null
+                    : html`<div class="actions">
+                        <textarea
+                          class="textarea"
+                          placeholder="Add note"
+                          .value=${this._newNotes[run.id] || ""}
+                          @input=${(e) => this._setNewNote(run.id, e.target.value)}
+                        ></textarea>
+                        <button class="mini" @click=${() => this._addNote(run.id)}>Add note</button>
+                        <input class="input" type="number" placeholder="Dry yield (g)" .value=${run.dry_yield_grams ?? ""} @change=${(e) => this._changeYield(run.id, e.target.value)} />
+                        <div class="field">
+                          <label class="field-label" for="notes-summary-${run.id}">Summary (optional)</label>
+                          <input
+                            id="notes-summary-${run.id}"
+                            class="input"
+                            placeholder="Example: Strong terpene profile, steady finish, 84g dried"
+                            .value=${run.notes_summary || ""}
+                            @change=${(e) => this._updateRun(run.id, { notes_summary: e.target.value })}
+                          />
+                          <div class="hint">Optional short recap of the run for quick scanning later.</div>
+                        </div>
+                        <input class="input" type="file" accept="image/png,image/jpeg,image/webp" @change=${(e) => this._uploadImage(run.id, e)} />
+                        ${run.cultivar?.image_url
+                          ? html`<button class="mini" @click=${() => this._setSeedfinderImage(run.id, run.cultivar.image_url)}>Use SeedFinder image</button>`
+                          : null}
+                        <button class="mini danger" @click=${() => this._endRun(run.id)}>Finish run</button>
+                      </div>`}
                 </div>
               `
             : null}
@@ -672,6 +784,17 @@ class PlantRunDashboardPanel extends LitElement {
 
   _toggleExpand(runId) {
     this._expandedRunId = this._expandedRunId === runId ? "" : runId;
+  }
+
+  _toggleNotes(runId) {
+    this._collapsedNotes = {
+      ...this._collapsedNotes,
+      [runId]: !this._notesCollapsed(runId),
+    };
+  }
+
+  _notesCollapsed(runId) {
+    return this._collapsedNotes[runId] !== false;
   }
 
   _sensorRows(run) {
@@ -926,6 +1049,17 @@ class PlantRunDashboardPanel extends LitElement {
     return date.toLocaleString();
   }
 
+  _runAgeDays(startInput, endInput) {
+    if (!startInput) return 0;
+    const start = new Date(startInput);
+    if (Number.isNaN(start.getTime())) return 0;
+    const end = endInput ? new Date(endInput) : new Date();
+    const endTime = Number.isNaN(end.getTime()) ? Date.now() : end.getTime();
+    const diffMs = endTime - start.getTime();
+    if (diffMs <= 0) return 1;
+    return Math.floor(diffMs / 86400000) + 1;
+  }
+
   _titleCase(raw) {
     return String(raw || "").replace(/_/g, " ").replace(/\b\w/g, (m) => m.toUpperCase());
   }
@@ -935,7 +1069,7 @@ class PlantRunDashboardPanel extends LitElement {
     if (key.includes("temp")) return "🌡";
     if (key.includes("humid")) return "💧";
     if (key.includes("light")) return "☀️";
-    if (key.includes("soil") || key.includes("moist")) return "🪴";
+    if (key.includes("soil") || key.includes("moist")) return "💧";
     if (key.includes("energy") || key.includes("power")) return "⚡";
     return "●";
   }
