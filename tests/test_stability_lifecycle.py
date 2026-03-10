@@ -568,6 +568,43 @@ class StabilityLifecycleTests(unittest.TestCase):
         self.assertEqual(data["sensor_id"], "sensor.tent_temp")
         self.assertTrue(blocking)
 
+    def test_options_flow_fetches_cultivar_image_from_detail_url(self):
+        ConfigEntry = sys.modules["homeassistant.config_entries"].ConfigEntry
+        entry = ConfigEntry("entry-cultivar-image")
+        storage = FakeStorage()
+        entry.runtime_data = {"storage": storage}
+        flow = self.config_flow.PlantRunOptionsFlowHandler(entry)
+        flow.hass = self._build_hass()
+        flow._create_friendly_name = "Tent Image"
+        flow._create_planted_date = "2026-03-10"
+        flow._create_seedfinder_results = [
+            self.models.CultivarSnapshot(
+                name="Runtz Layer Cake",
+                breeder="Barney's Farm",
+                detail_url="https://example.invalid/detail",
+            )
+        ]
+
+        result = asyncio.run(
+            flow.async_step_create_run_details(
+                {
+                    "cultivar_result": "Runtz Layer Cake",
+                }
+            )
+        )
+
+        self.assertEqual(result["type"], "create_entry")
+        run = storage.runs[0]
+        self.assertIsNotNone(run.cultivar)
+        self.assertEqual([name for name, _session in self.providers.calls], ["image"])
+        self.assertIs(
+            self.providers.calls[0][1],
+            sys.modules["homeassistant.helpers.aiohttp_client"]._session,
+        )
+        self.assertEqual(run.cultivar.image_url, "https://example.invalid/image.jpg")
+        self.assertEqual(run.image_url, "https://example.invalid/image.jpg")
+        self.assertEqual(run.image_source, "seedfinder")
+
     def test_create_run_service_initializes_default_phase(self):
         hass = self._build_hass()
         entry = sys.modules["homeassistant.config_entries"].ConfigEntry("entry-create-run")
