@@ -162,6 +162,24 @@ class FakeHass:
         )
 
 
+def _build_proxy_sensor(metric_type: str, sensor_id: str):
+    run = RunData.from_dict(
+        {
+            "id": "runMeta",
+            "friendly_name": "Tent Meta",
+            "start_time": "2026-03-01T00:00:00",
+            "bindings": [{"metric_type": metric_type, "sensor_id": sensor_id}],
+        }
+    )
+    coordinator = FakeCoordinator([run])
+    return SENSOR_MODULE.PlantRunProxySensor(
+        coordinator=coordinator,
+        run_id=run.id,
+        run_name=run.friendly_name,
+        binding=run.bindings[0],
+    )
+
+
 class TestSensorBindingCompatibility(unittest.TestCase):
     def test_unique_id_legacy_first_binding_compatibility(self) -> None:
         run = RunData.from_dict(
@@ -288,6 +306,46 @@ class TestDynamicBindingEntities(unittest.TestCase):
         self.assertEqual(proxy._attr_state_class, "total_increasing")
         self.assertEqual(proxy._attr_device_class, "energy")
         self.assertEqual(proxy._attr_native_unit_of_measurement, "Wh")
+
+    def test_light_metadata_sets_illuminance_device_class_only_for_canonical_lx(self) -> None:
+        proxy = _build_proxy_sensor("light", "sensor.light_alias")
+        proxy._apply_source_metadata({"unit_of_measurement": "lx"})
+
+        self.assertEqual(proxy._attr_native_unit_of_measurement, "lx")
+        self.assertEqual(proxy._attr_device_class, "illuminance")
+        self.assertEqual(proxy._attr_state_class, "measurement")
+
+    def test_light_metadata_normalizes_lux_alias_to_canonical_lx(self) -> None:
+        for source_unit in ("lux", "Lux"):
+            with self.subTest(source_unit=source_unit):
+                proxy = _build_proxy_sensor("light", "sensor.light_alias")
+                proxy._apply_source_metadata({"unit_of_measurement": source_unit})
+
+                self.assertEqual(proxy._attr_native_unit_of_measurement, "lx")
+                self.assertEqual(proxy._attr_device_class, "illuminance")
+                self.assertEqual(proxy._attr_state_class, "measurement")
+
+    def test_light_metadata_keeps_non_illuminance_units_without_relabeling(self) -> None:
+        proxy = _build_proxy_sensor("light", "sensor.light_dli")
+        proxy._apply_source_metadata({"unit_of_measurement": "mol/m²/d"})
+
+        self.assertEqual(proxy._attr_native_unit_of_measurement, "mol/m²/d")
+        self.assertIsNone(getattr(proxy, "_attr_device_class", None))
+        self.assertEqual(proxy._attr_state_class, "measurement")
+
+    def test_light_metadata_preserves_source_device_class_when_present(self) -> None:
+        proxy = _build_proxy_sensor("light", "sensor.light_source")
+        proxy._apply_source_metadata(
+            {
+                "unit_of_measurement": "lux",
+                "device_class": "custom_light",
+                "state_class": "total",
+            }
+        )
+
+        self.assertEqual(proxy._attr_native_unit_of_measurement, "lx")
+        self.assertEqual(proxy._attr_device_class, "custom_light")
+        self.assertEqual(proxy._attr_state_class, "total")
 
     def test_proxy_unavailable_when_source_entity_missing_or_unavailable(self) -> None:
         run = RunData.from_dict(
