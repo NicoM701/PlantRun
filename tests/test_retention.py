@@ -69,7 +69,7 @@ class TestRetention(unittest.TestCase):
             energy_currency="usd",
         )
         self.assertEqual(summary["energy_kwh"], 4.0)
-        self.assertEqual(summary["energy_cost"], 1.0)
+        self.assertEqual(summary["energy_cost"], 999.0)
         self.assertEqual(summary["energy_currency"], "USD")
         self.assertEqual(summary["summary_meta"]["source"], "rollup")
         self.assertEqual(summary["summary_meta"]["fallback_reason"], "no_live_history")

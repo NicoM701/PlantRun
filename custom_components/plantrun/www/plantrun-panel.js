@@ -630,7 +630,7 @@ class PlantRunDashboardPanel extends LitElement {
           </div>
         </div>
         <label class="setup-toggle">
-          <input type="checkbox" .checked=${this._showAdvancedSeedfinder} @change=${(e) => (this._showAdvancedSeedfinder = e.target.checked)} />
+          <input type="checkbox" .checked=${this._showAdvancedSeedfinder} @change=${(e) => this._toggleAdvancedSeedfinder(e.target.checked)} />
           Advanced SeedFinder fields
         </label>
         ${this._showAdvancedSeedfinder
@@ -655,6 +655,13 @@ class PlantRunDashboardPanel extends LitElement {
         </div>
       </section>
     `;
+  }
+
+  _toggleAdvancedSeedfinder(enabled) {
+    this._showAdvancedSeedfinder = Boolean(enabled);
+    if (!this._showAdvancedSeedfinder && this._setupForm.strain) {
+      this._setSetup("strain", "");
+    }
   }
 
   _renderRunCard(run) {
@@ -899,7 +906,7 @@ class PlantRunDashboardPanel extends LitElement {
     try {
       const breeder = this._setupForm.breeder.trim();
       const cultivarName = this._setupForm.cultivar_name.trim();
-      const strain = this._setupForm.strain.trim();
+      const strain = this._showAdvancedSeedfinder ? this._setupForm.strain.trim() : "";
       const enteredTargetDays = String(this._setupForm.target_days ?? "").trim();
 
       await this.hass.callService("plantrun", "create_run", {
