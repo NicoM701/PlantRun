@@ -241,7 +241,7 @@ class PlantRunProxySensor(CoordinatorEntity[PlantRunCoordinator], SensorEntity):
         state = self.hass.states.get(self.source_entity_id)
         if state is None:
             return False
-        return state.state not in {"unknown", "unavailable"}
+        return state.state != "unavailable"
 
     @property
     def available(self) -> bool:
