@@ -17,6 +17,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers import entity_registry as er
 
 from .const import (
     ACTIVE_RUN_STRATEGIES,
@@ -49,6 +50,24 @@ _MANIFEST_VERSION = json.loads((Path(__file__).parent / "manifest.json").read_te
 ]
 PANEL_MODULE_URL = f"/plantrun_frontend/plantrun-panel.js?v={_MANIFEST_VERSION}"
 UPLOADS_SUBDIR = "plantrun_uploads"
+_OBSOLETE_LEGACY_ENTITY_IDS = {
+    "sensor.plantrun_active_cultivar",
+    "sensor.plantrun_active_phase",
+    "sensor.plantrun_active_run",
+    "sensor.plantrun_active_run_count",
+    "sensor.plantrun_last_event",
+    "sensor.plantrun_active_cultivar_breeder",
+    "sensor.plantrun_active_cultivar_flower_window",
+}
+_OBSOLETE_LEGACY_UNIQUE_IDS = {
+    "plantrun_active_cultivar_name",
+    "plantrun_active_phase",
+    "plantrun_active_run",
+    "plantrun_active_run_count",
+    "plantrun_last_event",
+    "plantrun_active_cultivar_breeder",
+    "plantrun_active_cultivar_flower_window",
+}
 
 
 def _write_uploaded_image(output_dir: Path, output_name: str, raw: bytes) -> None:
@@ -66,6 +85,26 @@ def _storage_for_hass(hass: HomeAssistant) -> PlantRunStorage | None:
             if isinstance(storage, PlantRunStorage):
                 return storage
     return None
+
+
+def _is_obsolete_legacy_entity(entity_entry: Any) -> bool:
+    """Return True when an entity registry entry matches a known retired singleton."""
+    return (
+        getattr(entity_entry, "entity_id", None) in _OBSOLETE_LEGACY_ENTITY_IDS
+        or getattr(entity_entry, "unique_id", None) in _OBSOLETE_LEGACY_UNIQUE_IDS
+    )
+
+
+def _async_remove_obsolete_legacy_entities(hass: HomeAssistant, entry: ConfigEntry) -> int:
+    """Remove retired singleton sensor registry entries for this config entry."""
+    registry = er.async_get(hass)
+    removed = 0
+    for entity_entry in er.async_entries_for_config_entry(registry, entry.entry_id):
+        if not _is_obsolete_legacy_entity(entity_entry):
+            continue
+        registry.async_remove(entity_entry.entity_id)
+        removed += 1
+    return removed
 
 
 @websocket_api.websocket_command({"type": "plantrun/get_runs"})
@@ -168,6 +207,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     }
     hass.data[DOMAIN][entry.entry_id] = runtime_data
     entry.runtime_data = runtime_data
+
+    removed_legacy_entities = _async_remove_obsolete_legacy_entities(hass, entry)
+    if removed_legacy_entities:
+        _LOGGER.info(
+            "Removed %s obsolete legacy PlantRun sensor registry entr%s during setup.",
+            removed_legacy_entities,
+            "y" if removed_legacy_entities == 1 else "ies",
+        )
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(async_reload_entry))
