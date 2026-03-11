@@ -156,6 +156,7 @@ def build_run_summary(
         "energy_kwh": energy_delta,
         "energy_cost": energy_cost,
         "energy_currency": normalize_energy_currency(energy_currency),
+        "energy_price_per_kwh": energy_price_per_kwh,
         "temperature": _series_stats(_maybe_window(history.get("temperature", []))),
         "humidity": _series_stats(_maybe_window(history.get("humidity", []))),
         "soil_moisture": _series_stats(_maybe_window(history.get("soil_moisture", []))),

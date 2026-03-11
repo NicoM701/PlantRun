@@ -47,6 +47,7 @@ class TestSummary(unittest.TestCase):
         self.assertEqual(summary["energy_kwh"], 2.5)
         self.assertAlmostEqual(summary["energy_cost"], 0.75)
         self.assertEqual(summary["energy_currency"], "USD")
+        self.assertEqual(summary["energy_price_per_kwh"], 0.30)
         self.assertEqual(summary["humidity"]["avg"], None)
 
     def test_summary_defaults_currency_without_price(self) -> None:
@@ -61,6 +62,7 @@ class TestSummary(unittest.TestCase):
         self.assertEqual(summary["energy_kwh"], 3.0)
         self.assertIsNone(summary["energy_cost"])
         self.assertEqual(summary["energy_currency"], "EUR")
+        self.assertIsNone(summary["energy_price_per_kwh"])
 
     def test_summary_energy_preferences_from_options_uses_safe_defaults(self) -> None:
         prefs = SUMMARY.summary_energy_preferences_from_options(

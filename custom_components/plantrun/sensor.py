@@ -254,6 +254,14 @@ class PlantRunEnergyCostSensor(PlantRunBaseRunSensor):
         )
         return summary.get("energy_cost")
 
+    @property
+    def extra_state_attributes(self) -> dict[str, float | str | None]:
+        return {
+            "energy_price_per_kwh": self._energy_price_per_kwh,
+            "energy_currency": self._energy_currency,
+            "scope": "run_window",
+        }
+
 
 class PlantRunProxySensor(CoordinatorEntity[PlantRunCoordinator], SensorEntity):
     """Sensor that mirrors an existing HA entity but attaches to the PlantRun device."""
