@@ -48,3 +48,24 @@ Capture minimum triage bundle:
 5. Screen recording if UI lag is user-visible
 
 This keeps follow-up issues reproducible and merge-safe.
+
+## 5) Synthetic Perf Harness (repeatable local baseline)
+
+Use the harness to create a quick comparable baseline across commits.
+
+```bash
+python3 scripts/perf_harness.py
+python3 scripts/perf_harness.py --runs 500 --notes 80 --iterations 5
+```
+
+What it does:
+- Builds synthetic run datasets (`N` runs, `M` notes/run)
+- Executes summary hot path repeatedly
+- Serializes runs via `to_dict()` to approximate store-write object shaping
+- Emits JSON with wall time + optional instrumentation counters/timers
+
+How to interpret:
+- Compare `result.total_ms` and `result.ms_per_summary` between branches
+- Large jumps (>~20% on same machine/config) are a regression smell
+- `instrumentation.counters` should scale linearly with workload
+- `instrumentation.timings.summary.build.ms.avg_ms` helps spot summary-path drift

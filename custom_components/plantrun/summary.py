@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from contextlib import nullcontext
 from datetime import datetime, timezone
 from statistics import mean
 from typing import Any, Mapping
@@ -12,6 +13,7 @@ from .const import (
     DEFAULT_CURRENCY,
     DEFAULT_ELECTRICITY_PRICE_PER_KWH,
 )
+from .instrumentation import PlantRunInstrumentation
 from .models import RunData
 
 
@@ -107,7 +109,15 @@ def summary_energy_preferences_from_options(options: Mapping[str, Any] | None) -
     }
 
 
-def _series_stats(points: list[dict[str, Any]]) -> dict[str, float | None]:
+def _series_stats(
+    points: list[dict[str, Any]],
+    *,
+    instrumentation: PlantRunInstrumentation | None = None,
+) -> dict[str, float | None]:
+    if instrumentation is not None:
+        instrumentation.incr("summary.series_stats.calls")
+        instrumentation.incr("summary.series_stats.points", len(points))
+
     vals = [_to_float(point.get("value")) for point in points]
     cleaned = [v for v in vals if v is not None]
     if not cleaned:
@@ -126,39 +136,46 @@ def build_run_summary(
     *,
     energy_price_per_kwh: float | None = None,
     energy_currency: str | None = None,
+    instrumentation: PlantRunInstrumentation | None = None,
 ) -> dict[str, Any]:
     """Build period-aware KPI summary from run sensor history.
 
     Works with partial/missing data by returning null metrics for empty series.
     """
-    history = run.sensor_history or {}
-    start_dt = _parse_iso_datetime(run.start_time)
-    end_dt = _parse_iso_datetime(run.end_time) if run.end_time else datetime.now(timezone.utc)
+    if instrumentation is not None:
+        instrumentation.incr("summary.build.calls")
 
-    def _maybe_window(metric_points: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        if start_dt is None or end_dt is None or end_dt < start_dt:
-            return metric_points
-        return _windowed_points(metric_points, start=start_dt, end=end_dt)
+    timer_cm = instrumentation.timer("summary.build.ms") if instrumentation is not None else nullcontext()
 
-    energy_stats = _series_stats(_maybe_window(history.get("energy", [])))
-    energy_delta = None
-    energy_cost = None
-    if energy_stats["start"] is not None and energy_stats["end"] is not None:
-        energy_delta = max(0.0, energy_stats["end"] - energy_stats["start"])
-        if energy_price_per_kwh is not None:
-            energy_cost = energy_delta * energy_price_per_kwh
+    with timer_cm:
+        history = run.sensor_history or {}
+        start_dt = _parse_iso_datetime(run.start_time)
+        end_dt = _parse_iso_datetime(run.end_time) if run.end_time else datetime.now(timezone.utc)
 
-    return {
-        "run_id": run.id,
-        "friendly_name": run.friendly_name,
-        "started_at": run.start_time,
-        "ended_at": run.end_time,
-        "energy_kwh": energy_delta,
-        "energy_cost": energy_cost,
-        "energy_currency": normalize_energy_currency(energy_currency),
-        "energy_price_per_kwh": energy_price_per_kwh,
-        "temperature": _series_stats(_maybe_window(history.get("temperature", []))),
-        "humidity": _series_stats(_maybe_window(history.get("humidity", []))),
-        "soil_moisture": _series_stats(_maybe_window(history.get("soil_moisture", []))),
-        "water": _series_stats(_maybe_window(history.get("water", []))),
-    }
+        def _maybe_window(metric_points: list[dict[str, Any]]) -> list[dict[str, Any]]:
+            if start_dt is None or end_dt is None or end_dt < start_dt:
+                return metric_points
+            return _windowed_points(metric_points, start=start_dt, end=end_dt)
+
+        energy_stats = _series_stats(_maybe_window(history.get("energy", [])), instrumentation=instrumentation)
+        energy_delta = None
+        energy_cost = None
+        if energy_stats["start"] is not None and energy_stats["end"] is not None:
+            energy_delta = max(0.0, energy_stats["end"] - energy_stats["start"])
+            if energy_price_per_kwh is not None:
+                energy_cost = energy_delta * energy_price_per_kwh
+
+        return {
+            "run_id": run.id,
+            "friendly_name": run.friendly_name,
+            "started_at": run.start_time,
+            "ended_at": run.end_time,
+            "energy_kwh": energy_delta,
+            "energy_cost": energy_cost,
+            "energy_currency": normalize_energy_currency(energy_currency),
+            "energy_price_per_kwh": energy_price_per_kwh,
+            "temperature": _series_stats(_maybe_window(history.get("temperature", [])), instrumentation=instrumentation),
+            "humidity": _series_stats(_maybe_window(history.get("humidity", [])), instrumentation=instrumentation),
+            "soil_moisture": _series_stats(_maybe_window(history.get("soil_moisture", [])), instrumentation=instrumentation),
+            "water": _series_stats(_maybe_window(history.get("water", [])), instrumentation=instrumentation),
+        }

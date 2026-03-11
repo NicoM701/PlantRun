@@ -2,12 +2,14 @@
 
 import copy
 import logging
+from contextlib import nullcontext
 from typing import Any
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
 
 from .const import DOMAIN, INITIAL_PHASE_NAME, STORE_KEY, STORE_SCHEMA_VERSION, STORE_VERSION
+from .instrumentation import PlantRunInstrumentation
 from .models import RunData
 
 _LOGGER = logging.getLogger(__name__)
@@ -16,10 +18,11 @@ _LOGGER = logging.getLogger(__name__)
 class PlantRunStorage:
     """Class to hold PlantRun data."""
 
-    def __init__(self, hass: HomeAssistant) -> None:
+    def __init__(self, hass: HomeAssistant, instrumentation: PlantRunInstrumentation | None = None) -> None:
         """Initialize the storage."""
         self.hass = hass
         self._store: Store[dict[str, Any]] = Store(hass, STORE_VERSION, STORE_KEY)
+        self._instrumentation = instrumentation
         self.runs: list[RunData] = []
         self._data: dict[str, Any] = {
             "schema_version": STORE_SCHEMA_VERSION,
@@ -95,7 +98,11 @@ class PlantRunStorage:
 
     async def async_load(self) -> None:
         """Load data from the store."""
-        data = await self._store.async_load()
+        if self._instrumentation is not None:
+            self._instrumentation.incr("store.load.calls")
+
+        with self._instrumentation.timer("store.load.ms") if self._instrumentation is not None else nullcontext():
+            data = await self._store.async_load()
         normalized, changed = self._normalize_payload(data)
 
         self._data = normalized
@@ -108,6 +115,10 @@ class PlantRunStorage:
                 changed = True
                 _LOGGER.warning("Skipping malformed stored PlantRun run: %s", err)
         self.runs = loaded_runs
+
+        if self._instrumentation is not None:
+            self._instrumentation.incr("store.load.runs_total", len(raw_runs))
+            self._instrumentation.incr("store.load.runs_loaded", len(self.runs))
 
         if self.active_run_id and not any(run.id == self.active_run_id for run in self.runs):
             self._data["active_run_id"] = None
@@ -135,10 +146,16 @@ class PlantRunStorage:
 
     async def async_save(self) -> None:
         """Save data to the store."""
-        self._data["schema_version"] = STORE_SCHEMA_VERSION
-        self._data["runs"] = [run.to_dict() for run in self.runs]
-        self._data.setdefault("active_run_id", None)
-        await self._store.async_save(self._data)
+        if self._instrumentation is not None:
+            self._instrumentation.incr("store.save.calls")
+
+        with self._instrumentation.timer("store.save.ms") if self._instrumentation is not None else nullcontext():
+            self._data["schema_version"] = STORE_SCHEMA_VERSION
+            self._data["runs"] = [run.to_dict() for run in self.runs]
+            self._data.setdefault("active_run_id", None)
+            if self._instrumentation is not None:
+                self._instrumentation.incr("store.save.runs_serialized", len(self.runs))
+            await self._store.async_save(self._data)
 
     @property
     def active_run_id(self) -> str | None:
