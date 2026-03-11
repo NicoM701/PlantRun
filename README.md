@@ -52,9 +52,12 @@ Includes:
 - Proxy sensors per run for dashboarding and grouping
 - Robust handling of light units (`lx`, `lux`, case variants)
 - Summary pipeline supports:
-  - energy kWh
-  - configurable energy cost
+  - run-window-scoped energy kWh (from run start → run end/now)
+  - configurable energy cost using integration energy-price settings
   - explicit energy currency in summary outputs
+- Dedicated run entities for dashboarding:
+  - `sensor.<run>_run_energy`
+  - `sensor.<run>_run_energy_cost`
 
 ### Data Persistence
 - Run state persisted in local store (`plantrun_store.json`)

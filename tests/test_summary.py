@@ -72,6 +72,45 @@ class TestSummary(unittest.TestCase):
         self.assertEqual(prefs["energy_price_per_kwh"], 0.0)
         self.assertEqual(prefs["energy_currency"], "GBP")
 
+    def test_summary_energy_uses_only_run_window_samples(self) -> None:
+        run = RunData(
+            id="run-windowed",
+            friendly_name="Tent C",
+            start_time="2026-03-01T10:00:00+00:00",
+            end_time="2026-03-01T14:00:00+00:00",
+            sensor_history={
+                "energy": [
+                    {"timestamp": "2026-03-01T08:00:00+00:00", "value": 100.0},
+                    {"timestamp": "2026-03-01T10:30:00+00:00", "value": 110.0},
+                    {"timestamp": "2026-03-01T13:30:00+00:00", "value": 114.0},
+                    {"timestamp": "2026-03-01T15:00:00+00:00", "value": 200.0},
+                ]
+            },
+        )
+
+        summary = SUMMARY.build_run_summary(run, energy_price_per_kwh=0.4, energy_currency="EUR")
+        self.assertEqual(summary["energy_kwh"], 4.0)
+        self.assertEqual(summary["energy_cost"], 1.6)
+
+    def test_summary_ignores_untimestamped_points_when_timestamped_series_exists(self) -> None:
+        run = RunData(
+            id="run-no-leak",
+            friendly_name="Tent D",
+            start_time="2026-03-01T10:00:00+00:00",
+            end_time="2026-03-01T12:00:00+00:00",
+            sensor_history={
+                "energy": [
+                    {"value": 9999.0},
+                    {"timestamp": "2026-03-01T10:15:00+00:00", "value": 50.0},
+                    {"timestamp": "2026-03-01T11:45:00+00:00", "value": 54.0},
+                ]
+            },
+        )
+
+        summary = SUMMARY.build_run_summary(run, energy_price_per_kwh=0.5)
+        self.assertEqual(summary["energy_kwh"], 4.0)
+        self.assertEqual(summary["energy_cost"], 2.0)
+
 
 if __name__ == "__main__":
     unittest.main()

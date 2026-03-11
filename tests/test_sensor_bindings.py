@@ -242,6 +242,14 @@ class TestDynamicBindingEntities(unittest.TestCase):
         }
         self.assertIn("plantrun_temperature_runA", initial_ids)
 
+        run_cost_entities = [
+            entity
+            for entity in added_batches[0]
+            if isinstance(entity, SENSOR_MODULE.PlantRunEnergyCostSensor)
+        ]
+        self.assertEqual(len(run_cost_entities), 1)
+        self.assertEqual(run_cost_entities[0]._attr_unique_id, "plantrun_run_energy_cost_runA")
+
         run.bindings.append(Binding(metric_type="temperature", sensor_id="sensor.t2"))
         self.assertEqual(len(coordinator._listeners), 1)
         coordinator._listeners[0]()

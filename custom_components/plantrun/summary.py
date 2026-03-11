@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from statistics import mean
 from typing import Any, Mapping
 
@@ -19,6 +20,58 @@ def _to_float(value: Any) -> float | None:
         return float(value)
     except (TypeError, ValueError):
         return None
+
+
+def _parse_iso_datetime(value: Any) -> datetime | None:
+    """Parse ISO datetime values with tolerant UTC fallback for naive timestamps."""
+    if not isinstance(value, str):
+        return None
+
+    cleaned = value.strip()
+    if not cleaned:
+        return None
+
+    try:
+        parsed = datetime.fromisoformat(cleaned.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed
+
+
+def _point_timestamp(point: Mapping[str, Any]) -> datetime | None:
+    """Extract timestamp from history points across legacy/new key names."""
+    for key in ("timestamp", "time", "last_changed", "last_updated"):
+        parsed = _parse_iso_datetime(point.get(key))
+        if parsed is not None:
+            return parsed
+    return None
+
+
+def _windowed_points(
+    points: list[dict[str, Any]],
+    *,
+    start: datetime,
+    end: datetime,
+) -> list[dict[str, Any]]:
+    """Return only points that are inside the run window.
+
+    If no timestamps exist on points, preserves legacy behavior and returns input as-is.
+    """
+    has_any_timestamp = any(_point_timestamp(point) is not None for point in points)
+    if not has_any_timestamp:
+        return points
+
+    windowed: list[dict[str, Any]] = []
+    for point in points:
+        ts = _point_timestamp(point)
+        if ts is None:
+            continue
+        if start <= ts <= end:
+            windowed.append(point)
+    return windowed
 
 
 def normalize_energy_currency(value: Any) -> str:
@@ -79,7 +132,15 @@ def build_run_summary(
     Works with partial/missing data by returning null metrics for empty series.
     """
     history = run.sensor_history or {}
-    energy_stats = _series_stats(history.get("energy", []))
+    start_dt = _parse_iso_datetime(run.start_time)
+    end_dt = _parse_iso_datetime(run.end_time) if run.end_time else datetime.now(timezone.utc)
+
+    def _maybe_window(metric_points: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        if start_dt is None or end_dt is None or end_dt < start_dt:
+            return metric_points
+        return _windowed_points(metric_points, start=start_dt, end=end_dt)
+
+    energy_stats = _series_stats(_maybe_window(history.get("energy", [])))
     energy_delta = None
     energy_cost = None
     if energy_stats["start"] is not None and energy_stats["end"] is not None:
@@ -95,8 +156,8 @@ def build_run_summary(
         "energy_kwh": energy_delta,
         "energy_cost": energy_cost,
         "energy_currency": normalize_energy_currency(energy_currency),
-        "temperature": _series_stats(history.get("temperature", [])),
-        "humidity": _series_stats(history.get("humidity", [])),
-        "soil_moisture": _series_stats(history.get("soil_moisture", [])),
-        "water": _series_stats(history.get("water", [])),
+        "temperature": _series_stats(_maybe_window(history.get("temperature", []))),
+        "humidity": _series_stats(_maybe_window(history.get("humidity", []))),
+        "soil_moisture": _series_stats(_maybe_window(history.get("soil_moisture", []))),
+        "water": _series_stats(_maybe_window(history.get("water", []))),
     }

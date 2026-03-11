@@ -9,9 +9,16 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.helpers.event import async_track_state_change_event
 from homeassistant.core import Event
 
-from .const import DOMAIN
+from .const import (
+    CONF_CURRENCY,
+    CONF_ELECTRICITY_PRICE_PER_KWH,
+    DEFAULT_CURRENCY,
+    DEFAULT_ELECTRICITY_PRICE_PER_KWH,
+    DOMAIN,
+)
 from .coordinator import PlantRunCoordinator
 from .models import Binding, RunData
+from .summary import build_run_summary, normalize_energy_currency, normalize_energy_price_per_kwh
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -39,6 +46,13 @@ async def async_setup_entry(
     known_run_ids: set[str] = set()
     known_binding_ids: set[tuple[str, str]] = set()
 
+    options = getattr(entry, "options", {}) or {}
+    price_per_kwh = normalize_energy_price_per_kwh(
+        options.get(CONF_ELECTRICITY_PRICE_PER_KWH),
+        default=DEFAULT_ELECTRICITY_PRICE_PER_KWH,
+    )
+    currency = normalize_energy_currency(options.get(CONF_CURRENCY, DEFAULT_CURRENCY))
+
     def _collect_new_entities() -> list[SensorEntity]:
         entities: list[SensorEntity] = []
         for run in coordinator.data:
@@ -47,6 +61,15 @@ async def async_setup_entry(
                 entities.append(PlantRunActivePhaseSensor(coordinator, run.id))
                 entities.append(PlantRunStatusSensor(coordinator, run.id))
                 entities.append(PlantRunCultivarSensor(coordinator, run.id))
+                entities.append(PlantRunEnergySensor(coordinator, run.id))
+                entities.append(
+                    PlantRunEnergyCostSensor(
+                        coordinator,
+                        run.id,
+                        energy_price_per_kwh=price_per_kwh,
+                        energy_currency=currency,
+                    )
+                )
 
             for binding in run.bindings:
                 key = (run.id, binding.id)
@@ -173,6 +196,63 @@ class PlantRunCultivarSensor(PlantRunBaseRunSensor):
         if not run or not run.cultivar:
             return "None"
         return run.cultivar.name
+
+
+class PlantRunEnergySensor(PlantRunBaseRunSensor):
+    """Sensor exposing energy delta for the run window only."""
+
+    _attr_icon = "mdi:lightning-bolt"
+    _attr_device_class = "energy"
+    _attr_state_class = "measurement"
+    _attr_native_unit_of_measurement = "kWh"
+
+    def __init__(self, coordinator: PlantRunCoordinator, run_id: str) -> None:
+        super().__init__(coordinator, run_id)
+        self._attr_unique_id = f"plantrun_run_energy_{run_id}"
+        self._attr_name = "Run Energy"
+
+    @property
+    def native_value(self) -> float | None:
+        run = self.run_data
+        if not run:
+            return None
+        summary = build_run_summary(run)
+        return summary.get("energy_kwh")
+
+
+class PlantRunEnergyCostSensor(PlantRunBaseRunSensor):
+    """Sensor exposing run-level energy cost for dashboard consumption."""
+
+    _attr_icon = "mdi:currency-eur"
+    _attr_device_class = "monetary"
+    _attr_state_class = "measurement"
+
+    def __init__(
+        self,
+        coordinator: PlantRunCoordinator,
+        run_id: str,
+        *,
+        energy_price_per_kwh: float | None,
+        energy_currency: str,
+    ) -> None:
+        super().__init__(coordinator, run_id)
+        self._energy_price_per_kwh = energy_price_per_kwh
+        self._energy_currency = energy_currency
+        self._attr_unique_id = f"plantrun_run_energy_cost_{run_id}"
+        self._attr_name = "Run Energy Cost"
+        self._attr_native_unit_of_measurement = energy_currency
+
+    @property
+    def native_value(self) -> float | None:
+        run = self.run_data
+        if not run:
+            return None
+        summary = build_run_summary(
+            run,
+            energy_price_per_kwh=self._energy_price_per_kwh,
+            energy_currency=self._energy_currency,
+        )
+        return summary.get("energy_cost")
 
 
 class PlantRunProxySensor(CoordinatorEntity[PlantRunCoordinator], SensorEntity):
