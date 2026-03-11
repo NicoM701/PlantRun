@@ -575,11 +575,60 @@ class StabilityLifecycleTests(unittest.TestCase):
 
         self.assertEqual(result["type"], "create_entry")
         self.assertEqual(storage.runs[0].phases[0].name, "Seedling")
+        self.assertEqual(storage.runs[0].base_config["target_days"], 84)
         self.assertEqual(len(flow.hass.services.calls), 1)
         domain, name, data, blocking = flow.hass.services.calls[0]
         self.assertEqual((domain, name), (self.config_flow.DOMAIN, "add_binding"))
         self.assertEqual(data["sensor_id"], "sensor.tent_temp")
         self.assertTrue(blocking)
+
+    def test_options_flow_applies_explicit_target_days_from_start_step(self):
+        ConfigEntry = sys.modules["homeassistant.config_entries"].ConfigEntry
+        entry = ConfigEntry("entry-target-days")
+        storage = FakeStorage()
+        entry.runtime_data = {"storage": storage}
+        flow = self.config_flow.PlantRunOptionsFlowHandler(entry)
+        flow.hass = self._build_hass()
+
+        asyncio.run(
+            flow.async_step_create_run_start(
+                {
+                    "friendly_name": "Tent Duration",
+                    "planted_date": "2026-03-10",
+                    "target_days": 70,
+                    "cultivar_breeder": "",
+                    "cultivar_strain": "",
+                }
+            )
+        )
+        asyncio.run(flow.async_step_create_run_details({"cultivar_result": "None"}))
+
+        self.assertEqual(storage.runs[0].base_config["target_days"], 70)
+
+    def test_options_flow_normalizes_entity_selector_value_and_ignores_placeholder(self):
+        ConfigEntry = sys.modules["homeassistant.config_entries"].ConfigEntry
+        entry = ConfigEntry("entry-selector")
+        storage = FakeStorage()
+        entry.runtime_data = {"storage": storage}
+        flow = self.config_flow.PlantRunOptionsFlowHandler(entry)
+        flow.hass = self._build_hass()
+        flow._create_friendly_name = "Tent Selector"
+        flow._create_planted_date = "2026-03-10"
+        flow._create_seedfinder_results = []
+
+        asyncio.run(
+            flow.async_step_create_run_details(
+                {
+                    "cultivar_result": "None",
+                    "temperature_sensor": {"entity_id": "sensor.tent_temp"},
+                    "humidity_sensor": "sensor.plantrun_status_<run_id>",
+                }
+            )
+        )
+
+        self.assertEqual(len(flow.hass.services.calls), 1)
+        _domain, _name, data, _blocking = flow.hass.services.calls[0]
+        self.assertEqual(data["sensor_id"], "sensor.tent_temp")
 
     def test_options_flow_backfills_cultivar_image_before_persisting_run(self):
         ConfigEntry = sys.modules["homeassistant.config_entries"].ConfigEntry
