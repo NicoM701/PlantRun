@@ -103,3 +103,7 @@ Work is being delivered in mergeable slices to keep changes safe and testable.
 - Tests: `python3 -m unittest discover -s tests -q`
 - Keep changes scoped and production-runnable per PR
 - Prefer backward-compatible UX/data changes
+
+## QA Campaign Release Notes
+
+- 2026-03-11 closure summary for issues #66-#79: `docs/QA_WAVE_CLOSURE_2026-03-11.md`
