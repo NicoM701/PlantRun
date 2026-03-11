@@ -102,6 +102,7 @@ Work is being delivered in mergeable slices to keep changes safe and testable.
 
 - Quick pre-PR gate: `./scripts/quick_gate.sh`
 - Direct test command: `python3 -m unittest discover -s tests -q`
+- Dashboard interaction regression suite: `python3 -m unittest tests.test_dashboard_panel_interactions -q`
 - Keep changes scoped and production-runnable per PR
 - Prefer backward-compatible UX/data changes
 
