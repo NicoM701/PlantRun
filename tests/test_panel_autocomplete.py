@@ -1,3 +1,4 @@
+import re
 import unittest
 from pathlib import Path
 
@@ -15,6 +16,7 @@ class PanelAutocompleteTest(unittest.TestCase):
         self.assertIn('event.key === "Enter" || event.key === "Tab"', source)
         self.assertIn('@mousedown=${(e) => e.preventDefault()}', source)
         self.assertIn("_clearCultivarSuggestionsSoon", source)
+        self.assertRegex(source, r"_clearCultivarSuggestionsSoon\(\)\s*\{")
 
 
 if __name__ == "__main__":
