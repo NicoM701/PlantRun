@@ -67,6 +67,7 @@ class PlantRunOptionsFlowHandler(config_entries.OptionsFlow):
         # State carried between steps for run creation
         self._create_friendly_name: str | None = None
         self._create_planted_date: str | None = None
+        self._create_target_days: int | None = None
         self._create_seedfinder_breeder: str | None = None
         self._create_seedfinder_strain: str | None = None
         self._create_seedfinder_results: list[CultivarSnapshot] | None = None
@@ -98,6 +99,31 @@ class PlantRunOptionsFlowHandler(config_entries.OptionsFlow):
             status_label = "active" if run.status == "active" else "ended"
             runs[run.id] = f"{run.friendly_name} ({status_label}, {run.id[-6:]})"
         return runs
+
+    @staticmethod
+    def _normalize_target_days(value: Any) -> int | None:
+        """Normalize configured target days from selector/form input."""
+        if value in (None, ""):
+            return None
+        try:
+            parsed = int(value)
+        except (TypeError, ValueError):
+            return None
+        return parsed if parsed > 0 else None
+
+    @staticmethod
+    def _normalize_entity_selector_value(value: Any) -> str | None:
+        """Normalize entity selector output to a single entity_id string."""
+        if isinstance(value, dict):
+            value = value.get("entity_id")
+        if isinstance(value, list):
+            value = value[0] if value else None
+        if value in (None, "", "None", "None (No search matches)"):
+            return None
+        normalized = str(value).strip()
+        if not normalized or "<run_id>" in normalized:
+            return None
+        return normalized
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
