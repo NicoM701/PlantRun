@@ -100,10 +100,14 @@ Work is being delivered in mergeable slices to keep changes safe and testable.
 
 ## Development Notes
 
-- Tests: `python3 -m unittest discover -s tests -q`
+- Quick pre-PR gate: `./scripts/quick_gate.sh`
+- Direct test command: `python3 -m unittest discover -s tests -q`
 - Keep changes scoped and production-runnable per PR
 - Prefer backward-compatible UX/data changes
 
-## QA Campaign Release Notes
+## QA & Operations Docs
 
+- Release QA sign-off (real-device, #78/#74 focus): `docs/RELEASE_QA_SIGNOFF.md`
+- Lightweight performance guide: `docs/PERFORMANCE_NOTES.md`
+- Existing release checklist: `docs/RELEASE_CHECKLIST.md`
 - 2026-03-11 closure summary for issues #66-#79: `docs/QA_WAVE_CLOSURE_2026-03-11.md`
