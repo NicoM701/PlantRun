@@ -396,10 +396,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             run.cultivar = selected
             if selected.image_url and not run.image_url:
                 run.image_url = selected.image_url
-                if image_selection:
-                    run.image_source = f"seedfinder:{image_selection.source_kind}:{image_selection.confidence}"
-                else:
-                    run.image_source = "seedfinder"
+                run.image_source = "seedfinder"
             _LOGGER.info(
                 "Attached Cultivar %s from SeedFinder to run %s", run.cultivar.name, run.id
             )
