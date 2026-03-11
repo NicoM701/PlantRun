@@ -182,7 +182,8 @@ class PlantRunOptionsFlowHandler(config_entries.OptionsFlow):
                 
             breeder = user_input.get("cultivar_breeder", "").strip()
             strain = user_input.get("cultivar_strain", "").strip()
-            
+            self._create_target_days = self._normalize_target_days(user_input.get("target_days"))
+
             self._create_seedfinder_breeder = breeder
             self._create_seedfinder_strain = strain
             self._create_seedfinder_results = []
@@ -204,6 +205,7 @@ class PlantRunOptionsFlowHandler(config_entries.OptionsFlow):
             data_schema=vol.Schema({
                 vol.Required("friendly_name"): str,
                 vol.Optional("planted_date"): selector.DateSelector(),
+                vol.Optional("target_days", default=84): vol.All(vol.Coerce(int), vol.Range(min=1)),
                 vol.Optional("cultivar_breeder"): str,
                 vol.Optional("cultivar_strain"): str,
             }),
@@ -241,6 +243,9 @@ class PlantRunOptionsFlowHandler(config_entries.OptionsFlow):
                             new_run.image_source = "seedfinder"
                         break
 
+            target_days = self._create_target_days if self._create_target_days is not None else 84
+            new_run.base_config = {"target_days": target_days}
+
             await storage.async_add_run(new_run)
             await storage.async_set_active_run_id(new_run.id)
 
@@ -255,7 +260,7 @@ class PlantRunOptionsFlowHandler(config_entries.OptionsFlow):
             }
 
             for field, metric in metrics_map.items():
-                sensor_id = user_input.get(field)
+                sensor_id = self._normalize_entity_selector_value(user_input.get(field))
                 if sensor_id:
                     bind_data = {
                         "run_id": new_run.id,

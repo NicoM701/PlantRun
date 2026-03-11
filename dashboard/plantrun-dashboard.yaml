@@ -16,12 +16,10 @@ cards:
         entities:
           - entity: sensor.plantrun_total_runs
             name: Total Historical Runs
-          - type: divider
-          # NOTE: The integration generates unique IDs per run. You will need to replace
-          # `<run_id>` below with the actual sensor IDs generated in your HA instance!
-          - entity: sensor.plantrun_status_<run_id>
-            name: Current State
-          - entity: sensor.plantrun_active_phase_<run_id>
-            name: Current Phase
-          - entity: sensor.plantrun_cultivar_<run_id>
-            name: Cultivar Name
+
+      - type: markdown
+        content: |
+          **Per-run sensors are created automatically once a run exists.**
+
+          To pin a specific run in a dashboard card, pick the discovered run in the PlantRun card editor
+          instead of using placeholder IDs.

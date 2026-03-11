@@ -778,7 +778,7 @@ class PlantRunDashboardPanel extends LitElement {
         <div class="setup-intro">
           <div>
             <h3>${isFirstRun ? "Start your first run" : "Start a new run"}</h3>
-            <p class="hint">Move top to bottom: create the run, add cultivar lookup details only if you want them, then keep or change the planning defaults.</p>
+            <p class="hint">Quick setup: name the run, optionally enrich cultivar data, then confirm the estimated duration.</p>
           </div>
           <div class="setup-steps" aria-label="Setup steps">
             <div class="setup-step">
@@ -798,8 +798,8 @@ class PlantRunDashboardPanel extends LitElement {
             <div class="setup-step">
               <div class="setup-step-no">3</div>
               <div>
-                <div class="setup-step-title">Planning defaults</div>
-                <div class="setup-step-copy">Start from the suggested values and adjust only the fields that matter for this run.</div>
+                <div class="setup-step-title">Estimated duration</div>
+                <div class="setup-step-copy">Set a realistic day estimate so planning starts with context.</div>
               </div>
             </div>
           </div>
@@ -877,7 +877,7 @@ class PlantRunDashboardPanel extends LitElement {
         </div>
         <div class="setup-section">
           <div class="section-kicker">Step 3</div>
-          <div class="section-title">Optional planning defaults</div>
+          <div class="section-title">Optional planning defaults (including estimated duration)</div>
           <div class="row">
             <div class="field">
               <label class="field-label" for="setup-grow-space">Grow space</label>
@@ -907,7 +907,7 @@ class PlantRunDashboardPanel extends LitElement {
               </div>
             </div>
             <div class="field">
-              <label class="field-label" for="setup-target-days">Target days</label>
+              <label class="field-label" for="setup-target-days">Estimated run duration (days)</label>
               <input
                 id="setup-target-days"
                 class="input"
@@ -916,7 +916,7 @@ class PlantRunDashboardPanel extends LitElement {
                 placeholder="Target days"
                 @input=${(e) => this._setSetup("target_days", e.target.value)}
               />
-              <div class="field-copy">Optional estimate. Defaulting to 84 days keeps the field useful without extra thinking.</div>
+              <div class="field-copy">Explicit estimate used for planning context. Default is 84 days and can be changed anytime.</div>
               <div class="preset-row">
                 ${["63", "70", "84", "98"].map(
                   (option) => html`<button class="preset ${this._setupForm.target_days === option ? "on" : ""}" type="button" @click=${() => this._setSetup("target_days", option)}>${option} days</button>`,
