@@ -1561,6 +1561,124 @@ class PlantRunDashboardPanel extends LitElement {
     return "●";
   }
 
+  _renderProgressContext(run, runAgeDays) {
+    const rawTarget = run?.base_config?.target_days ?? run?.target_days ?? "84";
+    const targetDays = Number.parseInt(String(rawTarget), 10);
+    if (!Number.isFinite(targetDays) || targetDays <= 0 || !runAgeDays) {
+      return null;
+    }
+
+    const progress = Math.max(0, Math.min(100, Math.round((runAgeDays / targetDays) * 100)));
+    return html`
+      <div class="progress-context">
+        <div class="progress-copy">
+          <span>Day ${runAgeDays} / ${targetDays}</span>
+          <span>${progress}%</span>
+        </div>
+        <div class="progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow=${progress}>
+          <div class="progress-fill" style=${`width:${progress}%`}></div>
+        </div>
+      </div>
+    `;
+  }
+
+  _renderSensorRangeBar(sensor) {
+    const metric = String(sensor?.metric_type || "").toLowerCase();
+    const numeric = Number(sensor?.state);
+    if (!Number.isFinite(numeric)) return null;
+
+    let min = null;
+    let max = null;
+    if (metric.includes("temp")) {
+      min = 20;
+      max = 28;
+    } else if (metric.includes("humid")) {
+      min = 45;
+      max = 60;
+    } else if (metric.includes("soil") || metric.includes("moist")) {
+      min = 30;
+      max = 60;
+    }
+    if (min === null || max === null) return null;
+
+    const span = max - min;
+    const normalized = ((numeric - min) / span) * 100;
+    const width = Math.max(0, Math.min(100, normalized));
+    return html`
+      <div class="range-track" aria-hidden="true">
+        <div class="range-fill" style=${`width:${width}%`}></div>
+      </div>
+    `;
+  }
+
+  _sensorPressKey(runId, entityId) {
+    return `${runId}:${entityId}`;
+  }
+
+  _sensorPressStart(event, runId, entityId) {
+    event?.preventDefault?.();
+    const key = this._sensorPressKey(runId, entityId);
+    const current = this._pressState[key];
+    if (current?.timer) {
+      window.clearTimeout(current.timer);
+    }
+
+    const state = { longPressTriggered: false, timer: null };
+    state.timer = window.setTimeout(() => {
+      state.longPressTriggered = true;
+      this._openEntity(entityId);
+    }, 450);
+    this._pressState = { ...this._pressState, [key]: state };
+  }
+
+  _sensorPressEnd(event, runId, entityId) {
+    event?.preventDefault?.();
+    const key = this._sensorPressKey(runId, entityId);
+    const state = this._pressState[key];
+    if (!state) return;
+
+    if (state.timer) {
+      window.clearTimeout(state.timer);
+    }
+
+    const wasLongPress = !!state.longPressTriggered;
+    const next = { ...this._pressState };
+    delete next[key];
+    this._pressState = next;
+
+    if (!wasLongPress) {
+      this._openRunHistory(runId, entityId);
+    }
+  }
+
+  _sensorPressCancel(event, runId, entityId) {
+    event?.preventDefault?.();
+    const key = this._sensorPressKey(runId, entityId);
+    const state = this._pressState[key];
+    if (!state) return;
+    if (state.timer) {
+      window.clearTimeout(state.timer);
+    }
+    const next = { ...this._pressState };
+    delete next[key];
+    this._pressState = next;
+  }
+
+  _openRunHistory(runId, entityId) {
+    const run = this._runs.find((item) => item.id === runId);
+    const start = run?.start_time ? new Date(run.start_time) : null;
+    const end = run?.end_time ? new Date(run.end_time) : new Date();
+
+    const startIso = start && !Number.isNaN(start.getTime()) ? start.toISOString() : "";
+    const endIso = end && !Number.isNaN(end.getTime()) ? end.toISOString() : "";
+    const params = new URLSearchParams({ entity_id: entityId });
+    if (startIso) params.set("start_time", startIso);
+    if (endIso) params.set("end_time", endIso);
+
+    window.history.pushState(null, "", `/history?${params.toString()}`);
+    window.dispatchEvent(new Event("location-changed"));
+  }
+
   _toast(message) {
     const event = new CustomEvent("hass-notification", {
       bubbles: true,
