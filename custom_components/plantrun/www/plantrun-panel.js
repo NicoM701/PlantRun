@@ -383,6 +383,15 @@ class PlantRunDashboardPanel extends LitElement {
         height: 100%;
         background: linear-gradient(90deg, var(--g-mid), var(--g-bright));
       }
+      .range-fill.ok {
+        background: linear-gradient(90deg, var(--g-mid), var(--g-bright));
+      }
+      .range-fill.warn {
+        background: linear-gradient(90deg, #8b6b2b, var(--amber));
+      }
+      .range-fill.high {
+        background: linear-gradient(90deg, #6b2a2a, var(--rose));
+      }
       .phase-title {
         margin-top: 12px;
         margin-bottom: 6px;
@@ -440,6 +449,31 @@ class PlantRunDashboardPanel extends LitElement {
         margin-top: 6px;
         font-size: 9px;
         color: var(--t3);
+      }
+      .range-status {
+        margin-top: 4px;
+        font-size: 9px;
+        color: var(--t2);
+      }
+      .mini-phase-track {
+        display: flex;
+        gap: 6px;
+        margin-top: 8px;
+      }
+      .mini-phase-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: var(--bg-elevated);
+      }
+      .mini-phase-dot.done {
+        border-color: var(--g-mid);
+        background: var(--g-mid);
+      }
+      .mini-phase-dot.current {
+        border-color: var(--g-bright);
+        background: var(--g-bright);
       }
       .run-energy {
         margin-top: 10px;
@@ -1004,6 +1038,14 @@ class PlantRunDashboardPanel extends LitElement {
                     )
                   : html`<span class="chip">No live sensors</span>`}
                 ${unavailableCount ? html`<span class="chip">${unavailableCount} unavailable</span>` : null}
+              </div>
+              <div class="mini-phase-track" data-contract="compact-mini-phase-track" aria-hidden="true">
+                ${PHASES.map((phase) => {
+                  const idx = PHASES.indexOf(phase);
+                  const cur = PHASES.findIndex((x) => x.toLowerCase() === String(currentPhase).toLowerCase());
+                  const klass = idx < cur ? "done" : idx === cur ? "current" : "";
+                  return html`<span class="mini-phase-dot ${klass}" title=${phase}></span>`;
+                })}
               </div>`}
 
           ${expanded
@@ -1505,6 +1547,13 @@ class PlantRunDashboardPanel extends LitElement {
     this._highlightedCultivarSuggestion = -1;
   }
 
+  _clearCultivarSuggestionsSoon() {
+    window.setTimeout(() => {
+      this._cultivarSuggestions = [];
+      this._highlightedCultivarSuggestion = -1;
+    }, 120);
+  }
+
   _openNewRunSetup = () => {
     this._resetSetupForm();
     this._setupOpen = true;
@@ -1688,11 +1737,16 @@ class PlantRunDashboardPanel extends LitElement {
     const span = max - min;
     const normalized = ((numeric - min) / span) * 100;
     const width = Math.max(0, Math.min(100, normalized));
+    const status = numeric < min ? "below" : numeric > max ? "above" : "in_range";
+    const statusClass = status === "below" ? "warn" : status === "above" ? "high" : "ok";
+    const statusLabel = status === "below" ? "Below target" : status === "above" ? "Above target" : "In range";
+
     return html`
       <div class="range-track" aria-hidden="true">
-        <div class="range-fill" style=${`width:${width}%`}></div>
+        <div class="range-fill ${statusClass}" style=${`width:${width}%`}></div>
       </div>
       <div class="range-copy">Target range ${min}-${max}${sensor.unit ? ` ${sensor.unit}` : ""}</div>
+      <div class="range-status">${statusLabel}</div>
     `;
   }
 

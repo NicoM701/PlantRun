@@ -41,6 +41,19 @@ class DashboardJsContractsTests(unittest.TestCase):
         self.assertIn("Estimated run duration (days)", source)
         self.assertIn("Explicit estimate used for planning context", source)
 
+    def test_panel_sensor_range_bar_exposes_status_classes_and_copy(self):
+        source = PANEL_JS.read_text(encoding="utf-8")
+        self.assertIn('const status = numeric < min ? "below" : numeric > max ? "above" : "in_range";', source)
+        self.assertIn('const statusClass = status === "below" ? "warn" : status === "above" ? "high" : "ok";', source)
+        self.assertIn('class="range-fill ${statusClass}"', source)
+        self.assertIn('"Below target"', source)
+        self.assertIn('"In range"', source)
+        self.assertIn('"Above target"', source)
+
+    def test_panel_compact_card_includes_mini_phase_track_marker(self):
+        source = PANEL_JS.read_text(encoding="utf-8")
+        self.assertIn('data-contract="compact-mini-phase-track"', source)
+
 
 if __name__ == "__main__":
     unittest.main()
