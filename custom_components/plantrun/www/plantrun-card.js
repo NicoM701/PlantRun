@@ -278,10 +278,10 @@ class PlantRunCard extends LitElement {
       let colorClass = "";
 
       if (id.includes("temp")) { icon = "mdi:thermometer"; colorClass = "temp"; }
-      else if (id.includes("humid")) { icon = "mdi:water-percent"; colorClass = "humidity"; }
+      else if (id.includes("humid")) { icon = "mdi:cloud"; colorClass = "humidity"; }
       else if (id.includes("energy") || id.includes("power")) { icon = "mdi:flash"; colorClass = "energy"; }
       else if (id.includes("light") || id.includes("bright")) { icon = "mdi:white-balance-sunny"; colorClass = "light"; }
-      else if (id.includes("moist") || id.includes("water")) { icon = "mdi:watering-can"; colorClass = "humidity"; }
+      else if (id.includes("moist") || id.includes("water")) { icon = "mdi:water"; colorClass = "humidity"; }
       else if (id.includes("door") || id.includes("tür")) { icon = state.state.toLowerCase() === "open" ? "mdi:door-open" : "mdi:door-closed"; }
 
       return { ...state, _icon: icon, _colorClass: colorClass };

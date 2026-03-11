@@ -802,8 +802,12 @@ class PlantRunDashboardPanel extends LitElement {
                 placeholder="Example: Blue Dream"
                 @input=${(e) => this._onCultivarInput(e)}
                 @keydown=${(e) => this._onCultivarKeydown(e)}
+                @focus=${() => this._refreshCultivarSuggestions(this._setupForm.cultivar_name)}
+                @blur=${() => this._clearCultivarSuggestionsSoon()}
                 autocomplete="off"
                 aria-label="Cultivar"
+                aria-autocomplete="list"
+                aria-expanded=${this._cultivarSuggestions.length ? "true" : "false"}
               />
               <div class="field-copy">Optional. If Breeder is set and Lookup strain is blank, this name becomes the fallback lookup strain.</div>
               ${this._cultivarSuggestions.length
@@ -813,6 +817,9 @@ class PlantRunDashboardPanel extends LitElement {
                         <button
                           class="suggest-item ${this._highlightedCultivarSuggestion === index ? "on" : ""}"
                           type="button"
+                          role="option"
+                          aria-selected=${this._highlightedCultivarSuggestion === index ? "true" : "false"}
+                          @mousedown=${(e) => e.preventDefault()}
                           @click=${() => this._applyCultivarSuggestion(name)}
                         >
                           ${name}
@@ -1347,7 +1354,13 @@ class PlantRunDashboardPanel extends LitElement {
   }
 
   _onCultivarKeydown(event) {
-    if (!this._cultivarSuggestions.length) return;
+    if (!this._cultivarSuggestions.length) {
+      if (event.key === "Escape") {
+        this._cultivarSuggestions = [];
+        this._highlightedCultivarSuggestion = -1;
+      }
+      return;
+    }
     if (event.key === "ArrowDown") {
       event.preventDefault();
       this._highlightedCultivarSuggestion = Math.min(
@@ -1361,9 +1374,16 @@ class PlantRunDashboardPanel extends LitElement {
       this._highlightedCultivarSuggestion = Math.max(this._highlightedCultivarSuggestion - 1, 0);
       return;
     }
-    if (event.key === "Enter" && this._highlightedCultivarSuggestion >= 0) {
-      event.preventDefault();
+    if ((event.key === "Enter" || event.key === "Tab") && this._highlightedCultivarSuggestion >= 0) {
+      if (event.key === "Enter") {
+        event.preventDefault();
+      }
       this._applyCultivarSuggestion(this._cultivarSuggestions[this._highlightedCultivarSuggestion]);
+      return;
+    }
+    if (event.key === "Escape") {
+      this._cultivarSuggestions = [];
+      this._highlightedCultivarSuggestion = -1;
     }
   }
 
