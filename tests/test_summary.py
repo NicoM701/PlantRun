@@ -24,8 +24,10 @@ plantrun_pkg.__path__ = [str(PLANTRUN_DIR)]
 sys.modules["custom_components.plantrun"] = plantrun_pkg
 
 MODELS = _load_module("custom_components.plantrun.models", PLANTRUN_DIR / "models.py")
+INSTRUMENTATION = _load_module("custom_components.plantrun.instrumentation", PLANTRUN_DIR / "instrumentation.py")
 SUMMARY = _load_module("custom_components.plantrun.summary", PLANTRUN_DIR / "summary.py")
 RunData = MODELS.RunData
+PlantRunInstrumentation = INSTRUMENTATION.PlantRunInstrumentation
 
 
 class TestSummary(unittest.TestCase):
@@ -112,6 +114,34 @@ class TestSummary(unittest.TestCase):
         summary = SUMMARY.build_run_summary(run, energy_price_per_kwh=0.5)
         self.assertEqual(summary["energy_kwh"], 4.0)
         self.assertEqual(summary["energy_cost"], 2.0)
+
+    def test_instrumentation_does_not_change_summary_payload(self) -> None:
+        run = RunData(
+            id="run-instrumented",
+            friendly_name="Tent E",
+            start_time="2026-03-01T00:00:00+00:00",
+            end_time="2026-03-01T02:00:00+00:00",
+            sensor_history={
+                "energy": [
+                    {"timestamp": "2026-03-01T00:00:00+00:00", "value": 10.0},
+                    {"timestamp": "2026-03-01T02:00:00+00:00", "value": 12.0},
+                ],
+                "temperature": [{"value": 21.0}, {"value": 22.0}],
+            },
+        )
+
+        plain = SUMMARY.build_run_summary(run, energy_price_per_kwh=0.4, energy_currency="eur")
+        collector = PlantRunInstrumentation(enabled=True)
+        instrumented = SUMMARY.build_run_summary(
+            run,
+            energy_price_per_kwh=0.4,
+            energy_currency="eur",
+            instrumentation=collector,
+        )
+
+        self.assertEqual(plain, instrumented)
+        snapshot = collector.snapshot()
+        self.assertGreaterEqual(snapshot["counters"].get("summary.build.calls", 0), 1)
 
 
 if __name__ == "__main__":
