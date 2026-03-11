@@ -361,8 +361,17 @@ class StabilityLifecycleTests(unittest.TestCase):
             providers_mod.calls.append(("image", session))
             return "https://example.invalid/image.jpg"
 
+        async def async_fetch_cultivar_image(_detail_url, _strain_name=None, session=None):
+            return types.SimpleNamespace(
+                url=await async_fetch_cultivar_image_url(_detail_url, session=session),
+                confidence="high",
+                is_generic=False,
+                source_kind="strain_specific",
+            )
+
         providers_mod.async_search_cultivar = async_search_cultivar
         providers_mod.async_fetch_cultivar_image_url = async_fetch_cultivar_image_url
+        providers_mod.async_fetch_cultivar_image = async_fetch_cultivar_image
         sys.modules["custom_components.plantrun.providers_seedfinder"] = providers_mod
         cls.providers = providers_mod
         cls.models = models

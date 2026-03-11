@@ -35,7 +35,7 @@ from .const import (
 )
 from .coordinator import PlantRunCoordinator
 from .models import Binding, CultivarSnapshot, Note, Phase, RunData
-from .providers_seedfinder import async_fetch_cultivar_image_url, async_search_cultivar
+from .providers_seedfinder import async_fetch_cultivar_image, async_search_cultivar
 from .retention import async_capture_daily_rollup, get_summary_with_rollup_fallback
 from .run_resolution import resolve_run_or_raise
 from .store import PlantRunStorage
@@ -385,10 +385,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 )
             selected = results[0]
             if selected.detail_url and not selected.image_url:
-                selected.image_url = await async_fetch_cultivar_image_url(
+                image_selection = await async_fetch_cultivar_image(
                     selected.detail_url,
+                    selected.name or lookup_strain,
                     session=session,
                 )
+                selected.image_url = image_selection.url
+            else:
+                image_selection = None
             run.cultivar = selected
             if selected.image_url and not run.image_url:
                 run.image_url = selected.image_url

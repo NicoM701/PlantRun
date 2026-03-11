@@ -1,6 +1,7 @@
 """SeedFinder API provider for PlantRun."""
 import logging
 import re
+from dataclasses import dataclass
 from typing import Any
 
 import aiohttp
@@ -173,43 +174,124 @@ async def async_search_cultivar(
     return results
 
 
+@dataclass
+class ImageSelection:
+    """Resolved cultivar image candidate with ranking metadata."""
+
+    url: str | None
+    confidence: str
+    source_kind: str
+
+
+def _is_generic_image_hint(value: str) -> bool:
+    lowered = value.lower()
+    return any(
+        token in lowered
+        for token in ("logo", "icon", "avatar", "banner", "header", "placeholder", "default")
+    )
+
+
+def _score_image_candidate(url: str, cultivar_name: str, context: str) -> tuple[int, bool]:
+    normalized_url = url.lower()
+    normalized_name = _norm(cultivar_name)
+    name_tokens = [token for token in normalized_name.split() if len(token) > 2]
+
+    score = 20
+    for token in name_tokens:
+        if token in normalized_url:
+            score += 25
+
+    lowered_context = context.lower()
+    for token in name_tokens:
+        if token in lowered_context:
+            score += 15
+
+    has_strain_hint = any(token in normalized_url for token in ("strain", "cultivar", "genetics", "variety"))
+    if has_strain_hint:
+        score += 15
+
+    is_generic = _is_generic_image_hint(normalized_url) or _is_generic_image_hint(lowered_context)
+    if is_generic:
+        score -= 40
+
+    return score, is_generic
+
+
+def _normalize_image_url(raw_url: str | None) -> str | None:
+    if not raw_url:
+        return None
+    if raw_url.startswith("http"):
+        return raw_url
+    if raw_url.startswith("/"):
+        return f"https://seedfinder.eu{raw_url}"
+    return None
+
+
+async def async_fetch_cultivar_image(
+    detail_url: str,
+    cultivar_name: str,
+    *,
+    session: aiohttp.ClientSession | None = None,
+) -> ImageSelection:
+    """Fetch and rank cultivar image candidates from a SeedFinder detail page."""
+    if not detail_url:
+        return ImageSelection(url=None, confidence="none", source_kind="missing")
+
+    try:
+        if session is None:
+            async with aiohttp.ClientSession() as owned_session:
+                return await async_fetch_cultivar_image(detail_url, cultivar_name, session=owned_session)
+
+        async with session.get(detail_url, timeout=20) as response:
+            if response.status != 200:
+                return ImageSelection(url=None, confidence="none", source_kind="http_error")
+            html = await response.text()
+    except Exception as err:
+        _LOGGER.debug("Cultivar image fetch failed for %s: %s", detail_url, err)
+        return ImageSelection(url=None, confidence="none", source_kind="fetch_error")
+
+    soup = BeautifulSoup(html, "html.parser")
+
+    candidates: list[tuple[int, bool, str]] = []
+    seen: set[str] = set()
+
+    for meta in soup.find_all("meta"):
+        prop = (meta.get("property") or meta.get("name") or "").strip().lower()
+        if prop not in {"og:image", "twitter:image"}:
+            continue
+        normalized = _normalize_image_url(meta.get("content"))
+        if not normalized or normalized in seen:
+            continue
+        seen.add(normalized)
+        score, generic = _score_image_candidate(normalized, cultivar_name, prop)
+        candidates.append((score + 10, generic, normalized))
+
+    for image in soup.find_all("img"):
+        normalized = _normalize_image_url(image.get("src"))
+        if not normalized or normalized in seen:
+            continue
+        seen.add(normalized)
+        context = " ".join(
+            part for part in (image.get("alt") or "", image.get("title") or "", image.get("class") or "", image.get("id") or "") if part
+        )
+        score, generic = _score_image_candidate(normalized, cultivar_name, context)
+        candidates.append((score, generic, normalized))
+
+    if not candidates:
+        return ImageSelection(url=None, confidence="none", source_kind="missing")
+
+    candidates.sort(key=lambda item: item[0], reverse=True)
+    score, is_generic, url = candidates[0]
+    confidence = "high" if score >= 60 and not is_generic else "low"
+    source_kind = "strain_specific" if not is_generic else "generic_fallback"
+    return ImageSelection(url=url, confidence=confidence, source_kind=source_kind)
+
+
 async def async_fetch_cultivar_image_url(
     detail_url: str,
     *,
     session: aiohttp.ClientSession | None = None,
 ) -> str | None:
-    """Fetch a cultivar image URL from a SeedFinder detail page when available."""
-    if not detail_url:
-        return None
-
-    try:
-        if session is None:
-            async with aiohttp.ClientSession() as owned_session:
-                return await async_fetch_cultivar_image_url(detail_url, session=owned_session)
-
-        async with session.get(detail_url, timeout=20) as response:
-            if response.status != 200:
-                return None
-            html = await response.text()
-    except Exception as err:
-        _LOGGER.debug("Cultivar image fetch failed for %s: %s", detail_url, err)
-        return None
-
-    soup = BeautifulSoup(html, "html.parser")
-
-    og_image = soup.find("meta", attrs={"property": "og:image"})
-    if og_image and og_image.get("content"):
-        return og_image["content"]
-
-    tw_image = soup.find("meta", attrs={"name": "twitter:image"})
-    if tw_image and tw_image.get("content"):
-        return tw_image["content"]
-
-    image = soup.select_one("img[src*='seedfinder'], img[src*='strain']")
-    if image and image.get("src"):
-        src = image["src"]
-        if src.startswith("http"):
-            return src
-        return f"https://seedfinder.eu{src}" if src.startswith("/") else None
-
-    return None
+    """Compatibility wrapper returning only the selected image URL."""
+    selection = await async_fetch_cultivar_image(detail_url, "", session=session)
+    return selection.url

@@ -27,7 +27,9 @@ class PlantRunDashboardPanel extends LitElement {
       _runs: { type: Array },
       _activeRunId: { type: String },
       _filter: { type: String },
-      _expandedRunId: { type: String },
+      _expandedRuns: { type: Object },
+      _setupOpen: { type: Boolean },
+      _pressState: { type: Object },
       _loading: { type: Boolean },
       _error: { type: String },
       _setupForm: { type: Object },
@@ -45,7 +47,9 @@ class PlantRunDashboardPanel extends LitElement {
     this._runs = [];
     this._activeRunId = "";
     this._filter = "all";
-    this._expandedRunId = "";
+    this._expandedRuns = {};
+    this._setupOpen = false;
+    this._pressState = {};
     this._loading = true;
     this._error = "";
     this._refreshInterval = null;
@@ -70,6 +74,10 @@ class PlantRunDashboardPanel extends LitElement {
       window.clearInterval(this._refreshInterval);
       this._refreshInterval = null;
     }
+    Object.values(this._pressState).forEach((state) => {
+      if (state?.timer) window.clearTimeout(state.timer);
+    });
+    this._pressState = {};
   }
 
   static get styles() {
@@ -345,6 +353,29 @@ class PlantRunDashboardPanel extends LitElement {
         color: var(--t1);
         font-size: 13px;
         text-align: right;
+      }
+      .progress-context {
+        margin: 8px 0 12px;
+      }
+      .progress-copy {
+        display: flex;
+        justify-content: space-between;
+        color: var(--t2);
+        font-size: 10px;
+        margin-bottom: 6px;
+      }
+      .progress-track,
+      .range-track {
+        width: 100%;
+        height: 6px;
+        border-radius: 999px;
+        background: rgba(255,255,255,0.08);
+        overflow: hidden;
+      }
+      .progress-fill,
+      .range-fill {
+        height: 100%;
+        background: linear-gradient(90deg, var(--g-mid), var(--g-bright));
       }
       .phase-title {
         margin-top: 14px;
@@ -733,7 +764,7 @@ class PlantRunDashboardPanel extends LitElement {
         </div>
         ${!empty ? html`<button class="btn primary" @click=${this._openNewRunSetup}>+ New Run</button>` : null}
       </header>
-      ${this._expandedRunId === "__new__" ? this._renderSetup() : null}
+      ${this._setupOpen ? this._renderSetup() : null}
     `;
   }
 
@@ -897,14 +928,14 @@ class PlantRunDashboardPanel extends LitElement {
         <div class="actions">
           <button class="btn primary" @click=${this._submitSetup}>Create run</button>
           <button class="btn" @click=${this._resetSetupForm}>Reset defaults</button>
-          ${this._runs.length ? html`<button class="btn" @click=${() => (this._expandedRunId = "")}>Cancel</button>` : null}
+          ${this._runs.length ? html`<button class="btn" @click=${() => (this._setupOpen = false)}>Cancel</button>` : null}
         </div>
       </section>
     `;
   }
 
   _renderRunCard(run) {
-    const expanded = this._expandedRunId === run.id;
+    const expanded = !!this._expandedRuns[run.id];
     const currentPhase = run.phases?.length ? run.phases[run.phases.length - 1].name : "None";
     const showHarvestFields = this._hasReachedPostHarvest(run);
     const runAgeDays = this._runAgeDays(run.start_time, run.end_time);
@@ -937,26 +968,29 @@ class PlantRunDashboardPanel extends LitElement {
             <button class="expand-btn" @click=${() => this._toggleExpand(run.id)}>${expanded ? "▴" : "▾"}</button>
           </div>
 
-          <div class="sensors">
-            ${availableSensors.length
-              ? availableSensors.map(
-                  (sensor) => html`<button class="chip sensor" @click=${() => this._openEntity(sensor.entity_id)}><span>${sensor.icon}</span><span class="val">${sensor.state}</span><span>${sensor.unit || ""}</span></button>`,
-                )
-              : html`<span class="chip">No live sensors</span>`}
-            ${unavailableCount ? html`<span class="chip">${unavailableCount} unavailable</span>` : null}
-          </div>
+          ${expanded
+            ? html`<div class="sg-label">${availableSensors.length} live sensors connected${unavailableCount ? ` · ${unavailableCount} unavailable` : ""}</div>`
+            : html`<div class="sensors">
+                ${availableSensors.length
+                  ? availableSensors.map(
+                      (sensor) => html`<button class="chip sensor" @pointerdown=${(e) => this._sensorPressStart(e, run.id, sensor.entity_id)} @pointerup=${(e) => this._sensorPressEnd(e, run.id, sensor.entity_id)} @pointerleave=${(e) => this._sensorPressCancel(e, run.id, sensor.entity_id)} @click=${(e) => e.preventDefault()}><span>${sensor.icon}</span><span class="val">${sensor.state}</span><span>${sensor.unit || ""}</span></button>`,
+                    )
+                  : html`<span class="chip">No live sensors</span>`}
+                ${unavailableCount ? html`<span class="chip">${unavailableCount} unavailable</span>` : null}
+              </div>`}
 
           ${expanded
             ? html`
                 <div class="expanded">
+                  <div class="sg-label">Tap sensor = run history · long press = entity details</div>
                   <div class="sensor-grid">
                     ${availableSensors.length
                       ? availableSensors.map(
                           (sensor) => html`
-                            <div class="sg-cell clickable" @click=${() => this._openEntity(sensor.entity_id)}>
+                            <div class="sg-cell clickable" @pointerdown=${(e) => this._sensorPressStart(e, run.id, sensor.entity_id)} @pointerup=${(e) => this._sensorPressEnd(e, run.id, sensor.entity_id)} @pointerleave=${(e) => this._sensorPressCancel(e, run.id, sensor.entity_id)} @click=${(e) => e.preventDefault()}>
                               <div class="sg-label">${sensor.name}</div>
-                              <div class="sg-val">${sensor.state}</div>
-                              <div class="sg-label">${sensor.unit || "no unit"}</div>
+                              <div class="sg-val">${sensor.state} ${sensor.unit || ""}</div>
+                              ${this._renderSensorRangeBar(sensor)}
                             </div>
                           `,
                         )
@@ -975,7 +1009,8 @@ class PlantRunDashboardPanel extends LitElement {
                       `
                     : null}
 
-                  <div class="phase-title">Growth phase (click dot to request change)</div>
+                  <div class="phase-title">Phase track (tap a node to request a change)</div>
+                  ${this._renderProgressContext(run, runAgeDays)}
                   <div class="phase-line">
                     ${PHASES.map((phase) => {
                       const idx = PHASES.indexOf(phase);
@@ -1073,7 +1108,8 @@ class PlantRunDashboardPanel extends LitElement {
   }
 
   _toggleExpand(runId) {
-    this._expandedRunId = this._expandedRunId === runId ? "" : runId;
+    const isExpanded = !!this._expandedRuns[runId];
+    this._expandedRuns = { ...this._expandedRuns, [runId]: !isExpanded };
   }
 
   _toggleNotes(runId) {
@@ -1142,6 +1178,10 @@ class PlantRunDashboardPanel extends LitElement {
       const payload = await this.hass.callWS({ type: "plantrun/get_runs" });
       this._runs = payload.runs || [];
       this._activeRunId = payload.active_run_id || "";
+      const validIds = new Set(this._runs.map((run) => run.id));
+      this._expandedRuns = Object.fromEntries(Object.entries(this._expandedRuns).filter(([runId]) => validIds.has(runId)));
+      this._collapsedNotes = Object.fromEntries(Object.entries(this._collapsedNotes).filter(([runId]) => validIds.has(runId)));
+      this._newNotes = Object.fromEntries(Object.entries(this._newNotes).filter(([runId]) => validIds.has(runId)));
       this._error = "";
     } catch (err) {
       this._error = `Unable to load PlantRun data: ${err?.message || err}`;
@@ -1206,7 +1246,8 @@ class PlantRunDashboardPanel extends LitElement {
         },
       });
 
-      this._expandedRunId = run.id;
+      this._expandedRuns = { ...this._expandedRuns, [run.id]: true };
+      this._setupOpen = false;
       this._resetSetupForm();
       this._toast("Run initialized.");
       await this._refreshRuns();
@@ -1420,7 +1461,7 @@ class PlantRunDashboardPanel extends LitElement {
 
   _openNewRunSetup = () => {
     this._resetSetupForm();
-    this._expandedRunId = "__new__";
+    this._setupOpen = true;
   };
 
   _setSetup(field, value) {
@@ -1513,7 +1554,7 @@ class PlantRunDashboardPanel extends LitElement {
   _metricIcon(metricType) {
     const key = String(metricType || "").toLowerCase();
     if (key.includes("temp")) return "🌡";
-    if (key.includes("humid")) return "💧";
+    if (key.includes("humid")) return "☁️";
     if (key.includes("light")) return "☀️";
     if (key.includes("soil") || key.includes("moist")) return "💧";
     if (key.includes("energy") || key.includes("power")) return "⚡";

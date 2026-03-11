@@ -200,5 +200,53 @@ class AsyncSearchCultivarTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(results[0].flower_window_days, None)
 
 
+class AsyncFetchCultivarImageTest(unittest.IsolatedAsyncioTestCase):
+    async def test_prefers_strain_specific_image_over_generic_logo(self):
+        html = """
+        <html>
+          <head>
+            <meta property="og:image" content="https://seedfinder.eu/assets/logo.png" />
+          </head>
+          <body>
+            <img src="/images/strains/runtz-layer-cake-photo.jpg" alt="Runtz Layer Cake flower" />
+          </body>
+        </html>
+        """
+        session = _FakeSession([_FakeResponse(200, html)])
+
+        selected = await provider.async_fetch_cultivar_image(
+            "https://seedfinder.eu/en/strain/runtz-layer-cake",
+            "Runtz Layer Cake",
+            session=session,
+        )
+
+        self.assertEqual(
+            selected.url,
+            "https://seedfinder.eu/images/strains/runtz-layer-cake-photo.jpg",
+        )
+        self.assertEqual(selected.source_kind, "strain_specific")
+        self.assertEqual(selected.confidence, "high")
+
+    async def test_uses_generic_fallback_with_low_confidence_when_needed(self):
+        html = """
+        <html>
+          <head>
+            <meta property="og:image" content="https://seedfinder.eu/assets/default-logo.jpg" />
+          </head>
+        </html>
+        """
+        session = _FakeSession([_FakeResponse(200, html)])
+
+        selected = await provider.async_fetch_cultivar_image(
+            "https://seedfinder.eu/en/strain/unknown",
+            "Unknown",
+            session=session,
+        )
+
+        self.assertEqual(selected.url, "https://seedfinder.eu/assets/default-logo.jpg")
+        self.assertEqual(selected.source_kind, "generic_fallback")
+        self.assertEqual(selected.confidence, "low")
+
+
 if __name__ == "__main__":
     unittest.main()
