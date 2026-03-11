@@ -86,6 +86,7 @@ class PlantRunCard extends LitElement {
       /* Specific Icon colors matching user screenshot */
       .chip-icon.temp { color: #f44336; }
       .chip-icon.humidity { color: #607d8b; }
+      .chip-icon.moisture { color: #26a69a; }
       .chip-icon.energy { color: #2196f3; }
       .chip-icon.light { color: #ffeb3b; }
       
@@ -221,8 +222,20 @@ class PlantRunCard extends LitElement {
   }
 
   _getConfiguredRunId() {
-    const configuredRunId = this.config?.run_id;
-    if (!configuredRunId || configuredRunId === "example_run_id") {
+    const configuredRunId = String(this.config?.run_id || "").trim();
+    if (!configuredRunId) {
+      return null;
+    }
+
+    const normalized = configuredRunId.toLowerCase();
+    const placeholderValues = new Set([
+      "example_run_id",
+      "<run_id>",
+      "run_id",
+      "your_run_id",
+      "placeholder",
+    ]);
+    if (placeholderValues.has(normalized) || normalized.includes("<run_id")) {
       return null;
     }
 
@@ -281,7 +294,7 @@ class PlantRunCard extends LitElement {
       else if (id.includes("humid")) { icon = "mdi:cloud"; colorClass = "humidity"; }
       else if (id.includes("energy") || id.includes("power")) { icon = "mdi:flash"; colorClass = "energy"; }
       else if (id.includes("light") || id.includes("bright")) { icon = "mdi:white-balance-sunny"; colorClass = "light"; }
-      else if (id.includes("moist") || id.includes("water")) { icon = "mdi:water"; colorClass = "humidity"; }
+      else if (id.includes("moist") || id.includes("water")) { icon = "mdi:water"; colorClass = "moisture"; }
       else if (id.includes("door") || id.includes("tür")) { icon = state.state.toLowerCase() === "open" ? "mdi:door-open" : "mdi:door-closed"; }
 
       return { ...state, _icon: icon, _colorClass: colorClass };
