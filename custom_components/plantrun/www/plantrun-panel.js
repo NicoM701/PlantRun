@@ -1031,7 +1031,7 @@ class PlantRunDashboardPanel extends LitElement {
                             <div class="run-age-label">Days Running</div>
                             <div class="run-age-day">Day ${runAgeDays}</div>
                           </div>
-                          <div class="run-age-total">${runAgeDays} ${runAgeDays === 1 ? "day" : "days"} running</div>
+                          <div class="run-age-total">Target: ${this._targetDaysForRun(run) || "—"} days</div>
                         </div>
                       `
                     : null}
@@ -1637,10 +1637,18 @@ class PlantRunDashboardPanel extends LitElement {
     `;
   }
 
-  _renderProgressContext(run, runAgeDays) {
+  _targetDaysForRun(run) {
     const rawTarget = run?.base_config?.target_days ?? run?.target_days ?? "84";
     const targetDays = Number.parseInt(String(rawTarget), 10);
-    if (!Number.isFinite(targetDays) || targetDays <= 0 || !runAgeDays) {
+    if (!Number.isFinite(targetDays) || targetDays <= 0) {
+      return null;
+    }
+    return targetDays;
+  }
+
+  _renderProgressContext(run, runAgeDays) {
+    const targetDays = this._targetDaysForRun(run);
+    if (!targetDays || !runAgeDays) {
       return null;
     }
 
