@@ -366,6 +366,7 @@ class StabilityLifecycleTests(unittest.TestCase):
                 url=await async_fetch_cultivar_image_url(_detail_url, session=session),
                 confidence="high",
                 is_generic=False,
+                source_kind="strain_specific",
             )
 
         providers_mod.async_search_cultivar = async_search_cultivar
