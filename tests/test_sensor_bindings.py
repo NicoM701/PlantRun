@@ -249,6 +249,8 @@ class TestDynamicBindingEntities(unittest.TestCase):
         ]
         self.assertEqual(len(run_cost_entities), 1)
         self.assertEqual(run_cost_entities[0]._attr_unique_id, "plantrun_run_energy_cost_runA")
+        self.assertEqual(run_cost_entities[0].extra_state_attributes["scope"], "run_window")
+        self.assertEqual(run_cost_entities[0].extra_state_attributes["energy_currency"], "EUR")
 
         run.bindings.append(Binding(metric_type="temperature", sensor_id="sensor.t2"))
         self.assertEqual(len(coordinator._listeners), 1)

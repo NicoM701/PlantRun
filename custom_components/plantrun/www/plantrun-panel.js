@@ -39,6 +39,7 @@ class PlantRunDashboardPanel extends LitElement {
       _cultivarSuggestions: { type: Array },
       _highlightedCultivarSuggestion: { type: Number },
       _setupFeedback: { type: Object },
+      _runSummaries: { type: Object },
     };
   }
 
@@ -60,6 +61,7 @@ class PlantRunDashboardPanel extends LitElement {
     this._cultivarSuggestions = [];
     this._highlightedCultivarSuggestion = -1;
     this._setupFeedback = { tone: "", message: "" };
+    this._runSummaries = {};
   }
 
   connectedCallback() {
@@ -355,7 +357,11 @@ class PlantRunDashboardPanel extends LitElement {
         text-align: right;
       }
       .progress-context {
-        margin: 8px 0 12px;
+        margin: 10px 0 12px;
+        padding: 10px 12px;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.02);
       }
       .progress-copy {
         display: flex;
@@ -367,7 +373,7 @@ class PlantRunDashboardPanel extends LitElement {
       .progress-track,
       .range-track {
         width: 100%;
-        height: 6px;
+        height: 8px;
         border-radius: 999px;
         background: rgba(255,255,255,0.08);
         overflow: hidden;
@@ -378,15 +384,19 @@ class PlantRunDashboardPanel extends LitElement {
         background: linear-gradient(90deg, var(--g-mid), var(--g-bright));
       }
       .phase-title {
-        margin-top: 14px;
-        margin-bottom: 8px;
+        margin-top: 12px;
+        margin-bottom: 6px;
         font-size: 10px;
         color: var(--t3);
       }
       .phase-line {
         display: flex;
         gap: 0;
-        margin-bottom: 12px;
+        margin-bottom: 14px;
+        padding: 10px 8px 6px;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.02);
       }
       .phase-step {
         flex: 1;
@@ -425,6 +435,23 @@ class PlantRunDashboardPanel extends LitElement {
       }
       .phase-step.current .phase-name {
         color: var(--g-bright);
+      }
+      .range-copy {
+        margin-top: 6px;
+        font-size: 9px;
+        color: var(--t3);
+      }
+      .run-energy {
+        margin-top: 10px;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 10px;
+        background: rgba(255,255,255,0.02);
+      }
+      .run-energy-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
       }
       .notes {
         margin-top: 10px;
@@ -969,7 +996,7 @@ class PlantRunDashboardPanel extends LitElement {
           </div>
 
           ${expanded
-            ? html`<div class="sg-label">${availableSensors.length} live sensors connected${unavailableCount ? ` · ${unavailableCount} unavailable` : ""}</div>`
+            ? null
             : html`<div class="sensors">
                 ${availableSensors.length
                   ? availableSensors.map(
@@ -982,7 +1009,7 @@ class PlantRunDashboardPanel extends LitElement {
           ${expanded
             ? html`
                 <div class="expanded">
-                  <div class="sg-label">Tap sensor = run history · long press = entity details</div>
+                  <div class="sg-label">Tap sensor tile for run history · long press for entity details</div>
                   <div class="sensor-grid">
                     ${availableSensors.length
                       ? availableSensors.map(
@@ -1009,8 +1036,10 @@ class PlantRunDashboardPanel extends LitElement {
                       `
                     : null}
 
-                  <div class="phase-title">Phase track (tap a node to request a change)</div>
+                  ${this._renderRunEnergyContext(run)}
+                  <div class="phase-title">Progress context</div>
                   ${this._renderProgressContext(run, runAgeDays)}
+                  <div class="phase-title">Phase track (tap a node to request a change)</div>
                   <div class="phase-line">
                     ${PHASES.map((phase) => {
                       const idx = PHASES.indexOf(phase);
@@ -1182,12 +1211,29 @@ class PlantRunDashboardPanel extends LitElement {
       this._expandedRuns = Object.fromEntries(Object.entries(this._expandedRuns).filter(([runId]) => validIds.has(runId)));
       this._collapsedNotes = Object.fromEntries(Object.entries(this._collapsedNotes).filter(([runId]) => validIds.has(runId)));
       this._newNotes = Object.fromEntries(Object.entries(this._newNotes).filter(([runId]) => validIds.has(runId)));
+      await this._refreshRunSummaries(this._runs);
       this._error = "";
     } catch (err) {
       this._error = `Unable to load PlantRun data: ${err?.message || err}`;
     } finally {
       this._loading = false;
     }
+  }
+
+  async _refreshRunSummaries(runs) {
+    if (!this.hass) return;
+    const next = {};
+    await Promise.all(
+      (runs || []).map(async (run) => {
+        try {
+          const summary = await this.hass.callWS({ type: "plantrun/get_run_summary", run_id: run.id });
+          next[run.id] = summary;
+        } catch (_err) {
+          next[run.id] = null;
+        }
+      }),
+    );
+    this._runSummaries = next;
   }
 
   async _submitSetup() {
@@ -1561,6 +1607,36 @@ class PlantRunDashboardPanel extends LitElement {
     return "●";
   }
 
+  _fmtSummaryValue(value, digits = 2) {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) return "—";
+    return numeric.toFixed(digits);
+  }
+
+  _renderRunEnergyContext(run) {
+    const summary = this._runSummaries?.[run.id];
+    if (!summary) return null;
+
+    const energy = this._fmtSummaryValue(summary.energy_kwh, 2);
+    const cost = this._fmtSummaryValue(summary.energy_cost, 2);
+    const currency = summary.energy_currency || "EUR";
+    const pricePerKwh = this._fmtSummaryValue(summary.energy_price_per_kwh, 3);
+
+    return html`
+      <div class="run-energy">
+        <div class="run-energy-row">
+          <span>Run energy window</span>
+          <span>${energy} kWh</span>
+        </div>
+        <div class="run-energy-row">
+          <span>Estimated run cost</span>
+          <span>${cost} ${currency}</span>
+        </div>
+        <div class="range-copy">Based on summary setting: ${pricePerKwh} ${currency}/kWh.</div>
+      </div>
+    `;
+  }
+
   _renderProgressContext(run, runAgeDays) {
     const rawTarget = run?.base_config?.target_days ?? run?.target_days ?? "84";
     const targetDays = Number.parseInt(String(rawTarget), 10);
@@ -1608,6 +1684,7 @@ class PlantRunDashboardPanel extends LitElement {
       <div class="range-track" aria-hidden="true">
         <div class="range-fill" style=${`width:${width}%`}></div>
       </div>
+      <div class="range-copy">Target range ${min}-${max}${sensor.unit ? ` ${sensor.unit}` : ""}</div>
     `;
   }
 

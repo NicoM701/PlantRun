@@ -15,7 +15,7 @@
         "step": {
             "init": {
                 "title": "PlantRun Wizard",
-                "description": "Welcome to the PlantRun configuration wizard. What would you like to do?",
+                "description": "Welcome to the PlantRun configuration wizard. Choose run setup, management, or summary pricing settings.",
                 "data": {
                     "action": "Action"
                 }
@@ -27,7 +27,8 @@
                     "friendly_name": "Run Name",
                     "planted_date": "Planted Date (Optional)",
                     "cultivar_breeder": "Breeder (Optional, SeedFinder Hint)",
-                    "cultivar_strain": "Strain (Optional, SeedFinder Hint)"
+                    "cultivar_strain": "Strain (Optional, SeedFinder Hint)",
+                    "target_days": "Estimated run duration (days)"
                 }
             },
             "create_run_details": {
@@ -81,6 +82,14 @@
                 "description": "Are you sure you want to completely end this run?",
                 "data": {
                     "confirm": "Yes, End Run"
+                }
+            },
+            "summary_settings": {
+                "title": "Summary Energy Settings",
+                "description": "Set the electricity price used to calculate each run's energy cost entity and dashboard summary.",
+                "data": {
+                    "electricity_price_per_kwh": "Electricity price (per kWh)",
+                    "currency": "Currency code"
                 }
             }
         },
