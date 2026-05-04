@@ -1,1831 +1,2142 @@
-const HaPanelLovelace = customElements.get("ha-panel-lovelace");
+(() => {
+  const PANEL_TAG = "plantrun-dashboard-panel";
+  const DOMAIN = "plantrun";
+  const STORAGE_KEYS = {
+    theme: "plantrun:theme",
+    lang: "plantrun:lang",
+    grid: "plantrun:grid",
+    detailLayout: "plantrun:detailLayout",
+  };
 
-if (!HaPanelLovelace) {
-  throw new Error("PlantRun panel requires Home Assistant's frontend runtime.");
-}
+  if (customElements.get(PANEL_TAG)) {
+    return;
+  }
 
-const LitElement = Object.getPrototypeOf(HaPanelLovelace);
-const html = LitElement.prototype.html;
-const css = LitElement.prototype.css;
+  const ensurePlantRunShared = () => {
+    const existing = window.PlantRunShared || {};
+    const assetCache = existing.assetCache || {};
+    const stageArtCache = existing.stageArtCache || {};
 
-const PHASES = ["Seedling", "Vegetative", "Flowering", "Harvest"];
-const DEFAULT_SETUP_FORM = Object.freeze({
-  friendly_name: "",
-  planted_date: "",
-  cultivar_name: "",
-  breeder: "",
-  strain: "",
-  grow_space: "Main grow space",
-  target_days: "84",
-  medium: "Soil",
-});
-
-class PlantRunDashboardPanel extends LitElement {
-  static get properties() {
-    return {
-      hass: { type: Object },
-      _runs: { type: Array },
-      _activeRunId: { type: String },
-      _filter: { type: String },
-      _expandedRuns: { type: Object },
-      _setupOpen: { type: Boolean },
-      _pressState: { type: Object },
-      _loading: { type: Boolean },
-      _error: { type: String },
-      _setupForm: { type: Object },
-      _newNotes: { type: Object },
-      _editNotes: { type: Object },
-      _collapsedNotes: { type: Object },
-      _cultivarSuggestions: { type: Array },
-      _highlightedCultivarSuggestion: { type: Number },
-      _setupFeedback: { type: Object },
-      _runSummaries: { type: Object },
+    const ASSET_MAP = {
+      seedling: {
+        hero: "/plantrun_frontend/assets/stage-seedling-wide-2.png",
+        tall: "/plantrun_frontend/assets/stage-seedling-tall-2.png",
+        legacy: "/plantrun_frontend/assets/stage-seedling.png",
+      },
+      veg: {
+        hero: "/plantrun_frontend/assets/stage-veg-hero-2.png",
+        tall: "/plantrun_frontend/assets/stage-veg-tall-2.png",
+        legacy: "/plantrun_frontend/assets/stage-veg.png",
+      },
+      flower: {
+        hero: "/plantrun_frontend/assets/stage-flower-wide-2.png",
+        tall: "/plantrun_frontend/assets/stage-flower-tall-2.png",
+        legacy: "/plantrun_frontend/assets/stage-flower.png",
+      },
     };
-  }
 
-  constructor() {
-    super();
-    this._runs = [];
-    this._activeRunId = "";
-    this._filter = "all";
-    this._expandedRuns = {};
-    this._setupOpen = false;
-    this._pressState = {};
-    this._loading = true;
-    this._error = "";
-    this._refreshInterval = null;
-    this._setupForm = this._defaultSetupForm();
-    this._newNotes = {};
-    this._editNotes = {};
-    this._collapsedNotes = {};
-    this._cultivarSuggestions = [];
-    this._highlightedCultivarSuggestion = -1;
-    this._setupFeedback = { tone: "", message: "" };
-    this._runSummaries = {};
-  }
+    const STAGE_SVGS = existing.STAGE_SVGS || {
+      seedling: `<svg viewBox="0 0 240 240" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs><linearGradient id="prSeedStemP" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#67df73"/><stop offset="100%" stop-color="#307d42"/></linearGradient></defs><circle cx="120" cy="120" r="104" fill="rgba(120,255,175,0.08)"/><path d="M116 196c6 0 10-4 10-10V114h-12v72c0 6 3 10 9 10Z" fill="url(#prSeedStemP)"/><path d="M113 124c-30-1-49-13-60-35 24-8 47-4 65 18Z" fill="#68e07c"/><path d="M127 120c26-18 50-20 71-11-13 28-37 40-63 35Z" fill="#30aa56"/><ellipse cx="92" cy="108" rx="21" ry="14" fill="#b7f39a"/><ellipse cx="149" cy="107" rx="21" ry="14" fill="#a1e57c"/></svg>`,
+      veg: `<svg viewBox="0 0 240 240" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><circle cx="120" cy="120" r="108" fill="rgba(110,255,156,0.08)"/><path d="M118 214c7 0 12-5 12-12v-86h-18v86c0 7 5 12 12 12Z" fill="#2d8f47"/><path d="M120 117 87 84c-18-18-24-40-19-63 24 3 44 17 57 42Z" fill="#62da77"/><path d="M120 116 154 77c18-22 43-33 69-28-5 30-25 50-55 67Z" fill="#2cac52"/><path d="M114 126 68 126c-24 0-42 9-55 26 19 16 43 22 70 13Z" fill="#38a956"/><path d="M126 128 174 136c24 4 43 17 55 37-22 14-47 13-71-2Z" fill="#328d49"/><path d="M120 101 112 62c-4-20 2-39 16-55 15 16 20 36 14 59Z" fill="#7ee98a"/></svg>`,
+      flower: `<svg viewBox="0 0 240 240" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><circle cx="120" cy="120" r="108" fill="rgba(255,208,122,0.1)"/><path d="M118 216c7 0 12-5 12-12v-82h-18v82c0 7 5 12 12 12Z" fill="#6d4d2c"/><path d="M121 121c-20-36-16-67 11-95 18 28 18 59 2 92Z" fill="#b68949"/><g fill="#6fa751"><path d="M93 141c-24 1-43-8-58-26 21-11 42-12 62 2Z"/><path d="M147 139c19-16 41-22 65-17-9 24-26 38-54 41Z"/></g><g fill="#e4c07c"><ellipse cx="120" cy="84" rx="29" ry="35"/><ellipse cx="86" cy="112" rx="25" ry="29"/><ellipse cx="154" cy="112" rx="25" ry="29"/><ellipse cx="105" cy="132" rx="23" ry="27"/><ellipse cx="138" cy="132" rx="23" ry="27"/></g><g fill="#d69b5f"><circle cx="120" cy="83" r="16"/><circle cx="86" cy="111" r="13"/><circle cx="154" cy="111" r="13"/></g></svg>`,
+    };
 
-  connectedCallback() {
-    super.connectedCallback();
-    this._refreshRuns();
-    this._refreshInterval = window.setInterval(() => this._refreshRuns(), 10000);
-  }
+    const LEAF_LOGO = existing.LEAF_LOGO || `<svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs><linearGradient id="prLogoGradPanel" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#8effa9"/><stop offset="100%" stop-color="#1f8a47"/></linearGradient></defs><path d="M60 64c-3 0-6-2-6-5 0-6 2-12 6-18 4 6 6 12 6 18 0 3-3 5-6 5Z" fill="#255b35"/><g fill="url(#prLogoGradPanel)"><path d="M59 58c-15-11-21-24-20-41 15 3 25 12 29 29Z"/><path d="M61 58c15-11 21-24 20-41-15 3-25 12-29 29Z"/><path d="M53 61C34 58 22 48 16 31c17-1 30 5 40 19Z"/><path d="M67 61c19-3 31-13 37-30-17-1-30 5-40 19Z"/><path d="M51 66C35 76 28 90 30 106c14-5 23-16 28-32Z"/><path d="M69 66c16 10 23 24 21 40-14-5-23-16-28-32Z"/><path d="M60 69c-4 14-3 25 4 34 7-9 8-20 4-34Z"/></g></svg>`;
 
-  disconnectedCallback() {
-    super.disconnectedCallback();
-    if (this._refreshInterval) {
-      window.clearInterval(this._refreshInterval);
-      this._refreshInterval = null;
-    }
-    Object.values(this._pressState).forEach((state) => {
-      if (state?.timer) window.clearTimeout(state.timer);
+    const escapeHtml = existing.escapeHtml || ((value) =>
+      String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/\"/g, "&quot;")
+        .replace(/'/g, "&#39;"));
+
+    const svgToDataUrl = existing.svgToDataUrl || ((svg) => `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`);
+
+    const loadImage = (url) =>
+      new Promise((resolve, reject) => {
+        const image = new Image();
+        image.decoding = "async";
+        image.onload = () => resolve(image);
+        image.onerror = reject;
+        image.src = url;
+      });
+
+    const processAssetUrl = existing.processAssetUrl || (async (url, fallbackSvg = STAGE_SVGS.seedling) => {
+      if (!url) {
+        return svgToDataUrl(fallbackSvg);
+      }
+      if (assetCache[url]) {
+        return assetCache[url];
+      }
+      try {
+        const image = await loadImage(url);
+        const canvas = document.createElement("canvas");
+        canvas.width = image.naturalWidth || image.width;
+        canvas.height = image.naturalHeight || image.height;
+        const ctx = canvas.getContext("2d", { willReadFrequently: true });
+        ctx.drawImage(image, 0, 0);
+        const frame = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const data = frame.data;
+        let minX = canvas.width;
+        let minY = canvas.height;
+        let maxX = 0;
+        let maxY = 0;
+        let found = false;
+
+        for (let index = 0; index < data.length; index += 4) {
+          const red = data[index];
+          const green = data[index + 1];
+          const blue = data[index + 2];
+          const alpha = data[index + 3];
+          const pixel = index / 4;
+          const x = pixel % canvas.width;
+          const y = Math.floor(pixel / canvas.width);
+          const isNearWhite = red > 242 && green > 242 && blue > 242;
+          if (isNearWhite) {
+            data[index + 3] = 0;
+            continue;
+          }
+          if (alpha > 8) {
+            found = true;
+            if (x < minX) minX = x;
+            if (y < minY) minY = y;
+            if (x > maxX) maxX = x;
+            if (y > maxY) maxY = y;
+          }
+        }
+
+        ctx.putImageData(frame, 0, 0);
+        if (!found) {
+          const fallback = svgToDataUrl(fallbackSvg);
+          assetCache[url] = fallback;
+          return fallback;
+        }
+
+        const margin = 22;
+        const cropX = Math.max(minX - margin, 0);
+        const cropY = Math.max(minY - margin, 0);
+        const cropW = Math.min(maxX - minX + margin * 2 + 1, canvas.width - cropX);
+        const cropH = Math.min(maxY - minY + margin * 2 + 1, canvas.height - cropY);
+
+        const cropped = document.createElement("canvas");
+        cropped.width = cropW;
+        cropped.height = cropH;
+        const croppedCtx = cropped.getContext("2d");
+        croppedCtx.drawImage(canvas, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
+        const dataUrl = cropped.toDataURL("image/png");
+        assetCache[url] = dataUrl;
+        return dataUrl;
+      } catch (_error) {
+        const fallback = svgToDataUrl(fallbackSvg);
+        assetCache[url] = fallback;
+        return fallback;
+      }
     });
-    this._pressState = {};
-  }
 
-  static get styles() {
-    return css`
-      :host {
-        --bg: #0c1009;
-        --bg-surface: #111810;
-        --bg-card: #151d13;
-        --bg-card-h: #192218;
-        --bg-elevated: #1d2b1b;
-        --border: rgba(80, 130, 60, 0.16);
-        --border-hi: rgba(120, 190, 90, 0.28);
-        --g-deep: #1e4018;
-        --g-mid: #3d7a34;
-        --g-bright: #78c860;
-        --g-glow: rgba(120, 200, 90, 0.13);
-        --amber: #dfa040;
-        --rose: #c07070;
-        --t1: #d0e8c8;
-        --t2: #7aa870;
-        --t3: #4a6840;
-        --t4: #304828;
-        display: block;
-        color: var(--t1);
-        background: var(--bg);
-        min-height: 100vh;
-        font-family: "DM Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
-      }
-      .app {
-        max-width: 1140px;
-        margin: 0 auto;
-        padding: 0 24px 64px;
-      }
-      .hdr {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 24px 0;
-        border-bottom: 1px solid var(--border);
-        gap: 12px;
-      }
-      .hdr-l {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-      }
-      .logo {
-        width: 40px;
-        height: 40px;
-        border-radius: 10px;
-        background: linear-gradient(135deg, var(--g-deep), var(--g-mid));
-        display: grid;
-        place-items: center;
-      }
-      .hdr-title {
-        font-family: "Fraunces", Georgia, serif;
-        font-size: 24px;
-      }
-      .hdr-title em {
-        color: var(--g-bright);
-        font-style: normal;
-      }
-      .hdr-sub {
-        color: var(--t3);
-        font-size: 11px;
-      }
-      .tabs {
-        display: flex;
-        gap: 4px;
-        background: var(--bg-surface);
-        border: 1px solid var(--border);
-        border-radius: 999px;
-        padding: 4px;
-      }
-      .tab {
-        border: 0;
-        background: transparent;
-        color: var(--t3);
-        padding: 7px 14px;
-        border-radius: 999px;
-        cursor: pointer;
-      }
-      .tab.on {
-        background: var(--g-deep);
-        color: var(--g-bright);
-      }
-      .filters {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        margin: 18px 0 22px;
-        gap: 10px;
-        flex-wrap: wrap;
-      }
-      .stats {
-        color: var(--t3);
-        font-size: 11px;
-      }
-      .btn {
-        border: 1px solid var(--border);
-        background: var(--bg-elevated);
-        color: var(--t1);
-        border-radius: 999px;
-        padding: 9px 14px;
-        font-family: inherit;
-        cursor: pointer;
-      }
-      .btn.primary {
-        background: linear-gradient(135deg, var(--g-deep), var(--g-mid));
-        border-color: var(--border-hi);
-      }
-      .grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
-        gap: 18px;
-      }
-      .card {
-        border: 1px solid var(--border);
-        border-radius: 18px;
-        overflow: hidden;
-        background: var(--bg-card);
-      }
-      .thumb {
-        height: 160px;
-        background: linear-gradient(135deg, #182716, #0e150d);
-        position: relative;
-      }
-      .thumb img {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-        filter: brightness(0.85);
-      }
-      .thumb-fallback {
-        height: 100%;
-        display: grid;
-        place-items: center;
-        color: var(--t2);
-        font-size: 12px;
-      }
-      .thumb-badges {
-        position: absolute;
-        top: 10px;
-        left: 12px;
-        display: flex;
-        gap: 6px;
-        flex-wrap: wrap;
-      }
-      .badge {
-        font-size: 10px;
-        border-radius: 999px;
-        border: 1px solid var(--border);
-        background: rgba(15, 23, 13, 0.72);
-        color: var(--t2);
-        padding: 4px 10px;
-      }
-      .badge.active {
-        color: var(--g-bright);
-        border-color: var(--border-hi);
-      }
-      .badge.ended {
-        color: var(--t3);
-      }
-      .card-body {
-        padding: 14px 16px 16px;
-      }
-      .card-top {
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-start;
-        gap: 10px;
-      }
-      .strain-name {
-        font-family: "Fraunces", Georgia, serif;
-        font-size: 18px;
-      }
-      .strain-meta {
-        color: var(--t3);
-        font-size: 10px;
-      }
-      .expand-btn {
-        border: 1px solid var(--border);
-        color: var(--t2);
-        background: var(--bg-elevated);
-        border-radius: 50%;
-        width: 28px;
-        height: 28px;
-        cursor: pointer;
-      }
-      .sensors {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 6px;
-        margin: 12px 0;
-      }
-      .chip {
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-        border-radius: 999px;
-        border: 1px solid var(--border);
-        background: var(--bg-elevated);
-        padding: 5px 9px;
-        font-size: 10px;
-        color: var(--t2);
-      }
-      .chip.sensor {
-        cursor: pointer;
-      }
-      .chip.sensor:hover {
-        border-color: var(--border-hi);
-      }
-      .chip .val {
-        color: var(--t1);
-      }
-      .expanded {
-        border-top: 1px solid var(--border);
-        margin-top: 12px;
-        padding-top: 12px;
-      }
-      .sensor-grid {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 8px;
-      }
-      .sg-cell {
-        border-radius: 10px;
-        border: 1px solid var(--border);
-        background: var(--bg-elevated);
-        padding: 10px;
-      }
-      .sg-cell.clickable {
-        cursor: pointer;
-      }
-      .sg-cell.clickable:hover {
-        border-color: var(--border-hi);
-      }
-      .sg-label {
-        color: var(--t3);
-        font-size: 9px;
-        text-transform: uppercase;
-      }
-      .sg-val {
-        margin-top: 4px;
-        font-size: 17px;
-      }
-      .run-age {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 12px;
-        margin-top: 14px;
-        margin-bottom: 8px;
-        padding: 14px 16px;
-        border: 1px solid var(--border-hi);
-        border-radius: 14px;
-        background: linear-gradient(135deg, rgba(120, 200, 90, 0.2), rgba(30, 64, 24, 0.95));
-        box-shadow: 0 0 0 1px rgba(120, 200, 90, 0.08), 0 12px 26px rgba(0, 0, 0, 0.22);
-      }
-      .run-age-label {
-        color: var(--t2);
-        font-size: 10px;
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
-      }
-      .run-age-day {
-        font-family: "Fraunces", Georgia, serif;
-        font-size: 28px;
-        line-height: 1;
-        color: #f2ffe8;
-      }
-      .run-age-total {
-        color: var(--t1);
-        font-size: 13px;
-        text-align: right;
-      }
-      .progress-context {
-        margin: 10px 0 12px;
-        padding: 10px 12px;
-        border: 1px solid var(--border);
-        border-radius: 10px;
-        background: rgba(255, 255, 255, 0.02);
-      }
-      .progress-copy {
-        display: flex;
-        justify-content: space-between;
-        color: var(--t2);
-        font-size: 10px;
-        margin-bottom: 6px;
-      }
-      .progress-track,
-      .range-track {
-        width: 100%;
-        height: 8px;
-        border-radius: 999px;
-        background: rgba(255,255,255,0.08);
-        overflow: hidden;
-      }
-      .progress-fill,
-      .range-fill {
-        height: 100%;
-        background: linear-gradient(90deg, var(--g-mid), var(--g-bright));
-      }
-      .range-fill.ok {
-        background: linear-gradient(90deg, var(--g-mid), var(--g-bright));
-      }
-      .range-fill.warn {
-        background: linear-gradient(90deg, #8b6b2b, var(--amber));
-      }
-      .range-fill.high {
-        background: linear-gradient(90deg, #6b2a2a, var(--rose));
-      }
-      .phase-title {
-        margin-top: 12px;
-        margin-bottom: 6px;
-        font-size: 10px;
-        color: var(--t3);
-      }
-      .phase-line {
-        display: flex;
-        gap: 0;
-        margin-bottom: 14px;
-        padding: 10px 8px 6px;
-        border: 1px solid var(--border);
-        border-radius: 10px;
-        background: rgba(255, 255, 255, 0.02);
-      }
-      .phase-step {
-        flex: 1;
-        text-align: center;
-        position: relative;
-      }
-      .phase-step:not(:last-child)::after {
-        content: "";
-        position: absolute;
-        height: 2px;
-        background: var(--border);
-        top: 7px;
-        left: 50%;
-        right: -50%;
-      }
-      .phase-dot {
-        width: 14px;
-        height: 14px;
-        border-radius: 50%;
-        border: 2px solid var(--border);
-        background: var(--bg-elevated);
-        margin: 0 auto 4px;
-        cursor: pointer;
-      }
-      .phase-step.done .phase-dot {
-        border-color: var(--g-mid);
-        background: var(--g-mid);
-      }
-      .phase-step.current .phase-dot {
-        border-color: var(--g-bright);
-        background: var(--g-bright);
-      }
-      .phase-name {
-        color: var(--t3);
-        font-size: 9px;
-      }
-      .phase-step.current .phase-name {
-        color: var(--g-bright);
-      }
-      .range-copy {
-        margin-top: 6px;
-        font-size: 9px;
-        color: var(--t3);
-      }
-      .range-status {
-        margin-top: 4px;
-        font-size: 9px;
-        color: var(--t2);
-      }
-      .mini-phase-track {
-        display: flex;
-        gap: 6px;
-        margin-top: 8px;
-      }
-      .mini-phase-dot {
-        width: 8px;
-        height: 8px;
-        border-radius: 999px;
-        border: 1px solid var(--border);
-        background: var(--bg-elevated);
-      }
-      .mini-phase-dot.done {
-        border-color: var(--g-mid);
-        background: var(--g-mid);
-      }
-      .mini-phase-dot.current {
-        border-color: var(--g-bright);
-        background: var(--g-bright);
-      }
-      .run-energy {
-        margin-top: 10px;
-        border: 1px solid var(--border);
-        border-radius: 10px;
-        padding: 10px;
-        background: rgba(255,255,255,0.02);
-      }
-      .run-energy-row {
-        display: flex;
-        justify-content: space-between;
-        gap: 10px;
-      }
-      .notes {
-        margin-top: 10px;
-        display: grid;
-        gap: 8px;
-      }
-      .notes-panel {
-        margin-top: 12px;
-        border: 1px solid var(--border);
-        border-radius: 12px;
-        background: rgba(255, 255, 255, 0.02);
-        overflow: hidden;
-      }
-      .notes-toggle {
-        width: 100%;
-        border: 0;
-        background: transparent;
-        color: inherit;
-        padding: 10px 12px;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 12px;
-        cursor: pointer;
-        text-align: left;
-      }
-      .notes-toggle-main {
-        min-width: 0;
-        display: grid;
-        gap: 4px;
-      }
-      .notes-label-row {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-      }
-      .notes-label {
-        font-size: 10px;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-        color: var(--t2);
-      }
-      .notes-stack {
-        color: var(--t3);
-        font-size: 10px;
-      }
-      .notes-preview {
-        min-width: 0;
-        color: var(--t1);
-        font-size: 11px;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-      }
-      .notes-body {
-        padding: 0 12px 12px;
-        border-top: 1px solid var(--border);
-      }
-      .note {
-        border: 1px solid var(--border);
-        border-radius: 10px;
-        background: rgba(255, 255, 255, 0.03);
-        padding: 10px;
-        font-size: 11px;
-      }
-      .note-ts {
-        font-size: 9px;
-        color: var(--t4);
-        margin-bottom: 4px;
-      }
-      .row {
-        display: flex;
-        gap: 8px;
-        flex-wrap: wrap;
-      }
-      .input,
-      .textarea,
-      .select {
-        width: 100%;
-        border: 1px solid var(--border);
-        background: #10170f;
-        color: var(--t1);
-        border-radius: 10px;
-        padding: 9px 10px;
-        font-family: inherit;
-      }
-      .textarea {
-        min-height: 74px;
-      }
-      .mini {
-        padding: 6px 8px;
-        border: 1px solid var(--border);
-        border-radius: 8px;
-        color: var(--t2);
-        background: var(--bg-elevated);
-        font-size: 10px;
-        cursor: pointer;
-      }
-      .mini.danger {
-        color: var(--rose);
-      }
-      .actions {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
-        margin-top: 10px;
-      }
-      .field {
-        flex: 1 1 240px;
-        min-width: 240px;
-      }
-      .field-label {
-        display: block;
-        margin-bottom: 4px;
-        color: var(--t2);
-        font-size: 11px;
-      }
-      .suggest-wrap {
-        position: relative;
-      }
-      .suggest-list {
-        position: absolute;
-        z-index: 5;
-        left: 0;
-        right: 0;
-        top: calc(100% + 4px);
-        margin: 0;
-        padding: 6px;
-        list-style: none;
-        border: 1px solid var(--border-hi);
-        border-radius: 10px;
-        background: var(--bg-elevated);
-      }
-      .suggest-item {
-        width: 100%;
-        border: 0;
-        border-radius: 8px;
-        background: transparent;
-        color: var(--t1);
-        text-align: left;
-        font-family: inherit;
-        font-size: 11px;
-        padding: 7px 8px;
-        cursor: pointer;
-      }
-      .suggest-item:hover,
-      .suggest-item.on {
-        background: var(--g-glow);
-      }
-      .setup {
-        max-width: 760px;
-        border: 1px solid var(--border);
-        background: var(--bg-card);
-        border-radius: 16px;
-        padding: 16px;
-      }
-      .setup h3 {
-        font-family: "Fraunces", Georgia, serif;
-        margin: 0 0 8px;
-      }
-      .setup-intro {
-        display: grid;
-        gap: 12px;
-        margin-bottom: 16px;
-      }
-      .setup-steps {
-        display: grid;
-        gap: 8px;
-      }
-      .setup-step {
-        display: flex;
-        gap: 10px;
-        align-items: flex-start;
-        padding: 10px 12px;
-        border: 1px solid var(--border);
-        border-radius: 12px;
-        background: rgba(255, 255, 255, 0.02);
-      }
-      .setup-step-no {
-        width: 24px;
-        height: 24px;
-        border-radius: 999px;
-        display: grid;
-        place-items: center;
-        background: var(--g-deep);
-        color: var(--g-bright);
-        font-size: 11px;
-        flex: 0 0 auto;
-      }
-      .setup-step-title {
-        color: var(--t1);
-        font-size: 12px;
-      }
-      .setup-step-copy {
-        color: var(--t3);
-        font-size: 11px;
-        margin-top: 2px;
-      }
-      .setup-section {
-        margin-top: 18px;
-        padding-top: 16px;
-        border-top: 1px solid var(--border);
-      }
-      .section-kicker {
-        color: var(--g-bright);
-        font-size: 10px;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-        margin-bottom: 6px;
-      }
-      .section-title {
-        color: var(--t1);
-        font-size: 14px;
-        margin-bottom: 4px;
-      }
-      .field-copy {
-        color: var(--t3);
-        font-size: 10px;
-        margin-top: 4px;
-      }
-      .preset-row {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 6px;
-        margin-top: 8px;
-      }
-      .preset {
-        border: 1px solid var(--border);
-        background: var(--bg-elevated);
-        color: var(--t2);
-        border-radius: 999px;
-        padding: 6px 10px;
-        font-family: inherit;
-        font-size: 10px;
-        cursor: pointer;
-      }
-      .preset.on {
-        border-color: var(--border-hi);
-        color: var(--g-bright);
-        background: var(--g-glow);
-      }
-      .hint {
-        color: var(--t3);
-        font-size: 11px;
-      }
-      .hint.warn {
-        color: var(--amber);
-      }
-      .setup-feedback {
-        margin: 0 0 12px;
-        padding: 10px 12px;
-        border-radius: 12px;
-        border: 1px solid var(--border);
-        background: rgba(255, 255, 255, 0.03);
-        color: var(--t2);
-        font-size: 11px;
-      }
-      .setup-feedback.warn {
-        border-color: rgba(223, 160, 64, 0.4);
-        color: var(--amber);
-      }
-      .setup-feedback.error {
-        border-color: rgba(192, 112, 112, 0.4);
-        color: var(--rose);
-      }
-      .loading,
-      .error,
-      .empty {
-        padding: 18px;
-        border-radius: 12px;
-        border: 1px solid var(--border);
-        background: var(--bg-card);
-      }
-      @media (max-width: 760px) {
-        .app {
-          padding: 0 14px 40px;
-        }
-        .sensor-grid {
-          grid-template-columns: 1fr 1fr;
-        }
-      }
-    `;
-  }
+    const getStageArt = async (stageKey, variant = "hero") => {
+      const stageAssets = ASSET_MAP[stageKey] || ASSET_MAP.seedling;
+      const url = stageAssets[variant] || stageAssets.hero || stageAssets.legacy;
+      return processAssetUrl(url, STAGE_SVGS[stageKey] || STAGE_SVGS.seedling);
+    };
 
-  render() {
-    if (this._loading) {
-      return html`<div class="app"><div class="loading">Loading PlantRun dashboard...</div></div>`;
-    }
-    if (this._error) {
-      return html`<div class="app"><div class="error">${this._error}</div></div>`;
+    const processStageArt = async (stageKey, variant = "hero") => {
+      const cacheKey = `${stageKey}:${variant}`;
+      if (stageArtCache[cacheKey]) {
+        return stageArtCache[cacheKey];
+      }
+      const art = await getStageArt(stageKey, variant);
+      stageArtCache[cacheKey] = art;
+      return art;
+    };
+
+    window.PlantRunShared = {
+      ...existing,
+      ASSET_MAP,
+      STAGE_SVGS,
+      LEAF_LOGO,
+      assetCache,
+      stageArtCache,
+      escapeHtml,
+      svgToDataUrl,
+      processAssetUrl,
+      getStageArt,
+      processStageArt,
+    };
+    return window.PlantRunShared;
+  };
+
+  const SHARED = ensurePlantRunShared();
+
+  const STRINGS = {
+    en: {
+      appName: "PlantRun",
+      subtitle: "A cleaner grow cockpit with stage-aware workflows.",
+      overview: "Overview",
+      newRun: "New run",
+      design: "Design",
+      all: "All",
+      active: "Active",
+      ended: "Ended",
+      seedling: "Seedling",
+      veg: "Vegetative",
+      flower: "Flowering",
+      filters: "Filter runs",
+      emptyTitle: "No runs yet. Let's fix that.",
+      emptyBody: "Start a run, bind sensors later if you want, and PlantRun will build the history from there.",
+      launchWizard: "Start 3-step wizard",
+      quickSummary: "Quick summary",
+      target: "Target",
+      day: "day",
+      days: "days",
+      detail: "Run detail",
+      close: "Close",
+      save: "Save",
+      cancel: "Cancel",
+      delete: "Delete",
+      edit: "Edit",
+      notes: "Notes",
+      newNotePlaceholder: "Capture what happened today…",
+      sensors: "Sensors",
+      addSensor: "Add sensor binding",
+      phaseTimeline: "Phase timeline",
+      addPhase: "Add phase",
+      latestHistory: "Latest sensor history",
+      tapHint: "Tap sensor tile for run history · long press for entity details",
+      stats: "Stats",
+      wizardStep1: "Step 1 · Basics",
+      wizardStep2: "Step 2 · Cultivar",
+      wizardStep3: "Step 3 · Sensors & create",
+      estimatedDuration: "Estimated run duration (days)",
+      explicitEstimate: "Explicit estimate used for planning context",
+      growMedium: "Grow medium",
+      growSpace: "Grow space",
+      breeder: "Breeder",
+      cultivar: "Cultivar",
+      cultivarHint: "Type breeder + cultivar to search live SeedFinder matches.",
+      sensorOptional: "Optional sensor bindings",
+      createRun: "Create run",
+      created: "Run created",
+      updateTheme: "Theme",
+      updateLanguage: "Language",
+      grid: "Grid",
+      detailLayout: "Detail layout",
+      compact: "Compact",
+      comfy: "Comfy",
+      split: "Split",
+      stack: "Stack",
+      noSensors: "No sensor bindings yet.",
+      noNotes: "No notes yet.",
+      sensorEntity: "Entity ID",
+      metricType: "Metric type",
+      removeBinding: "Remove binding",
+      updateBinding: "Update binding",
+      confirmRemoveBinding: "Remove this binding? Sensor history stays preserved on the run.",
+      confirmDeleteNote: "Delete this note?",
+      confirmEndRun: "End this run now?",
+      endRun: "End run",
+      more: "More",
+      chooseCultivar: "Choose a cultivar",
+      manualEntry: "Keep manual entry",
+      cultivarSearchEmpty: "No live matches yet.",
+      phaseSeedling: "Seedling",
+      phaseVeg: "Vegetative",
+      phaseFlower: "Flowering",
+      phaseDry: "Drying",
+      phaseCure: "Curing",
+      phaseHarvest: "Harvest",
+    },
+    de: {
+      appName: "PlantRun",
+      subtitle: "Ein aufgeräumtes Grow-Cockpit mit stage-aware Workflows.",
+      overview: "Übersicht",
+      newRun: "Neuer Run",
+      design: "Design",
+      all: "Alle",
+      active: "Aktiv",
+      ended: "Beendet",
+      seedling: "Keimling",
+      veg: "Vegi",
+      flower: "Blüte",
+      filters: "Runs filtern",
+      emptyTitle: "Noch keine Runs. Lässt sich beheben.",
+      emptyBody: "Starte einen Run, binde Sensoren später dazu und PlantRun baut die Historie sauber auf.",
+      launchWizard: "3-Schritt-Wizard starten",
+      quickSummary: "Kurzüberblick",
+      target: "Ziel",
+      day: "Tag",
+      days: "Tage",
+      detail: "Run-Details",
+      close: "Schließen",
+      save: "Speichern",
+      cancel: "Abbrechen",
+      delete: "Löschen",
+      edit: "Bearbeiten",
+      notes: "Notizen",
+      newNotePlaceholder: "Festhalten, was heute passiert ist…",
+      sensors: "Sensoren",
+      addSensor: "Sensor-Bindung hinzufügen",
+      phaseTimeline: "Phasen-Timeline",
+      addPhase: "Phase hinzufügen",
+      latestHistory: "Letzte Sensor-Historie",
+      tapHint: "Tap sensor tile for run history · long press for entity details",
+      stats: "Stats",
+      wizardStep1: "Schritt 1 · Basics",
+      wizardStep2: "Schritt 2 · Kultivar",
+      wizardStep3: "Schritt 3 · Sensoren & Erstellen",
+      estimatedDuration: "Estimated run duration (days)",
+      explicitEstimate: "Explicit estimate used for planning context",
+      growMedium: "Substrat",
+      growSpace: "Grow Space",
+      breeder: "Breeder",
+      cultivar: "Kultivar",
+      cultivarHint: "Breeder + Kultivar tippen, dann kommen live SeedFinder-Treffer.",
+      sensorOptional: "Optionale Sensor-Bindungen",
+      createRun: "Run erstellen",
+      created: "Run erstellt",
+      updateTheme: "Theme",
+      updateLanguage: "Sprache",
+      grid: "Grid",
+      detailLayout: "Detail-Layout",
+      compact: "Kompakt",
+      comfy: "Komfort",
+      split: "Split",
+      stack: "Stack",
+      noSensors: "Noch keine Sensor-Bindungen.",
+      noNotes: "Noch keine Notizen.",
+      sensorEntity: "Entity ID",
+      metricType: "Metriktyp",
+      removeBinding: "Bindung entfernen",
+      updateBinding: "Bindung aktualisieren",
+      confirmRemoveBinding: "Diese Bindung entfernen? Die Sensor-Historie bleibt am Run erhalten.",
+      confirmDeleteNote: "Diese Notiz löschen?",
+      confirmEndRun: "Diesen Run jetzt beenden?",
+      endRun: "Run beenden",
+      more: "Mehr",
+      chooseCultivar: "Kultivar auswählen",
+      manualEntry: "Manuellen Eintrag behalten",
+      cultivarSearchEmpty: "Noch keine Live-Treffer.",
+      phaseSeedling: "Keimling",
+      phaseVeg: "Vegetative",
+      phaseFlower: "Blüte",
+      phaseDry: "Trocknen",
+      phaseCure: "Curing",
+      phaseHarvest: "Ernte",
+    },
+  };
+
+  const DEFAULT_WIZARD_FORM = {
+    friendly_name: "",
+    planted_date: "",
+    target_days: "84",
+    grow_medium: "Soil",
+    grow_space: "Tent A",
+    cultivar_breeder: "",
+    cultivar_query: "",
+    cultivar_name: "",
+    temperature_sensor: "",
+    humidity_sensor: "",
+    soil_moisture_sensor: "",
+    conductivity_sensor: "",
+    light_sensor: "",
+    energy_sensor: "",
+  };
+
+  const QUICK_TARGETS = [56, 70, 84, 98, 112];
+  const METRIC_LABELS = {
+    temperature: "Temperature",
+    humidity: "Humidity",
+    soil_moisture: "Soil moisture",
+    conductivity: "Conductivity",
+    light: "Light",
+    energy: "Energy",
+    water: "Water",
+  };
+  const PHASE_OPTIONS = ["Seedling", "Vegetative", "Flowering", "Drying", "Curing", "Harvest"];
+
+  class PlantRunDashboardPanel extends HTMLElement {
+    constructor() {
+      super();
+      this.attachShadow({ mode: "open" });
+      this._hass = null;
+      this._booted = false;
+      this._refreshTimer = null;
+      this._renderVersion = 0;
+      this._runs = [];
+      this._activeRunId = null;
+      this._summaries = {};
+      this._expandedRuns = {};
+      this._filter = "active";
+      this._page = "overview";
+      this._theme = this._loadSetting(STORAGE_KEYS.theme, "dark");
+      this._lang = this._loadSetting(STORAGE_KEYS.lang, "en");
+      this._gridMode = this._loadSetting(STORAGE_KEYS.grid, "comfy");
+      this._detailLayout = this._loadSetting(STORAGE_KEYS.detailLayout, "split");
+      this._detailRunId = null;
+      this._historyFocus = null;
+      this._modal = null;
+      this._wizardOpen = false;
+      this._wizardStep = 1;
+      this._wizardForm = { ...DEFAULT_WIZARD_FORM };
+      this._wizardBusy = false;
+      this._cultivarSuggestions = [];
+      this._cultivarIndex = -1;
+      this._suggestionClearTimer = null;
+      this._searchTimer = null;
+      this._bindingDraft = null;
+      this._sensorPressState = {};
+      this._noteDrafts = {};
+      this._newNoteText = "";
+      this._phaseDraft = "Vegetative";
+      this._detailDrafts = {};
+      this._artUrls = {};
+      this._emptyArtUrls = [];
+      this._lastCreatedRunId = null;
     }
 
-    if (!this._runs.length) {
-      return html`
-        <div class="app">
-          ${this._renderHeader(true)}
-          <div class="empty">No runs yet. Create one below to start tracking a grow, then fill in optional details whenever you are ready.</div>
-          ${this._renderSetup()}
+    get hass() {
+      return this._hass;
+    }
+
+    set hass(value) {
+      this._hass = value;
+      if (value && !this._booted) {
+        this._boot();
+      }
+      this.render();
+    }
+
+    connectedCallback() {
+      customElements.get("ha-panel-lovelace");
+      if (this.hass && !this._booted) {
+        this._boot();
+      }
+      this.render();
+    }
+
+    disconnectedCallback() {
+      window.clearTimeout(this._refreshTimer);
+      window.clearTimeout(this._suggestionClearTimer);
+      window.clearTimeout(this._searchTimer);
+    }
+
+    _loadSetting(key, fallback) {
+      try {
+        return window.localStorage.getItem(key) || fallback;
+      } catch (_error) {
+        return fallback;
+      }
+    }
+
+    _saveSetting(key, value) {
+      try {
+        window.localStorage.setItem(key, value);
+      } catch (_error) {
+        // no-op
+      }
+    }
+
+    t(key) {
+      return STRINGS[this._lang]?.[key] || STRINGS.en[key] || key;
+    }
+
+    async _boot() {
+      if (!this.hass || this._booted) {
+        return;
+      }
+      this._booted = true;
+      await Promise.all([this._warmSharedAssets(), this._refreshRuns()]);
+      this._scheduleRefresh();
+      this.render();
+    }
+
+    async _warmSharedAssets() {
+      const keys = [
+        ["seedling", "hero"],
+        ["seedling", "tall"],
+        ["seedling", "legacy"],
+        ["veg", "hero"],
+        ["veg", "tall"],
+        ["veg", "legacy"],
+        ["flower", "hero"],
+        ["flower", "tall"],
+        ["flower", "legacy"],
+      ];
+      for (const [stage, variant] of keys) {
+        this._resolveStageArt(stage, variant);
+      }
+      this._emptyArtUrls = [
+        this._resolveStageArt("seedling", "legacy"),
+        this._resolveStageArt("veg", "hero"),
+        this._resolveStageArt("flower", "legacy"),
+      ];
+    }
+
+    _scheduleRefresh() {
+      window.clearTimeout(this._refreshTimer);
+      this._refreshTimer = window.setTimeout(async () => {
+        await this._refreshRuns();
+        this._scheduleRefresh();
+      }, 30000);
+    }
+
+    async _refreshRuns() {
+      if (!this.hass) {
+        return;
+      }
+      try {
+        const payload = await this.hass.callWS({ type: "plantrun/get_runs" });
+        this._runs = Array.isArray(payload?.runs) ? payload.runs : [];
+        this._activeRunId = payload?.active_run_id || null;
+        const summaryPairs = await Promise.all(
+          this._runs.map(async (run) => {
+            try {
+              const summary = await this.hass.callWS({ type: "plantrun/get_run_summary", run_id: run.id });
+              return [run.id, summary];
+            } catch (_error) {
+              return [run.id, {}];
+            }
+          })
+        );
+        this._summaries = Object.fromEntries(summaryPairs);
+        const validIds = new Set(this._runs.map((run) => run.id));
+        this._expandedRuns = Object.fromEntries(Object.entries(this._expandedRuns).filter(([runId]) => validIds.has(runId)));
+        if (this._detailRunId && !validIds.has(this._detailRunId)) {
+          this._detailRunId = null;
+          this._historyFocus = null;
+        }
+        if (this._lastCreatedRunId && validIds.has(this._lastCreatedRunId)) {
+          this._detailRunId = this._lastCreatedRunId;
+          this._page = "overview";
+          this._wizardOpen = false;
+          this._lastCreatedRunId = null;
+        }
+        this._runs.forEach((run) => {
+          this._resolveStageArt(this._stageKeyForRun(run), "hero");
+          this._resolveStageArt(this._stageKeyForRun(run), "tall");
+        });
+      } catch (_error) {
+        this._runs = [];
+        this._summaries = {};
+      }
+      this.render();
+    }
+
+    _resolveStageArt(stageKey, variant = "hero") {
+      const key = `${stageKey}:${variant}`;
+      if (this._artUrls[key]) {
+        return this._artUrls[key];
+      }
+      const fallback = SHARED.svgToDataUrl(SHARED.STAGE_SVGS[stageKey] || SHARED.STAGE_SVGS.seedling);
+      this._artUrls[key] = fallback;
+      SHARED.processStageArt(stageKey, variant).then((url) => {
+        this._artUrls[key] = url;
+        this.render();
+      });
+      return fallback;
+    }
+
+    _toggleTheme(theme) {
+      this._theme = theme;
+      this._saveSetting(STORAGE_KEYS.theme, theme);
+      this.render();
+    }
+
+    _toggleLanguage(lang) {
+      this._lang = lang;
+      this._saveSetting(STORAGE_KEYS.lang, lang);
+      this.render();
+    }
+
+    _toggleGrid(mode) {
+      this._gridMode = mode;
+      this._saveSetting(STORAGE_KEYS.grid, mode);
+      this.render();
+    }
+
+    _toggleDetailLayout(mode) {
+      this._detailLayout = mode;
+      this._saveSetting(STORAGE_KEYS.detailLayout, mode);
+      this.render();
+    }
+
+    _setFilter(filter) {
+      this._filter = filter;
+      this.render();
+    }
+
+    _runById(runId) {
+      return this._runs.find((run) => run.id === runId) || null;
+    }
+
+    _summaryForRun(runId) {
+      return this._summaries[runId] || {};
+    }
+
+    _currentPhase(run) {
+      return run?.phases?.[run.phases.length - 1]?.name || "Seedling";
+    }
+
+    _stageKeyForRun(run) {
+      const phase = this._currentPhase(run).toLowerCase();
+      if (phase.includes("flower") || phase.includes("harvest")) {
+        return "flower";
+      }
+      if (phase.includes("veg")) {
+        return "veg";
+      }
+      return "seedling";
+    }
+
+    _targetDaysForRun(run) {
+      const rawTarget = run?.base_config?.target_days ?? run?.target_days ?? "84";
+      const parsed = Number(rawTarget);
+      return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+    }
+
+    _runAgeDays(run) {
+      const stamp = Date.parse(run?.planted_date || run?.start_time || "");
+      if (!Number.isFinite(stamp)) {
+        return 0;
+      }
+      return Math.max(0, Math.round((Date.now() - stamp) / 86400000));
+    }
+
+    _formatDate(value) {
+      if (!value) {
+        return "—";
+      }
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) {
+        return SHARED.escapeHtml(String(value));
+      }
+      return date.toLocaleDateString(this._lang === "de" ? "de-DE" : "en-US", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      });
+    }
+
+    _filteredRuns() {
+      const filter = this._filter;
+      if (filter === "all") {
+        return this._runs;
+      }
+      if (filter === "active") {
+        return this._runs.filter((run) => run.status !== "ended");
+      }
+      if (filter === "ended") {
+        return this._runs.filter((run) => run.status === "ended");
+      }
+      return this._runs.filter((run) => this._stageKeyForRun(run) === filter);
+    }
+
+    _toggleRunExpansion(runId) {
+      const isExpanded = !!this._expandedRuns[runId];
+      this._expandedRuns = { ...this._expandedRuns, [runId]: !isExpanded };
+      this.render();
+    }
+
+    _openDetail(runId) {
+      this._detailRunId = runId;
+      this._historyFocus = null;
+      const run = this._runById(runId);
+      if (run) {
+        this._detailDrafts = {
+          ...this._detailDrafts,
+          [runId]: {
+            friendly_name: run.friendly_name || "",
+            planted_date: run.planted_date || "",
+            notes_summary: run.notes_summary || "",
+            dry_yield_grams: run.dry_yield_grams ?? "",
+            grow_medium: run?.base_config?.grow_medium || "",
+            grow_space: run?.base_config?.grow_space || "",
+            target_days: this._targetDaysForRun(run) || "",
+          },
+        };
+      }
+      this.render();
+    }
+
+    _closeDetail() {
+      this._detailRunId = null;
+      this._historyFocus = null;
+      this._bindingDraft = null;
+      this.render();
+    }
+
+    _openEntity(entityId) {
+      const event = new CustomEvent("hass-more-info", {
+        bubbles: true,
+        composed: true,
+        detail: { entityId },
+      });
+      this.dispatchEvent(event);
+    }
+
+    _openRunHistory(runId, entityId) {
+      this._historyFocus = { runId, entityId };
+      this.render();
+    }
+
+    _sensorPressStart(runId, entityId) {
+      const key = `${runId}:${entityId}`;
+      const current = this._sensorPressState[key];
+      if (current?.timer) {
+        window.clearTimeout(current.timer);
+      }
+      const state = { longPressTriggered: false, timer: null };
+      state.timer = window.setTimeout(() => {
+        state.longPressTriggered = true;
+        this._openEntity(entityId);
+      }, 520);
+      this._sensorPressState = { ...this._sensorPressState, [key]: state };
+    }
+
+    _sensorPressEnd(runId, entityId) {
+      const key = `${runId}:${entityId}`;
+      const state = this._sensorPressState[key];
+      if (!state) {
+        return;
+      }
+      if (state.timer) {
+        window.clearTimeout(state.timer);
+      }
+      const wasLongPress = !!state.longPressTriggered;
+      if (!wasLongPress) {
+        this._openRunHistory(runId, entityId);
+      }
+      const next = { ...this._sensorPressState };
+      delete next[key];
+      this._sensorPressState = next;
+    }
+
+    _sensorPressCancel(runId, entityId) {
+      const key = `${runId}:${entityId}`;
+      const state = this._sensorPressState[key];
+      if (state?.timer) {
+        window.clearTimeout(state.timer);
+      }
+      const next = { ...this._sensorPressState };
+      delete next[key];
+      this._sensorPressState = next;
+    }
+
+    _stateForEntity(entityId) {
+      return this.hass?.states?.[entityId] || null;
+    }
+
+    _numericState(entityId) {
+      const raw = this._stateForEntity(entityId)?.state;
+      const numeric = Number(raw);
+      return Number.isFinite(numeric) ? numeric : null;
+    }
+
+    _sensorTarget(metricType) {
+      switch (metricType) {
+        case "temperature":
+          return { min: 22, max: 28, unit: "°C" };
+        case "humidity":
+          return { min: 48, max: 65, unit: "%" };
+        case "soil_moisture":
+          return { min: 35, max: 65, unit: "%" };
+        case "conductivity":
+          return { min: 0.8, max: 2.2, unit: "mS/cm" };
+        case "light":
+          return { min: 250, max: 700, unit: "lx" };
+        case "energy":
+          return { min: 0, max: 4, unit: "kWh" };
+        default:
+          return { min: 0, max: 100, unit: "" };
+      }
+    }
+
+    _sensorHistorySeries(run, binding) {
+      const metricHistory = Array.isArray(run?.sensor_history?.[binding.metric_type])
+        ? run.sensor_history[binding.metric_type]
+        : [];
+      const cleaned = metricHistory
+        .map((point) => ({
+          value: Number(point?.value),
+          timestamp: point?.timestamp || null,
+        }))
+        .filter((point) => Number.isFinite(point.value));
+      return cleaned.slice(-20);
+    }
+
+    _sparklineMarkup(run, binding) {
+      const series = this._sensorHistorySeries(run, binding);
+      if (!series.length) {
+        return `<div class="sparkline-empty">No samples yet</div>`;
+      }
+      const values = series.map((item) => item.value);
+      const min = Math.min(...values);
+      const max = Math.max(...values);
+      const span = Math.max(max - min, 1);
+      const points = values
+        .map((value, index) => {
+          const x = (index / Math.max(values.length - 1, 1)) * 100;
+          const y = 42 - ((value - min) / span) * 34;
+          return `${x},${y}`;
+        })
+        .join(" ");
+      return `
+        <svg class="sparkline" viewBox="0 0 100 44" preserveAspectRatio="none" aria-hidden="true">
+          <polyline class="sparkline-grid" points="0,38 100,38" />
+          <polyline class="sparkline-line" points="${points}" />
+        </svg>
+      `;
+    }
+
+    _sensorTileMarkup(run, binding) {
+      const state = this._stateForEntity(binding.sensor_id);
+      const numeric = this._numericState(binding.sensor_id);
+      const target = this._sensorTarget(binding.metric_type);
+      const min = target.min;
+      const max = target.max;
+      const status = numeric < min ? "below" : numeric > max ? "above" : "in_range";
+      const statusClass = status === "below" ? "warn" : status === "above" ? "high" : "ok";
+      const unit = state?.attributes?.unit_of_measurement || target.unit || "";
+      const label = status === "below" ? "Below target" : status === "in_range" ? "In range" : "Above target";
+      const pct = numeric == null ? 0 : Math.max(0, Math.min(100, ((numeric - min) / Math.max(max - min, 1)) * 100));
+      const safeName = SHARED.escapeHtml(METRIC_LABELS[binding.metric_type] || binding.metric_type);
+      const safeEntity = SHARED.escapeHtml(binding.sensor_id);
+      const stateText = numeric == null ? "—" : `${numeric}${unit ? ` ${unit}` : ""}`;
+      return `
+        <button
+          class="sensor-tile"
+          data-run="${run.id}"
+          data-entity="${safeEntity}"
+          data-press-target="sensor"
+          type="button"
+        >
+          <div class="sensor-top">
+            <div>
+              <div class="sensor-label">${safeName}</div>
+              <div class="sensor-entity">${safeEntity}</div>
+            </div>
+            <div class="sensor-value">${SHARED.escapeHtml(stateText)}</div>
+          </div>
+          <div class="range-bar">
+            <div class="range-track"></div>
+            <div class="range-fill ${statusClass}" style="width:${pct}%"></div>
+          </div>
+          <div class="sensor-status-row">
+            <span class="sensor-status ${statusClass}">${label}</span>
+            <span class="sensor-target">${min}–${max}${unit ? ` ${unit}` : ""}</span>
+          </div>
+          ${this._sparklineMarkup(run, binding)}
+        </button>
+      `;
+    }
+
+    _phaseTrackMarkup(run) {
+      const phases = Array.isArray(run?.phases) ? run.phases : [];
+      if (!phases.length) {
+        return "";
+      }
+      return phases
+        .map((phase, index) => {
+          const active = index === phases.length - 1;
+          return `<span class="phase-dot ${active ? "active" : ""}">${SHARED.escapeHtml(phase.name.slice(0, 1).toUpperCase())}</span>`;
+        })
+        .join("");
+    }
+
+    _runCardMarkup(run) {
+      const runId = run.id;
+      const isExpanded = !!this._expandedRuns[runId];
+      const summary = this._summaryForRun(runId);
+      const stageKey = this._stageKeyForRun(run);
+      const art = this._resolveStageArt(stageKey, "hero");
+      const runAgeDays = this._runAgeDays(run);
+      const currentPhase = this._currentPhase(run);
+      const energyCost = summary?.energy_cost != null ? `${summary.energy_cost} ${summary.energy_currency || "EUR"}` : "—";
+      const tempAvg = summary?.temperature?.avg != null ? `${summary.temperature.avg}°` : "—";
+      const humidityAvg = summary?.humidity?.avg != null ? `${summary.humidity.avg}%` : "—";
+
+      return `
+        <article class="run-card ${this._gridMode} ${isExpanded ? "expanded" : ""}" data-run-card="${runId}">
+          <button class="run-card-hit" data-open-run="${runId}" type="button">
+            <div class="run-card-art"><img src="${art}" alt="${SHARED.escapeHtml(currentPhase)} art" /></div>
+            <div class="run-card-copy">
+              <div class="run-card-top">
+                <div>
+                  <div class="eyebrow">${run.status === "ended" ? this.t("ended") : this.t("active")}</div>
+                  <h3>${SHARED.escapeHtml(run.friendly_name || "Unnamed Run")}</h3>
+                </div>
+                <div class="phase-pill">${SHARED.escapeHtml(currentPhase)}</div>
+              </div>
+              <div class="run-meta">Day ${runAgeDays} · Target: ${this._targetDaysForRun(run) || "—"} days</div>
+              <div class="run-stats-row">
+                <div class="mini-stat"><span>Temp</span><strong>${SHARED.escapeHtml(tempAvg)}</strong></div>
+                <div class="mini-stat"><span>Humidity</span><strong>${SHARED.escapeHtml(humidityAvg)}</strong></div>
+                <div class="mini-stat"><span>Energy</span><strong>${SHARED.escapeHtml(energyCost)}</strong></div>
+              </div>
+              <div class="mini-phase-track" data-contract="compact-mini-phase-track">${this._phaseTrackMarkup(run)}</div>
+            </div>
+          </button>
+          <div class="run-card-actions">
+            <button class="ghost-btn" data-toggle-expand="${runId}" type="button">${isExpanded ? this.t("close") : this.t("more")}</button>
+            <button class="primary-btn small" data-open-run="${runId}" type="button">${this.t("detail")}</button>
+          </div>
+          ${isExpanded ? this._runCardExpandedMarkup(run) : ""}
+        </article>
+      `;
+    }
+
+    _runCardExpandedMarkup(run) {
+      const cultivar = run?.cultivar?.name || "Manual entry";
+      const summary = this._summaryForRun(run.id);
+      const note = run?.notes_summary || run?.notes?.[run.notes.length - 1]?.text || this.t("noNotes");
+      return `
+        <div class="run-card-expanded">
+          <div class="expanded-grid">
+            <div class="expanded-block">
+              <span class="eyebrow">Cultivar</span>
+              <strong>${SHARED.escapeHtml(cultivar)}</strong>
+              <p>${SHARED.escapeHtml(run?.cultivar?.breeder || "Breeder unknown")}</p>
+            </div>
+            <div class="expanded-block">
+              <span class="eyebrow">Yield</span>
+              <strong>${SHARED.escapeHtml(run?.dry_yield_grams != null ? `${run.dry_yield_grams} g` : "—")}</strong>
+              <p>${SHARED.escapeHtml(run?.base_config?.grow_medium || "Medium unset")}</p>
+            </div>
+            <div class="expanded-block">
+              <span class="eyebrow">Cost</span>
+              <strong>${SHARED.escapeHtml(summary?.energy_cost != null ? `${summary.energy_cost} ${summary.energy_currency || "EUR"}` : "—")}</strong>
+              <p>${SHARED.escapeHtml(note)}</p>
+            </div>
+          </div>
         </div>
       `;
     }
 
-    const visibleRuns = this._runs.filter((run) => {
-      if (this._filter === "all") return true;
-      if (this._filter === "active") return run.status === "active";
-      if (this._filter === "done") return run.status === "ended";
-      return run.status === this._filter;
-    });
+    _emptyStateMarkup() {
+      const arts = [
+        this._resolveStageArt("seedling", "hero"),
+        this._resolveStageArt("veg", "hero"),
+        this._resolveStageArt("flower", "hero"),
+        this._resolveStageArt("seedling", "legacy"),
+        this._resolveStageArt("veg", "legacy"),
+        this._resolveStageArt("flower", "legacy"),
+      ];
+      return `
+        <section class="empty-state">
+          <div class="empty-copy">
+            <div class="eyebrow">${this.t("appName")}</div>
+            <h2>${this.t("emptyTitle")}</h2>
+            <p>${this.t("emptyBody")}</p>
+            <button class="primary-btn" data-open-wizard type="button">${this.t("launchWizard")}</button>
+          </div>
+          <div class="empty-art-grid">
+            ${arts
+              .map(
+                (url, index) =>
+                  `<div class="empty-art art-${index + 1}"><img src="${url}" alt="stage art ${index + 1}" /></div>`
+              )
+              .join("")}
+          </div>
+        </section>
+      `;
+    }
 
-    return html`
-      <div class="app">
-        ${this._renderHeader(false)}
-        <div class="filters">
-          <div class="tabs">
-            ${this._tab("all", "All Runs")}
-            ${this._tab("active", "Active")}
-            ${this._tab("done", "Finished")}
-          </div>
-          <div class="stats">${this._runs.filter((r) => r.status === "active").length} active · ${this._runs.filter((r) => r.status !== "active").length} inactive</div>
-        </div>
-        <div class="grid">
-          ${visibleRuns.map((run) => this._renderRunCard(run))}
-        </div>
-      </div>
-    `;
-  }
-
-  _renderHeader(empty) {
-    return html`
-      <header class="hdr">
-        <div class="hdr-l">
-          <div class="logo">🌿</div>
-          <div>
-            <div class="hdr-title">Plant<em>Run</em></div>
-            <div class="hdr-sub">Home Assistant sidebar dashboard</div>
-          </div>
-        </div>
-        ${!empty ? html`<button class="btn primary" @click=${this._openNewRunSetup}>+ New Run</button>` : null}
-      </header>
-      ${this._setupOpen ? this._renderSetup() : null}
-    `;
-  }
-
-  _renderSetup() {
-    const isFirstRun = !this._runs.length;
-    const seedfinderHint = this._seedfinderHint();
-    const setupFeedbackClass = this._setupFeedback.tone ? `setup-feedback ${this._setupFeedback.tone}` : "setup-feedback";
-
-    return html`
-      <section class="setup">
-        <div class="setup-intro">
-          <div>
-            <h3>${isFirstRun ? "Start your first run" : "Start a new run"}</h3>
-            <p class="hint">Quick setup: name the run, optionally enrich cultivar data, then confirm the estimated duration.</p>
-          </div>
-          <div class="setup-steps" aria-label="Setup steps">
-            <div class="setup-step">
-              <div class="setup-step-no">1</div>
-              <div>
-                <div class="setup-step-title">Basics</div>
-                <div class="setup-step-copy">Give the run a clear label and optionally pin the planted date.</div>
-              </div>
-            </div>
-            <div class="setup-step">
-              <div class="setup-step-no">2</div>
-              <div>
-                <div class="setup-step-title">Cultivar lookup</div>
-                <div class="setup-step-copy">Only needed when you want SeedFinder enrichment.</div>
-              </div>
-            </div>
-            <div class="setup-step">
-              <div class="setup-step-no">3</div>
-              <div>
-                <div class="setup-step-title">Estimated duration</div>
-                <div class="setup-step-copy">Set a realistic day estimate so planning starts with context.</div>
-              </div>
-            </div>
-          </div>
-        </div>
-        ${this._setupFeedback.message ? html`<div class=${setupFeedbackClass}>${this._setupFeedback.message}</div>` : null}
-        <div class="setup-section">
-          <div class="section-kicker">Step 1</div>
-          <div class="section-title">Create the run record</div>
-          <div class="row">
-            <div class="field">
-              <label class="field-label">Run label</label>
-              <input class="input" .value=${this._setupForm.friendly_name} placeholder="Example: Tent A · Spring 2026" @input=${(e) => this._setSetup("friendly_name", e.target.value)} />
-              <div class="field-copy">Required. This is the name you will scan for later in the dashboard.</div>
-            </div>
-            <div class="field">
-              <label class="field-label">Planted date</label>
-              <input class="input" type="date" .value=${this._setupForm.planted_date} @input=${(e) => this._setSetup("planted_date", e.target.value)} />
-              <div class="field-copy">Optional. Leave blank to use the timestamp from when the run is created.</div>
-            </div>
-          </div>
-        </div>
-        <div class="setup-section">
-          <div class="section-kicker">Step 2</div>
-          <div class="section-title">Optional cultivar lookup details</div>
-          <div class="row">
-            <div class="field suggest-wrap">
-              <label class="field-label">Cultivar shown on the run</label>
-              <input
-                class="input"
-                .value=${this._setupForm.cultivar_name}
-                placeholder="Example: Blue Dream"
-                @input=${(e) => this._onCultivarInput(e)}
-                @keydown=${(e) => this._onCultivarKeydown(e)}
-                @focus=${() => this._refreshCultivarSuggestions(this._setupForm.cultivar_name)}
-                @blur=${() => this._clearCultivarSuggestionsSoon()}
-                autocomplete="off"
-                aria-label="Cultivar"
-                aria-autocomplete="list"
-                aria-expanded=${this._cultivarSuggestions.length ? "true" : "false"}
-              />
-              <div class="field-copy">Optional. If Breeder is set and Lookup strain is blank, this name becomes the fallback lookup strain.</div>
-              ${this._cultivarSuggestions.length
-                ? html`<ul class="suggest-list" role="listbox" aria-label="Cultivar suggestions">
-                    ${this._cultivarSuggestions.map(
-                      (name, index) => html`<li>
-                        <button
-                          class="suggest-item ${this._highlightedCultivarSuggestion === index ? "on" : ""}"
-                          type="button"
-                          role="option"
-                          aria-selected=${this._highlightedCultivarSuggestion === index ? "true" : "false"}
-                          @mousedown=${(e) => e.preventDefault()}
-                          @click=${() => this._applyCultivarSuggestion(name)}
-                        >
-                          ${name}
-                        </button>
-                      </li>`,
-                    )}
-                  </ul>`
-                : null}
-            </div>
-          </div>
-          <div class="row">
-            <div class="field">
-              <label class="field-label">Breeder</label>
-              <input class="input" .value=${this._setupForm.breeder} placeholder="Example: Humboldt Seed Company" @input=${(e) => this._setSetup("breeder", e.target.value)} />
-              <div class="field-copy">Optional. Use this only when you want a tighter SeedFinder match.</div>
-            </div>
-            <div class="field">
-              <label class="field-label">Lookup strain</label>
-              <input class="input" .value=${this._setupForm.strain} placeholder="Leave blank to reuse the cultivar name" @input=${(e) => this._setSetup("strain", e.target.value)} />
-              <div class="field-copy">Optional. Override this when the external strain name differs from your display cultivar.</div>
-            </div>
-          </div>
-          <p class="hint ${seedfinderHint.tone === "warn" ? "warn" : ""}">${seedfinderHint.message}</p>
-        </div>
-        <div class="setup-section">
-          <div class="section-kicker">Step 3</div>
-          <div class="section-title">Optional planning defaults (including estimated duration)</div>
-          <div class="row">
-            <div class="field">
-              <label class="field-label" for="setup-grow-space">Grow space</label>
-              <input
-                id="setup-grow-space"
-                class="input"
-                .value=${this._setupForm.grow_space}
-                placeholder="Tent, room, closet, box"
-                @input=${(e) => this._setSetup("grow_space", e.target.value)}
-              />
-              <div class="field-copy">Location only. Keep the default if you just need a simple label for now.</div>
-            </div>
-            <div class="field">
-              <label class="field-label" for="setup-medium">Root medium</label>
-              <input
-                id="setup-medium"
-                class="input"
-                .value=${this._setupForm.medium}
-                placeholder="Soil, coco, hydro, rockwool"
-                @input=${(e) => this._setSetup("medium", e.target.value)}
-              />
-              <div class="field-copy">Root material only. The default is a starting point, not a lock-in.</div>
-              <div class="preset-row">
-                ${["Soil", "Coco", "Hydro", "Rockwool"].map(
-                  (option) => html`<button class="preset ${this._setupForm.medium === option ? "on" : ""}" type="button" @click=${() => this._setSetup("medium", option)}>${option}</button>`,
-                )}
-              </div>
-            </div>
-            <div class="field">
-              <label class="field-label" for="setup-target-days">Estimated run duration (days)</label>
-              <input
-                id="setup-target-days"
-                class="input"
-                type="number"
-                .value=${this._setupForm.target_days}
-                placeholder="Target days"
-                @input=${(e) => this._setSetup("target_days", e.target.value)}
-              />
-              <div class="field-copy">Explicit estimate used for planning context. Default is 84 days and can be changed anytime.</div>
-              <div class="preset-row">
-                ${["63", "70", "84", "98"].map(
-                  (option) => html`<button class="preset ${this._setupForm.target_days === option ? "on" : ""}" type="button" @click=${() => this._setSetup("target_days", option)}>${option} days</button>`,
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-        <div class="actions">
-          <button class="btn primary" @click=${this._submitSetup}>Create run</button>
-          <button class="btn" @click=${this._resetSetupForm}>Reset defaults</button>
-          ${this._runs.length ? html`<button class="btn" @click=${() => (this._setupOpen = false)}>Cancel</button>` : null}
-        </div>
-      </section>
-    `;
-  }
-
-  _renderRunCard(run) {
-    const expanded = !!this._expandedRuns[run.id];
-    const currentPhase = run.phases?.length ? run.phases[run.phases.length - 1].name : "None";
-    const showHarvestFields = this._hasReachedPostHarvest(run);
-    const runAgeDays = this._runAgeDays(run.start_time, run.end_time);
-    const sensorRows = this._sensorRows(run);
-    const availableSensors = sensorRows.filter((s) => s.available);
-    const unavailableCount = sensorRows.length - availableSensors.length;
-    const imageUrl = run.image_url || run.cultivar?.image_url || "";
-    const imageSource = run.image_url ? run.image_source || "custom" : run.cultivar?.image_url ? "seedfinder (fallback)" : "placeholder";
-    const notes = (run.notes || []).slice().reverse();
-    const latestNote = notes[0];
-    const notesCollapsed = this._notesCollapsed(run.id);
-    const extraNotesCount = latestNote ? Math.max(notes.length - 1, 0) : 0;
-
-    return html`
-      <article class="card">
-        <div class="thumb">
-          ${imageUrl ? html`<img src=${imageUrl} alt=${run.friendly_name} />` : html`<div class="thumb-fallback">No image yet</div>`}
-          <div class="thumb-badges">
-            <span class="badge ${run.status === "active" ? "active" : "ended"}">${run.status}</span>
-            <span class="badge">${currentPhase}</span>
-            <span class="badge">image: ${imageSource}</span>
-          </div>
-        </div>
-        <div class="card-body">
-          <div class="card-top">
+    _renderNav() {
+      return `
+        <header class="topbar">
+          <div class="brand">
+            <div class="brand-logo">${SHARED.LEAF_LOGO}</div>
             <div>
-              <div class="strain-name">${run.cultivar?.name || run.friendly_name}</div>
-              <div class="strain-meta">${run.friendly_name} · started ${this._shortDate(run.start_time)}</div>
+              <div class="brand-name">${this.t("appName")}</div>
+              <div class="brand-subtitle">${this.t("subtitle")}</div>
             </div>
-            <button class="expand-btn" @click=${() => this._toggleExpand(run.id)}>${expanded ? "▴" : "▾"}</button>
           </div>
+          <div class="nav-actions">
+            <button class="nav-btn ${this._page === "overview" ? "active" : ""}" data-page="overview" type="button">${this.t("overview")}</button>
+            <button class="nav-btn ${this._wizardOpen ? "active" : ""}" data-open-wizard type="button">${this.t("newRun")}</button>
+          </div>
+          <div class="control-bar">
+            <div class="control-group">
+              <span>${this.t("updateTheme")}</span>
+              <button class="seg ${this._theme === "dark" ? "active" : ""}" data-theme="dark" type="button">Dark</button>
+              <button class="seg ${this._theme === "light" ? "active" : ""}" data-theme="light" type="button">Light</button>
+            </div>
+            <div class="control-group">
+              <span>${this.t("updateLanguage")}</span>
+              <button class="seg ${this._lang === "en" ? "active" : ""}" data-lang="en" type="button">EN</button>
+              <button class="seg ${this._lang === "de" ? "active" : ""}" data-lang="de" type="button">DE</button>
+            </div>
+            <div class="control-group">
+              <span>${this.t("grid")}</span>
+              <button class="seg ${this._gridMode === "compact" ? "active" : ""}" data-grid="compact" type="button">${this.t("compact")}</button>
+              <button class="seg ${this._gridMode === "comfy" ? "active" : ""}" data-grid="comfy" type="button">${this.t("comfy")}</button>
+            </div>
+          </div>
+        </header>
+      `;
+    }
 
-          ${expanded
-            ? null
-            : html`<div class="sensors">
-                ${availableSensors.length
-                  ? availableSensors.map(
-                      (sensor) => html`<button class="chip sensor" @pointerdown=${(e) => this._sensorPressStart(e, run.id, sensor.entity_id)} @pointerup=${(e) => this._sensorPressEnd(e, run.id, sensor.entity_id)} @pointerleave=${(e) => this._sensorPressCancel(e, run.id, sensor.entity_id)} @click=${(e) => e.preventDefault()}><span>${sensor.icon}</span><span class="val">${sensor.state}</span><span>${sensor.unit || ""}</span></button>`,
-                    )
-                  : html`<span class="chip">No live sensors</span>`}
-                ${unavailableCount ? html`<span class="chip">${unavailableCount} unavailable</span>` : null}
-              </div>
-              <div class="mini-phase-track" data-contract="compact-mini-phase-track" aria-hidden="true">
-                ${PHASES.map((phase) => {
-                  const idx = PHASES.indexOf(phase);
-                  const cur = PHASES.findIndex((x) => x.toLowerCase() === String(currentPhase).toLowerCase());
-                  const klass = idx < cur ? "done" : idx === cur ? "current" : "";
-                  return html`<span class="mini-phase-dot ${klass}" title=${phase}></span>`;
-                })}
-              </div>`}
+    _renderFilters() {
+      const filters = [
+        ["all", this.t("all")],
+        ["active", this.t("active")],
+        ["ended", this.t("ended")],
+        ["seedling", this.t("seedling")],
+        ["veg", this.t("veg")],
+        ["flower", this.t("flower")],
+      ];
+      return `
+        <section class="filters">
+          <div class="eyebrow">${this.t("filters")}</div>
+          <div class="filter-row">
+            ${filters
+              .map(
+                ([value, label]) =>
+                  `<button class="filter-chip ${this._filter === value ? "active" : ""}" data-filter="${value}" type="button">${label}</button>`
+              )
+              .join("")}
+          </div>
+        </section>
+      `;
+    }
 
-          ${expanded
-            ? html`
-                <div class="expanded">
-                  <div class="sg-label">Tap sensor tile for run history · long press for entity details</div>
-                  <div class="sensor-grid">
-                    ${availableSensors.length
-                      ? availableSensors.map(
-                          (sensor) => html`
-                            <div class="sg-cell clickable" @pointerdown=${(e) => this._sensorPressStart(e, run.id, sensor.entity_id)} @pointerup=${(e) => this._sensorPressEnd(e, run.id, sensor.entity_id)} @pointerleave=${(e) => this._sensorPressCancel(e, run.id, sensor.entity_id)} @click=${(e) => e.preventDefault()}>
-                              <div class="sg-label">${sensor.name}</div>
-                              <div class="sg-val">${sensor.state} ${sensor.unit || ""}</div>
-                              ${this._renderSensorRangeBar(sensor)}
-                            </div>
-                          `,
-                        )
-                      : html`<div class="sg-cell"><div class="sg-label">Sensors</div><div class="sg-val">No data</div><div class="sg-label">Bind entities to populate</div></div>`}
+    _historyPanelMarkup(run) {
+      if (!this._historyFocus || this._historyFocus.runId !== run.id) {
+        return `<div class="history-panel-empty">${this.t("tapHint")}</div>`;
+      }
+      const binding = (run.bindings || []).find((item) => item.sensor_id === this._historyFocus.entityId);
+      if (!binding) {
+        return `<div class="history-panel-empty">${this.t("tapHint")}</div>`;
+      }
+      return `
+        <div class="history-panel-card">
+          <div class="history-panel-head">
+            <div>
+              <div class="eyebrow">${this.t("latestHistory")}</div>
+              <strong>${SHARED.escapeHtml(METRIC_LABELS[binding.metric_type] || binding.metric_type)}</strong>
+            </div>
+            <button class="ghost-btn" data-open-entity="${SHARED.escapeHtml(binding.sensor_id)}" type="button">Entity</button>
+          </div>
+          ${this._sparklineMarkup(run, binding)}
+        </div>
+      `;
+    }
+
+    _detailStatsMarkup(run) {
+      const summary = this._summaryForRun(run.id);
+      return `
+        <div class="detail-stats-row">
+          <div class="detail-stat"><span>Age</span><strong>${this._runAgeDays(run)} ${this._runAgeDays(run) === 1 ? this.t("day") : this.t("days")}</strong></div>
+          <div class="detail-stat"><span>${this.t("target")}</span><strong>${this._targetDaysForRun(run) || "—"} ${this.t("days")}</strong></div>
+          <div class="detail-stat"><span>Energy</span><strong>${SHARED.escapeHtml(summary?.energy_kwh != null ? `${summary.energy_kwh} kWh` : "—")}</strong></div>
+          <div class="detail-stat"><span>Yield</span><strong>${SHARED.escapeHtml(run?.dry_yield_grams != null ? `${run.dry_yield_grams} g` : "—")}</strong></div>
+        </div>
+      `;
+    }
+
+    _detailDraftForRun(run) {
+      return (
+        this._detailDrafts[run.id] || {
+          friendly_name: run.friendly_name || "",
+          planted_date: run.planted_date || "",
+          notes_summary: run.notes_summary || "",
+          dry_yield_grams: run.dry_yield_grams ?? "",
+          grow_medium: run?.base_config?.grow_medium || "",
+          grow_space: run?.base_config?.grow_space || "",
+          target_days: this._targetDaysForRun(run) || "",
+        }
+      );
+    }
+
+    _detailEditorMarkup(run) {
+      const draft = this._detailDraftForRun(run);
+      return `
+        <section class="panel-block detail-editor-block">
+          <div class="panel-head"><div><div class="eyebrow">Run metadata</div><strong>Editable detail overlay</strong></div><button class="primary-btn small" data-save-detail="${run.id}" type="button">${this.t("save")}</button></div>
+          <div class="form-grid two-col">
+            <label class="field">
+              <span>Friendly name</span>
+              <input data-detail-input="friendly_name" data-run="${run.id}" value="${SHARED.escapeHtml(draft.friendly_name)}" />
+            </label>
+            <label class="field">
+              <span>Planted date</span>
+              <input type="date" data-detail-input="planted_date" data-run="${run.id}" value="${SHARED.escapeHtml(draft.planted_date)}" />
+            </label>
+            <label class="field">
+              <span>Grow medium</span>
+              <input data-detail-input="grow_medium" data-run="${run.id}" value="${SHARED.escapeHtml(draft.grow_medium)}" />
+            </label>
+            <label class="field">
+              <span>Grow space</span>
+              <input data-detail-input="grow_space" data-run="${run.id}" value="${SHARED.escapeHtml(draft.grow_space)}" />
+            </label>
+            <label class="field">
+              <span>${this.t("estimatedDuration")}</span>
+              <input type="number" min="1" data-detail-input="target_days" data-run="${run.id}" value="${SHARED.escapeHtml(draft.target_days)}" />
+            </label>
+            <label class="field">
+              <span>Dry yield (g)</span>
+              <input type="number" min="0" step="0.1" data-detail-input="dry_yield_grams" data-run="${run.id}" value="${SHARED.escapeHtml(draft.dry_yield_grams)}" />
+            </label>
+            <label class="field full">
+              <span>Summary note</span>
+              <textarea data-detail-input="notes_summary" data-run="${run.id}">${SHARED.escapeHtml(draft.notes_summary)}</textarea>
+            </label>
+          </div>
+        </section>
+      `;
+    }
+
+    _phaseTimelineMarkup(run) {
+      const phases = Array.isArray(run?.phases) ? run.phases : [];
+      if (!phases.length) {
+        return `<div class="empty-list">No phases yet.</div>`;
+      }
+      return `
+        <div class="timeline-list">
+          ${phases
+            .map(
+              (phase, index) => `
+                <div class="timeline-item ${index === phases.length - 1 ? "active" : ""}">
+                  <div class="timeline-dot"></div>
+                  <div>
+                    <strong>${SHARED.escapeHtml(phase.name)}</strong>
+                    <div>${this._formatDate(phase.start_time)}${phase.end_time ? ` → ${this._formatDate(phase.end_time)}` : ""}</div>
                   </div>
-
-                  ${runAgeDays
-                    ? html`
-                        <div class="run-age">
-                          <div>
-                            <div class="run-age-label">Days Running</div>
-                            <div class="run-age-day">Day ${runAgeDays}</div>
-                          </div>
-                          <div class="run-age-total">Target: ${this._targetDaysForRun(run) || "—"} days</div>
-                        </div>
-                      `
-                    : null}
-
-                  ${this._renderRunEnergyContext(run)}
-                  <div class="phase-title">Progress context</div>
-                  ${this._renderProgressContext(run, runAgeDays)}
-                  <div class="phase-title">Phase track (tap a node to request a change)</div>
-                  <div class="phase-line">
-                    ${PHASES.map((phase) => {
-                      const idx = PHASES.indexOf(phase);
-                      const cur = PHASES.findIndex((x) => x.toLowerCase() === String(currentPhase).toLowerCase());
-                      const klass = idx < cur ? "done" : idx === cur ? "current" : "";
-                      return html`<div class="phase-step ${klass}"><button class="phase-dot" @click=${() => this._requestPhaseChange(run, phase)} title="Switch to ${phase}"></button><div class="phase-name">${phase}</div></div>`;
-                    })}
-                  </div>
-
-                  <div class="notes-panel">
-                    <button class="notes-toggle" @click=${() => this._toggleNotes(run.id)}>
-                      <div class="notes-toggle-main">
-                        <div class="notes-label-row">
-                          <span class="notes-label">Notes</span>
-                          <span class="notes-stack">${notes.length}${extraNotesCount ? html` (+${extraNotesCount} earlier)` : null}</span>
-                        </div>
-                        <div class="notes-preview">${latestNote ? latestNote.text : "No notes yet. Add one below."}</div>
-                      </div>
-                      <span>${notesCollapsed ? "▾" : "▴"}</span>
-                    </button>
-                    ${notesCollapsed
-                      ? null
-                      : html`<div class="notes-body"><div class="notes">${notes.length
-                        ? notes.map((note) => this._renderNote(run, note))
-                        : html`<div class="note"><div class="note-ts">No notes yet</div>Add one below.</div>`}</div></div>`}
-                  </div>
-
-                  ${notesCollapsed
-                    ? null
-                    : html`<div class="actions">
-                        <textarea
-                          class="textarea"
-                          placeholder="Add note"
-                          .value=${this._newNotes[run.id] || ""}
-                          @input=${(e) => this._setNewNote(run.id, e.target.value)}
-                        ></textarea>
-                        <button class="mini" @click=${() => this._addNote(run.id)}>Add note</button>
-                        ${showHarvestFields
-                          ? html`
-                              <input class="input" type="number" placeholder="Dry yield (g)" .value=${run.dry_yield_grams ?? ""} @change=${(e) => this._changeYield(run.id, e.target.value)} />
-                              <div class="field">
-                                <label class="field-label" for="notes-summary-${run.id}">Summary (optional)</label>
-                                <input
-                                  id="notes-summary-${run.id}"
-                                  class="input"
-                                  placeholder="Example: Strong terpene profile, steady finish, 84g dried"
-                                  .value=${run.notes_summary || ""}
-                                  @change=${(e) => this._updateRun(run.id, { notes_summary: e.target.value })}
-                                />
-                                <div class="hint">Optional short recap of the run for quick scanning later.</div>
-                              </div>
-                            `
-                          : html`<div class="hint">Dry yield and recap fields unlock from Harvest onward.</div>`}
-                        <input class="input" type="file" accept="image/png,image/jpeg,image/webp" @change=${(e) => this._uploadImage(run.id, e)} />
-                        ${run.cultivar?.image_url
-                          ? html`<button class="mini" @click=${() => this._setSeedfinderImage(run.id, run.cultivar.image_url)}>Use SeedFinder image</button>`
-                          : null}
-                        <button class="mini danger" @click=${() => this._endRun(run.id)}>Finish run</button>
-                      </div>`}
                 </div>
               `
-            : null}
+            )
+            .join("")}
         </div>
-      </article>
-    `;
-  }
-
-  _renderNote(run, note) {
-    const editKey = `${run.id}:${note.id}`;
-    const editValue = this._editNotes[editKey];
-    return html`
-      <div class="note">
-        <div class="note-ts">${this._shortDateTime(note.timestamp)}</div>
-        ${typeof editValue === "string"
-          ? html`
-              <textarea class="textarea" .value=${editValue} @input=${(e) => this._setEditNote(editKey, e.target.value)}></textarea>
-              <div class="actions">
-                <button class="mini" @click=${() => this._saveEditNote(run.id, note.id, editKey)}>Save</button>
-                <button class="mini" @click=${() => this._cancelEditNote(editKey)}>Cancel</button>
-              </div>
-            `
-          : html`
-              <div>${note.text}</div>
-              <div class="actions">
-                <button class="mini" @click=${() => this._startEditNote(run.id, note)}>Edit</button>
-                <button class="mini danger" @click=${() => this._deleteNote(run.id, note.id)}>Delete</button>
-              </div>
-            `}
-      </div>
-    `;
-  }
-
-  _tab(value, label) {
-    return html`<button class="tab ${this._filter === value ? "on" : ""}" @click=${() => (this._filter = value)}>${label}</button>`;
-  }
-
-  _toggleExpand(runId) {
-    const isExpanded = !!this._expandedRuns[runId];
-    this._expandedRuns = { ...this._expandedRuns, [runId]: !isExpanded };
-  }
-
-  _toggleNotes(runId) {
-    this._collapsedNotes = {
-      ...this._collapsedNotes,
-      [runId]: !this._notesCollapsed(runId),
-    };
-  }
-
-  _notesCollapsed(runId) {
-    return this._collapsedNotes[runId] !== false;
-  }
-
-  _hasReachedPostHarvest(run) {
-    const phases = Array.isArray(run?.phases) ? run.phases : [];
-    return phases.some((phase) => this._isPostHarvestPhase(phase?.name));
-  }
-
-  _isPostHarvestPhase(phaseName) {
-    const phase = String(phaseName || "").trim().toLowerCase();
-    return ["harvest", "drying", "curing"].includes(phase);
-  }
-
-  _sensorRows(run) {
-    const bindings = run.bindings || [];
-    return bindings.map((binding) => {
-      const entity = this.hass?.states?.[binding.sensor_id];
-      const state = entity?.state;
-      const unavailable = !entity || state === "unknown" || state === "unavailable";
-      const name = this._titleCase(binding.metric_type || "metric");
-      return {
-        metric_type: binding.metric_type,
-        entity_id: binding.sensor_id,
-        name,
-        state: unavailable ? "—" : state,
-        unit: unavailable ? "" : entity.attributes.unit_of_measurement,
-        available: !unavailable,
-        icon: this._metricIcon(binding.metric_type),
-      };
-    });
-  }
-
-  _openEntity(entityId) {
-    const event = new CustomEvent("hass-more-info", {
-      bubbles: true,
-      composed: true,
-      detail: { entityId },
-    });
-    this.dispatchEvent(event);
-  }
-
-  _changeYield(runId, rawValue) {
-    const trimmed = String(rawValue ?? "").trim();
-    if (!trimmed) {
-      this._updateRun(runId, { dry_yield_grams: 0 });
-      return;
-    }
-    const value = Number(trimmed);
-    if (Number.isNaN(value)) return;
-    this._updateRun(runId, { dry_yield_grams: value });
-  }
-
-  async _refreshRuns() {
-    if (!this.hass) return;
-    try {
-      const payload = await this.hass.callWS({ type: "plantrun/get_runs" });
-      this._runs = payload.runs || [];
-      this._activeRunId = payload.active_run_id || "";
-      const validIds = new Set(this._runs.map((run) => run.id));
-      this._expandedRuns = Object.fromEntries(Object.entries(this._expandedRuns).filter(([runId]) => validIds.has(runId)));
-      this._collapsedNotes = Object.fromEntries(Object.entries(this._collapsedNotes).filter(([runId]) => validIds.has(runId)));
-      this._newNotes = Object.fromEntries(Object.entries(this._newNotes).filter(([runId]) => validIds.has(runId)));
-      await this._refreshRunSummaries(this._runs);
-      this._error = "";
-    } catch (err) {
-      this._error = `Unable to load PlantRun data: ${err?.message || err}`;
-    } finally {
-      this._loading = false;
-    }
-  }
-
-  async _refreshRunSummaries(runs) {
-    if (!this.hass) return;
-    const next = {};
-    await Promise.all(
-      (runs || []).map(async (run) => {
-        try {
-          const summary = await this.hass.callWS({ type: "plantrun/get_run_summary", run_id: run.id });
-          next[run.id] = summary;
-        } catch (_err) {
-          next[run.id] = null;
-        }
-      }),
-    );
-    this._runSummaries = next;
-  }
-
-  async _submitSetup() {
-    const normalizedForm = this._normalizedSetupForm();
-    this._setupForm = normalizedForm;
-
-    const name = normalizedForm.friendly_name;
-    if (!name) {
-      this._setSetupFeedback("error", "Add a run name so you can tell this run apart later.");
-      this._toast("Run name is required.");
-      return;
+      `;
     }
 
-    if (normalizedForm.breeder && !normalizedForm.cultivar_name && !normalizedForm.strain) {
-      const message = "Breeder alone is too vague. Add Cultivar or Strain, or clear Breeder before creating the run.";
-      this._setSetupFeedback("warn", message);
-      this._toast(message);
-      return;
+    _noteMarkup(run, note) {
+      const isEditing = Object.prototype.hasOwnProperty.call(this._noteDrafts, note.id);
+      const draftValue = isEditing ? this._noteDrafts[note.id] : note.text;
+      return `
+        <div class="note-card">
+          <div class="note-meta">${this._formatDate(note.timestamp)}</div>
+          ${
+            isEditing
+              ? `<textarea class="note-editor" data-note-edit="${note.id}">${SHARED.escapeHtml(draftValue)}</textarea>`
+              : `<div class="note-text">${SHARED.escapeHtml(note.text)}</div>`
+          }
+          <div class="note-actions">
+            ${
+              isEditing
+                ? `<button class="primary-btn small" data-save-note="${note.id}" data-run="${run.id}" type="button">${this.t("save")}</button>
+                   <button class="ghost-btn" data-cancel-note="${note.id}" type="button">${this.t("cancel")}</button>`
+                : `<button class="ghost-btn" data-edit-note="${note.id}" type="button">${this.t("edit")}</button>`
+            }
+            <button class="ghost-btn danger" data-delete-note="${note.id}" data-run="${run.id}" type="button">${this.t("delete")}</button>
+          </div>
+        </div>
+      `;
     }
 
-    if (
-      normalizedForm.grow_space &&
-      normalizedForm.medium &&
-      normalizedForm.grow_space.toLowerCase() === normalizedForm.medium.toLowerCase()
-    ) {
-      const message = "Grow space and root medium cannot be the same value. Use the location for Grow space and the root material for Medium.";
-      this._setSetupFeedback("warn", message);
-      this._toast(message);
-      return;
-    }
-
-    try {
-      await this.hass.callService("plantrun", "create_run", {
-        friendly_name: name,
-        ...(normalizedForm.planted_date ? { planted_date: normalizedForm.planted_date } : {}),
-      });
-      await this._refreshRuns();
-      const run = this._runs.find((r) => r.friendly_name === name) || this._runs[this._runs.length - 1];
-      if (!run) return;
-
-      if (normalizedForm.cultivar_name) {
-        await this.hass.callService("plantrun", "set_cultivar", {
-          run_id: run.id,
-          cultivar_name: normalizedForm.cultivar_name,
-          ...(normalizedForm.breeder ? { breeder: normalizedForm.breeder } : {}),
-          ...(normalizedForm.strain ? { strain: normalizedForm.strain } : {}),
-        });
+    _bindingListMarkup(run) {
+      const bindings = Array.isArray(run?.bindings) ? run.bindings : [];
+      if (!bindings.length) {
+        return `<div class="empty-list">${this.t("noSensors")}</div>`;
       }
+      return bindings
+        .map((binding) => {
+          const state = this._stateForEntity(binding.sensor_id);
+          const value = state?.state ?? "—";
+          const unit = state?.attributes?.unit_of_measurement || "";
+          return `
+            <div class="binding-row">
+              <div>
+                <strong>${SHARED.escapeHtml(METRIC_LABELS[binding.metric_type] || binding.metric_type)}</strong>
+                <div>${SHARED.escapeHtml(binding.sensor_id)}</div>
+              </div>
+              <div class="binding-row-right">
+                <span>${SHARED.escapeHtml(`${value}${unit ? ` ${unit}` : ""}`)}</span>
+                <button class="ghost-btn" data-edit-binding="${binding.id}" data-run="${run.id}" type="button">${this.t("edit")}</button>
+                <button class="ghost-btn danger" data-remove-binding="${binding.id}" data-run="${run.id}" type="button">${this.t("delete")}</button>
+              </div>
+            </div>
+          `;
+        })
+        .join("");
+    }
 
-      await this.hass.callService("plantrun", "update_run", {
-        run_id: run.id,
+    _detailOverlayMarkup(run) {
+      if (!run) {
+        return "";
+      }
+      const stageKey = this._stageKeyForRun(run);
+      const heroArt = this._resolveStageArt(stageKey, "hero");
+      const tallArt = this._resolveStageArt(stageKey, "tall");
+      const layoutClass = this._detailLayout === "stack" ? "stack" : "split";
+      return `
+        <div class="overlay" role="dialog" aria-modal="true">
+          <div class="overlay-backdrop" data-close-detail></div>
+          <div class="overlay-card ${layoutClass}">
+            <button class="overlay-close" data-close-detail type="button">×</button>
+            <div class="overlay-hero">
+              <div class="overlay-hero-copy">
+                <div class="eyebrow">${this.t("detail")}</div>
+                <h2>${SHARED.escapeHtml(run.friendly_name || "Unnamed Run")}</h2>
+                <p>${SHARED.escapeHtml(run?.base_config?.grow_space || "Grow space unset")} · ${SHARED.escapeHtml(run?.base_config?.grow_medium || "Medium unset")}</p>
+                ${this._detailStatsMarkup(run)}
+              </div>
+              <div class="overlay-art-stack">
+                <div class="overlay-art primary"><img src="${heroArt}" alt="stage hero art" /></div>
+                <div class="overlay-art secondary"><img src="${tallArt}" alt="stage tall art" /></div>
+              </div>
+            </div>
+            <div class="detail-toolbar">
+              <div class="control-group compact-inline">
+                <span>${this.t("detailLayout")}</span>
+                <button class="seg ${this._detailLayout === "split" ? "active" : ""}" data-detail-layout="split" type="button">${this.t("split")}</button>
+                <button class="seg ${this._detailLayout === "stack" ? "active" : ""}" data-detail-layout="stack" type="button">${this.t("stack")}</button>
+              </div>
+              <div class="detail-toolbar-actions">
+                <button class="ghost-btn" data-open-binding-add="${run.id}" type="button">${this.t("addSensor")}</button>
+                <button class="ghost-btn danger" data-end-run="${run.id}" type="button">${this.t("endRun")}</button>
+              </div>
+            </div>
+            <div class="detail-grid ${layoutClass}">
+              ${this._detailEditorMarkup(run)}
+              <section class="panel-block sensors-block">
+                <div class="panel-head">
+                  <div>
+                    <div class="eyebrow">${this.t("sensors")}</div>
+                    <strong>${this.t("tapHint")}</strong>
+                  </div>
+                </div>
+                <div class="sensor-grid">
+                  ${run.bindings?.length ? run.bindings.map((binding) => this._sensorTileMarkup(run, binding)).join("") : `<div class="empty-list">${this.t("noSensors")}</div>`}
+                </div>
+                ${this._historyPanelMarkup(run)}
+              </section>
+              <section class="panel-block notes-block">
+                <div class="panel-head"><div><div class="eyebrow">${this.t("notes")}</div><strong>${run.notes?.length || 0}</strong></div></div>
+                <div class="notes-list">
+                  ${run.notes?.length ? run.notes.map((note) => this._noteMarkup(run, note)).join("") : `<div class="empty-list">${this.t("noNotes")}</div>`}
+                </div>
+                <textarea class="note-editor new-note" data-new-note placeholder="${SHARED.escapeHtml(this.t("newNotePlaceholder"))}">${SHARED.escapeHtml(this._newNoteText)}</textarea>
+                <div class="note-actions bottom"><button class="primary-btn small" data-add-note="${run.id}" type="button">${this.t("save")}</button></div>
+              </section>
+              <section class="panel-block timeline-block">
+                <div class="panel-head">
+                  <div><div class="eyebrow">${this.t("phaseTimeline")}</div><strong>${SHARED.escapeHtml(this._currentPhase(run))}</strong></div>
+                  <div class="inline-form">
+                    <select data-phase-draft>
+                      ${PHASE_OPTIONS.map((name) => `<option value="${name}" ${this._phaseDraft === name ? "selected" : ""}>${name}</option>`).join("")}
+                    </select>
+                    <button class="primary-btn small" data-add-phase="${run.id}" type="button">${this.t("addPhase")}</button>
+                  </div>
+                </div>
+                ${this._phaseTimelineMarkup(run)}
+              </section>
+              <section class="panel-block bindings-block">
+                <div class="panel-head">
+                  <div><div class="eyebrow">${this.t("sensors")}</div><strong>Manage bindings</strong></div>
+                </div>
+                ${this._bindingListMarkup(run)}
+              </section>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    _wizardStepMarkup() {
+      if (!this._wizardOpen) {
+        return "";
+      }
+      const stagePreview = this._wizardStep === 1 ? this._resolveStageArt("seedling", "hero") : this._wizardStep === 2 ? this._resolveStageArt("veg", "hero") : this._resolveStageArt("flower", "hero");
+      return `
+        <div class="wizard-shell">
+          <div class="wizard-head">
+            <div>
+              <div class="eyebrow">${this.t("newRun")}</div>
+              <h2>${this._wizardStep === 1 ? this.t("wizardStep1") : this._wizardStep === 2 ? this.t("wizardStep2") : this.t("wizardStep3")}</h2>
+            </div>
+            <button class="ghost-btn" data-close-wizard type="button">${this.t("close")}</button>
+          </div>
+          <div class="wizard-grid">
+            <div class="wizard-main">
+              ${this._wizardStep === 1 ? this._wizardStepOneMarkup() : this._wizardStep === 2 ? this._wizardStepTwoMarkup() : this._wizardStepThreeMarkup()}
+            </div>
+            <aside class="wizard-preview">
+              <div class="wizard-preview-art"><img src="${stagePreview}" alt="wizard stage preview" /></div>
+              <div class="wizard-preview-stack">
+                <div class="wizard-preview-mini"><img src="${this._resolveStageArt("seedling", "legacy")}" alt="legacy seedling" /></div>
+                <div class="wizard-preview-mini"><img src="${this._resolveStageArt("veg", "legacy")}" alt="legacy veg" /></div>
+                <div class="wizard-preview-mini"><img src="${this._resolveStageArt("flower", "legacy")}" alt="legacy flower" /></div>
+              </div>
+            </aside>
+          </div>
+        </div>
+      `;
+    }
+
+    _wizardStepOneMarkup() {
+      return `
+        <div class="form-grid two-col">
+          <label class="field">
+            <span>Run name</span>
+            <input data-wizard-input="friendly_name" value="${SHARED.escapeHtml(this._wizardForm.friendly_name)}" />
+          </label>
+          <label class="field">
+            <span>Planted date</span>
+            <input type="date" data-wizard-input="planted_date" value="${SHARED.escapeHtml(this._wizardForm.planted_date)}" />
+          </label>
+          <label class="field full">
+            <span>${this.t("estimatedDuration")}</span>
+            <input type="number" min="1" data-wizard-input="target_days" value="${SHARED.escapeHtml(this._wizardForm.target_days)}" />
+            <small>${this.t("explicitEstimate")}</small>
+            <div class="chip-row">
+              ${QUICK_TARGETS.map((option) => `<button class="preset ${this._wizardForm.target_days === String(option) ? "on" : ""}" data-target-chip="${option}" type="button">${option} days</button>`).join("")}
+            </div>
+          </label>
+          <label class="field">
+            <span>${this.t("growMedium")}</span>
+            <input data-wizard-input="grow_medium" value="${SHARED.escapeHtml(this._wizardForm.grow_medium)}" />
+          </label>
+          <label class="field">
+            <span>${this.t("growSpace")}</span>
+            <input data-wizard-input="grow_space" value="${SHARED.escapeHtml(this._wizardForm.grow_space)}" />
+          </label>
+        </div>
+        <div class="wizard-actions">
+          <button class="primary-btn" data-wizard-next type="button">Next</button>
+        </div>
+      `;
+    }
+
+    _wizardStepTwoMarkup() {
+      const options = this._cultivarSuggestions.length
+        ? this._cultivarSuggestions
+            .map((item, index) => `
+              <button
+                class="cultivar-option ${this._cultivarIndex === index ? "active" : ""}"
+                data-cultivar-index="${index}"
+                data-cultivar-name="${SHARED.escapeHtml(item.name || "") }"
+                type="button"
+              >
+                <strong>${SHARED.escapeHtml(item.name || "Unknown")}</strong>
+                <span>${SHARED.escapeHtml(item.breeder || this._wizardForm.cultivar_breeder || "Unknown breeder")}</span>
+              </button>
+            `)
+            .join("")
+        : `<div class="empty-list">${this.t("cultivarSearchEmpty")}</div>`;
+      return `
+        <div class="form-grid">
+          <label class="field">
+            <span>${this.t("breeder")}</span>
+            <input data-wizard-input="cultivar_breeder" value="${SHARED.escapeHtml(this._wizardForm.cultivar_breeder)}" />
+          </label>
+          <label class="field cultivar-field">
+            <span>${this.t("cultivar")}</span>
+            <input
+              data-wizard-input="cultivar_query"
+              value="${SHARED.escapeHtml(this._wizardForm.cultivar_query)}"
+              placeholder="Runtz Layer Cake"
+              data-cultivar-input
+            />
+            <small>${this.t("cultivarHint")}</small>
+            <div class="cultivar-menu">${options}</div>
+          </label>
+        </div>
+        <div class="wizard-actions between">
+          <button class="ghost-btn" data-wizard-back type="button">Back</button>
+          <button class="primary-btn" data-wizard-next type="button">Next</button>
+        </div>
+      `;
+    }
+
+    _wizardStepThreeMarkup() {
+      const sensorFields = [
+        ["temperature_sensor", "temperature"],
+        ["humidity_sensor", "humidity"],
+        ["soil_moisture_sensor", "soil_moisture"],
+        ["conductivity_sensor", "conductivity"],
+        ["light_sensor", "light"],
+        ["energy_sensor", "energy"],
+      ];
+      return `
+        <div class="form-grid two-col">
+          <div class="field full"><span>${this.t("sensorOptional")}</span></div>
+          ${sensorFields
+            .map(
+              ([field, metric]) => `
+                <label class="field">
+                  <span>${SHARED.escapeHtml(METRIC_LABELS[metric] || metric)}</span>
+                  <input data-wizard-input="${field}" value="${SHARED.escapeHtml(this._wizardForm[field])}" placeholder="sensor.grow_${metric}" />
+                </label>
+              `
+            )
+            .join("")}
+        </div>
+        <div class="wizard-actions between">
+          <button class="ghost-btn" data-wizard-back type="button">Back</button>
+          <button class="primary-btn" data-create-run type="button" ${this._wizardBusy ? "disabled" : ""}>${this._wizardBusy ? "Creating…" : this.t("createRun")}</button>
+        </div>
+      `;
+    }
+
+    _bindingModalMarkup() {
+      if (!this._bindingDraft) {
+        return "";
+      }
+      const mode = this._bindingDraft.mode;
+      const title = mode === "add" ? this.t("addSensor") : this.t("updateBinding");
+      return `
+        <div class="modal-shell">
+          <div class="modal-backdrop" data-close-binding-modal></div>
+          <div class="modal-card small-card">
+            <div class="panel-head"><div><div class="eyebrow">${this.t("sensors")}</div><strong>${title}</strong></div></div>
+            <label class="field">
+              <span>${this.t("metricType")}</span>
+              <select data-binding-input="metric_type">
+                ${Object.keys(METRIC_LABELS).map((metric) => `<option value="${metric}" ${this._bindingDraft.metric_type === metric ? "selected" : ""}>${METRIC_LABELS[metric]}</option>`).join("")}
+              </select>
+            </label>
+            <label class="field">
+              <span>${this.t("sensorEntity")}</span>
+              <input data-binding-input="sensor_id" value="${SHARED.escapeHtml(this._bindingDraft.sensor_id || "")}" />
+            </label>
+            <div class="wizard-actions between">
+              <button class="ghost-btn" data-close-binding-modal type="button">${this.t("cancel")}</button>
+              <button class="primary-btn" data-save-binding type="button">${this.t("save")}</button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    _modalMarkup() {
+      if (!this._modal) {
+        return "";
+      }
+      return `
+        <div class="modal-shell">
+          <div class="modal-backdrop" data-dismiss-modal></div>
+          <div class="modal-card">
+            <div class="panel-head"><div><div class="eyebrow">PlantRun</div><strong>${SHARED.escapeHtml(this._modal.title)}</strong></div></div>
+            <p class="modal-copy">${SHARED.escapeHtml(this._modal.body)}</p>
+            <div class="wizard-actions between">
+              <button class="ghost-btn" data-dismiss-modal type="button">${this.t("cancel")}</button>
+              <button class="primary-btn danger" data-confirm-modal type="button">${this.t("save")}</button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    _openConfirmModal(title, body, onConfirm) {
+      this._modal = { title, body, onConfirm };
+      this.render();
+    }
+
+    async _confirmModal() {
+      const handler = this._modal?.onConfirm;
+      this._modal = null;
+      this.render();
+      if (handler) {
+        await handler();
+      }
+    }
+
+    _dismissModal() {
+      this._modal = null;
+      this.render();
+    }
+
+    _openBindingModal(runId, bindingId = null) {
+      const run = this._runById(runId);
+      const binding = bindingId ? run?.bindings?.find((item) => item.id === bindingId) : null;
+      this._bindingDraft = {
+        run_id: runId,
+        mode: binding ? "edit" : "add",
+        binding_id: binding?.id || null,
+        metric_type: binding?.metric_type || "temperature",
+        sensor_id: binding?.sensor_id || "",
+      };
+      this.render();
+    }
+
+    _closeBindingModal() {
+      this._bindingDraft = null;
+      this.render();
+    }
+
+    async _saveBindingDraft() {
+      if (!this.hass || !this._bindingDraft) {
+        return;
+      }
+      const payload = {
+        run_id: this._bindingDraft.run_id,
+        metric_type: this._bindingDraft.metric_type,
+        sensor_id: String(this._bindingDraft.sensor_id || "").trim(),
+      };
+      if (!payload.sensor_id) {
+        return;
+      }
+      if (this._bindingDraft.mode === "edit") {
+        await this.hass.callService(DOMAIN, "update_binding", {
+          ...payload,
+          binding_id: this._bindingDraft.binding_id,
+        });
+      } else {
+        await this.hass.callService(DOMAIN, "add_binding", payload);
+      }
+      this._bindingDraft = null;
+      await this._refreshRuns();
+    }
+
+    async _removeBinding(runId, bindingId) {
+      if (!this.hass) {
+        return;
+      }
+      await this.hass.callService(DOMAIN, "remove_binding", { run_id: runId, binding_id: bindingId });
+      await this._refreshRuns();
+    }
+
+    async _addPhase(runId) {
+      if (!this.hass) {
+        return;
+      }
+      await this.hass.callService(DOMAIN, "add_phase", { run_id: runId, phase_name: this._phaseDraft });
+      await this._refreshRuns();
+    }
+
+    async _endRun(runId) {
+      if (!this.hass) {
+        return;
+      }
+      await this.hass.callService(DOMAIN, "end_run", { run_id: runId });
+      await this._refreshRuns();
+    }
+
+    _startEditingNote(noteId, currentText) {
+      this._noteDrafts = { ...this._noteDrafts, [noteId]: currentText };
+      this.render();
+    }
+
+    _cancelEditingNote(noteId) {
+      const next = { ...this._noteDrafts };
+      delete next[noteId];
+      this._noteDrafts = next;
+      this.render();
+    }
+
+    async _saveNote(runId, noteId) {
+      const text = String(this._noteDrafts[noteId] || "").trim();
+      if (!text || !this.hass) {
+        return;
+      }
+      await this.hass.callService(DOMAIN, "update_note", { run_id: runId, note_id: noteId, text });
+      this._cancelEditingNote(noteId);
+      await this._refreshRuns();
+    }
+
+    async _deleteNote(runId, noteId) {
+      if (!this.hass) {
+        return;
+      }
+      await this.hass.callService(DOMAIN, "delete_note", { run_id: runId, note_id: noteId });
+      await this._refreshRuns();
+    }
+
+    async _addNote(runId) {
+      const text = String(this._newNoteText || "").trim();
+      if (!text || !this.hass) {
+        return;
+      }
+      await this.hass.callService(DOMAIN, "add_note", { run_id: runId, text });
+      this._newNoteText = "";
+      await this._refreshRuns();
+    }
+
+    async _saveDetailDraft(runId) {
+      if (!this.hass) {
+        return;
+      }
+      const run = this._runById(runId);
+      const draft = this._detailDrafts[runId];
+      if (!run || !draft) {
+        return;
+      }
+      await this.hass.callService(DOMAIN, "update_run", {
+        run_id: runId,
+        friendly_name: draft.friendly_name,
+        planted_date: draft.planted_date || undefined,
+        notes_summary: draft.notes_summary || undefined,
+        dry_yield_grams: draft.dry_yield_grams === "" ? undefined : Number(draft.dry_yield_grams),
         base_config: {
-          grow_space: normalizedForm.grow_space,
-          target_days: normalizedForm.target_days,
-          medium: normalizedForm.medium,
+          ...(run.base_config || {}),
+          target_days: Number(draft.target_days || this._targetDaysForRun(run) || 84),
+          grow_medium: draft.grow_medium,
+          grow_space: draft.grow_space,
         },
       });
-
-      this._expandedRuns = { ...this._expandedRuns, [run.id]: true };
-      this._setupOpen = false;
-      this._resetSetupForm();
-      this._toast("Run initialized.");
       await this._refreshRuns();
-    } catch (err) {
-      this._setSetupFeedback("error", `Setup failed: ${err?.message || err}`);
-      this._toast(`Setup failed: ${err?.message || err}`);
-    }
-  }
-
-  async _requestPhaseChange(run, phaseName) {
-    const currentPhase = run.phases?.length ? run.phases[run.phases.length - 1].name : "None";
-    if (String(currentPhase).toLowerCase() === String(phaseName).toLowerCase()) {
-      return;
     }
 
-    const first = window.confirm(`Request phase change: ${currentPhase} -> ${phaseName}?`);
-    if (!first) return;
-    const second = window.confirm(`Confirm phase update for run \"${run.friendly_name}\" to \"${phaseName}\".`);
-    if (!second) return;
-
-    try {
-      await this.hass.callService("plantrun", "add_phase", { run_id: run.id, phase_name: phaseName });
-      this._toast(`Phase changed to ${phaseName}.`);
-      await this._refreshRuns();
-    } catch (err) {
-      this._toast(`Phase change failed: ${err?.message || err}`);
-    }
-  }
-
-  async _addNote(runId) {
-    const text = (this._newNotes[runId] || "").trim();
-    if (!text) return;
-    try {
-      await this.hass.callService("plantrun", "add_note", { run_id: runId, text });
-      this._newNotes = { ...this._newNotes, [runId]: "" };
-      await this._refreshRuns();
-    } catch (err) {
-      this._toast(`Add note failed: ${err?.message || err}`);
-    }
-  }
-
-  _startEditNote(runId, note) {
-    const key = `${runId}:${note.id}`;
-    this._editNotes = { ...this._editNotes, [key]: note.text };
-  }
-
-  _cancelEditNote(key) {
-    const next = { ...this._editNotes };
-    delete next[key];
-    this._editNotes = next;
-  }
-
-  async _saveEditNote(runId, noteId, key) {
-    const text = (this._editNotes[key] || "").trim();
-    if (!text) return;
-    try {
-      await this.hass.callService("plantrun", "update_note", { run_id: runId, note_id: noteId, text });
-      this._cancelEditNote(key);
-      await this._refreshRuns();
-      this._toast("Note updated.");
-    } catch (err) {
-      this._toast(`Update failed: ${err?.message || err}`);
-    }
-  }
-
-  async _deleteNote(runId, noteId) {
-    if (!window.confirm("Delete this note?")) return;
-    if (!window.confirm("This action is destructive. Confirm note deletion.")) return;
-    try {
-      await this.hass.callService("plantrun", "delete_note", { run_id: runId, note_id: noteId });
-      await this._refreshRuns();
-      this._toast("Note deleted.");
-    } catch (err) {
-      this._toast(`Delete failed: ${err?.message || err}`);
-    }
-  }
-
-  async _endRun(runId) {
-    if (!window.confirm("Finish this run?")) return;
-    if (!window.confirm("Final confirmation: mark run as ended.")) return;
-    try {
-      await this.hass.callService("plantrun", "end_run", { run_id: runId });
-      await this._refreshRuns();
-      this._toast("Run finished.");
-    } catch (err) {
-      this._toast(`Finish failed: ${err?.message || err}`);
-    }
-  }
-
-  async _updateRun(runId, patch) {
-    try {
-      await this.hass.callService("plantrun", "update_run", { run_id: runId, ...patch });
-      await this._refreshRuns();
-    } catch (err) {
-      this._toast(`Update failed: ${err?.message || err}`);
-    }
-  }
-
-  async _uploadImage(runId, event) {
-    const file = event.target?.files?.[0];
-    if (!file) return;
-    const base64 = await this._fileToDataUrl(file);
-    if (!base64) return;
-
-    try {
-      await this.hass.callService("plantrun", "set_run_image", {
-        run_id: runId,
-        image_data: base64,
-        file_name: file.name,
-      });
-      await this._refreshRuns();
-      this._toast("Image uploaded.");
-    } catch (err) {
-      this._toast(`Upload failed: ${err?.message || err}`);
-    }
-  }
-
-  async _setSeedfinderImage(runId, imageUrl) {
-    try {
-      await this.hass.callService("plantrun", "set_run_image", {
-        run_id: runId,
-        image_url: imageUrl,
-        image_source: "seedfinder",
-      });
-      await this._refreshRuns();
-      this._toast("Using SeedFinder image.");
-    } catch (err) {
-      this._toast(`Image update failed: ${err?.message || err}`);
-    }
-  }
-
-  _fileToDataUrl(file) {
-    return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(String(reader.result));
-      reader.onerror = () => resolve("");
-      reader.readAsDataURL(file);
-    });
-  }
-
-  _onCultivarInput(event) {
-    const value = event?.target?.value ?? "";
-    this._setSetup("cultivar_name", value);
-    this._refreshCultivarSuggestions(value);
-  }
-
-  _onCultivarKeydown(event) {
-    if (!this._cultivarSuggestions.length) {
-      if (event.key === "Escape") {
-        this._cultivarSuggestions = [];
-        this._highlightedCultivarSuggestion = -1;
-      }
-      return;
-    }
-    if (event.key === "ArrowDown") {
-      event.preventDefault();
-      this._highlightedCultivarSuggestion = Math.min(
-        this._highlightedCultivarSuggestion + 1,
-        this._cultivarSuggestions.length - 1,
-      );
-      return;
-    }
-    if (event.key === "ArrowUp") {
-      event.preventDefault();
-      this._highlightedCultivarSuggestion = Math.max(this._highlightedCultivarSuggestion - 1, 0);
-      return;
-    }
-    if ((event.key === "Enter" || event.key === "Tab") && this._highlightedCultivarSuggestion >= 0) {
-      if (event.key === "Enter") {
-        event.preventDefault();
-      }
-      this._applyCultivarSuggestion(this._cultivarSuggestions[this._highlightedCultivarSuggestion]);
-      return;
-    }
-    if (event.key === "Escape") {
-      this._cultivarSuggestions = [];
-      this._highlightedCultivarSuggestion = -1;
-    }
-  }
-
-  _refreshCultivarSuggestions(rawQuery) {
-    const query = String(rawQuery || "").trim().toLowerCase();
-    if (!query) {
-      this._cultivarSuggestions = [];
-      this._highlightedCultivarSuggestion = -1;
-      return;
-    }
-
-    const seen = new Set();
-    const matches = [];
-    for (const run of this._runs || []) {
-      const candidate = String(run?.cultivar?.name || "").trim();
-      if (!candidate) continue;
-      const key = candidate.toLowerCase();
-      if (seen.has(key)) continue;
-      seen.add(key);
-      if (!key.includes(query) || key === query) continue;
-      matches.push(candidate);
-      if (matches.length >= 6) break;
-    }
-
-    this._cultivarSuggestions = matches;
-    this._highlightedCultivarSuggestion = matches.length ? 0 : -1;
-  }
-
-  _applyCultivarSuggestion(name) {
-    this._setSetup("cultivar_name", name);
-    this._cultivarSuggestions = [];
-    this._highlightedCultivarSuggestion = -1;
-  }
-
-  _clearCultivarSuggestionsSoon() {
-    window.setTimeout(() => {
-      this._cultivarSuggestions = [];
-      this._highlightedCultivarSuggestion = -1;
-    }, 120);
-  }
-
-  _openNewRunSetup = () => {
-    this._resetSetupForm();
-    this._setupOpen = true;
-  };
-
-  _setSetup(field, value) {
-    this._setupForm = { ...this._setupForm, [field]: value };
-    if (this._setupFeedback.message) {
-      this._setSetupFeedback("", "");
-    }
-  }
-
-  _setSetupFeedback(tone, message) {
-    this._setupFeedback = { tone, message };
-  }
-
-  _defaultSetupForm() {
-    return { ...DEFAULT_SETUP_FORM };
-  }
-
-  _resetSetupForm = () => {
-    this._setupForm = this._defaultSetupForm();
-    this._cultivarSuggestions = [];
-    this._highlightedCultivarSuggestion = -1;
-    this._setSetupFeedback("", "");
-  };
-
-  _normalizedSetupForm() {
-    return {
-      ...this._setupForm,
-      friendly_name: String(this._setupForm.friendly_name || "").trim(),
-      cultivar_name: String(this._setupForm.cultivar_name || "").trim(),
-      breeder: String(this._setupForm.breeder || "").trim(),
-      strain: String(this._setupForm.strain || "").trim(),
-      grow_space: String(this._setupForm.grow_space || "").trim(),
-      target_days: String(this._setupForm.target_days || "").trim(),
-      medium: String(this._setupForm.medium || "").trim(),
-    };
-  }
-
-  _seedfinderHint() {
-    const normalizedForm = this._normalizedSetupForm();
-    if (normalizedForm.breeder && !normalizedForm.cultivar_name && !normalizedForm.strain) {
+    _normalizeWizardData() {
       return {
-        tone: "warn",
-        message: "Breeder needs Cultivar or Strain to be useful. Add one of those, or leave Breeder blank for now.",
+        friendly_name: String(this._wizardForm.friendly_name || "").trim(),
+        planted_date: String(this._wizardForm.planted_date || "").trim(),
+        target_days: String(this._wizardForm.target_days || "").trim(),
+        grow_medium: String(this._wizardForm.grow_medium || "").trim(),
+        grow_space: String(this._wizardForm.grow_space || "").trim(),
+        cultivar_breeder: String(this._wizardForm.cultivar_breeder || "").trim(),
+        cultivar_query: String(this._wizardForm.cultivar_query || "").trim(),
       };
     }
 
-    return {
-      tone: "",
-      message: "Tip: Breeder + Strain provide the most precise SeedFinder lookup. If Strain is blank and Breeder is set, Cultivar is used as the lookup strain.",
-    };
-  }
+    _openWizard() {
+      this._wizardOpen = true;
+      this._wizardStep = 1;
+      this._page = "overview";
+      this.render();
+    }
 
-  _setNewNote(runId, value) {
-    this._newNotes = { ...this._newNotes, [runId]: value };
-  }
+    _closeWizard() {
+      this._wizardOpen = false;
+      this._wizardBusy = false;
+      this._cultivarSuggestions = [];
+      this._cultivarIndex = -1;
+      this.render();
+    }
 
-  _setEditNote(key, value) {
-    this._editNotes = { ...this._editNotes, [key]: value };
-  }
+    _setWizardField(field, value) {
+      this._wizardForm = { ...this._wizardForm, [field]: value };
+      this.render();
+    }
 
-  _shortDate(input) {
-    if (!input) return "unknown";
-    const date = new Date(input);
-    if (Number.isNaN(date.getTime())) return input;
-    return date.toLocaleDateString();
-  }
+    _wizardNext() {
+      if (this._wizardStep < 3) {
+        this._wizardStep += 1;
+        this.render();
+      }
+    }
 
-  _shortDateTime(input) {
-    if (!input) return "";
-    const date = new Date(input);
-    if (Number.isNaN(date.getTime())) return input;
-    return date.toLocaleString();
-  }
+    _wizardBack() {
+      if (this._wizardStep > 1) {
+        this._wizardStep -= 1;
+        this.render();
+      }
+    }
 
-  _runAgeDays(startInput, endInput) {
-    if (!startInput) return 0;
-    const start = new Date(startInput);
-    if (Number.isNaN(start.getTime())) return 0;
-    const end = endInput ? new Date(endInput) : new Date();
-    const endTime = Number.isNaN(end.getTime()) ? Date.now() : end.getTime();
-    const diffMs = endTime - start.getTime();
-    if (diffMs <= 0) return 1;
-    return Math.floor(diffMs / 86400000) + 1;
-  }
+    async _createRunFromWizard() {
+      if (!this.hass || this._wizardBusy) {
+        return;
+      }
+      const normalizedForm = this._normalizeWizardData();
+      if (!normalizedForm.friendly_name) {
+        return;
+      }
+      this._wizardBusy = true;
+      this.render();
+      try {
+        await this.hass.callService(DOMAIN, "create_run", {
+          friendly_name: normalizedForm.friendly_name,
+          planted_date: normalizedForm.planted_date || undefined,
+        });
+        await this._refreshRuns();
+        const createdRun = this._resolveNewlyCreatedRun(normalizedForm.friendly_name);
+        if (!createdRun) {
+          return;
+        }
+        this._lastCreatedRunId = createdRun.id;
+        await this.hass.callService(DOMAIN, "update_run", {
+          run_id: createdRun.id,
+          planted_date: normalizedForm.planted_date || undefined,
+          base_config: {
+            ...(createdRun.base_config || {}),
+            target_days: Number(normalizedForm.target_days || 84),
+            grow_medium: normalizedForm.grow_medium || "Soil",
+            grow_space: normalizedForm.grow_space || "Tent A",
+          },
+        });
+        const cultivarName = this._wizardForm.cultivar_name || normalizedForm.cultivar_query;
+        if (cultivarName) {
+          await this.hass.callService(DOMAIN, "set_cultivar", {
+            run_id: createdRun.id,
+            cultivar_name: cultivarName,
+            breeder: normalizedForm.cultivar_breeder || undefined,
+            strain: normalizedForm.cultivar_query || undefined,
+          });
+        }
+        for (const [field, metric] of [
+          ["temperature_sensor", "temperature"],
+          ["humidity_sensor", "humidity"],
+          ["soil_moisture_sensor", "soil_moisture"],
+          ["conductivity_sensor", "conductivity"],
+          ["light_sensor", "light"],
+          ["energy_sensor", "energy"],
+        ]) {
+          const sensorId = String(this._wizardForm[field] || "").trim();
+          if (!sensorId) continue;
+          await this.hass.callService(DOMAIN, "add_binding", {
+            run_id: createdRun.id,
+            metric_type: metric,
+            sensor_id: sensorId,
+          });
+        }
+        await this._refreshRuns();
+        this._wizardForm = { ...DEFAULT_WIZARD_FORM };
+        this._wizardBusy = false;
+        this._closeWizard();
+      } finally {
+        this._wizardBusy = false;
+        this.render();
+      }
+    }
 
-  _titleCase(raw) {
-    return String(raw || "").replace(/_/g, " ").replace(/\b\w/g, (m) => m.toUpperCase());
-  }
+    _resolveNewlyCreatedRun(name) {
+      const sameName = this._runs.filter((run) => run.friendly_name === name);
+      if (sameName.length === 1) {
+        return sameName[0];
+      }
+      return [...sameName].sort((a, b) => Date.parse(b.start_time || 0) - Date.parse(a.start_time || 0))[0] || this._runs.find((run) => run.id === this._activeRunId) || null;
+    }
 
-  _metricIcon(metricType) {
-    const key = String(metricType || "").toLowerCase();
-    if (key.includes("temp")) return "🌡";
-    if (key.includes("humid")) return "☁️";
-    if (key.includes("light")) return "☀️";
-    if (key.includes("soil") || key.includes("moist")) return "💧";
-    if (key.includes("energy") || key.includes("power")) return "⚡";
-    return "●";
-  }
+    async _searchCultivarSuggestions() {
+      const breeder = String(this._wizardForm.cultivar_breeder || "").trim();
+      const query = String(this._wizardForm.cultivar_query || "").trim();
+      if (!breeder || query.length < 2) {
+        this._cultivarSuggestions = [];
+        this._cultivarIndex = -1;
+        this.render();
+        return;
+      }
+      try {
+        const token = this.hass?.auth?.data?.access_token || this.hass?.auth?.data?.accessToken;
+        const response = await fetch("/api/plantrun/search_cultivar", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({ breeder, query }),
+        });
+        const payload = await response.json();
+        this._cultivarSuggestions = Array.isArray(payload?.results) ? payload.results : [];
+        this._cultivarIndex = this._cultivarSuggestions.length ? 0 : -1;
+        this.render();
+      } catch (_error) {
+        this._cultivarSuggestions = [];
+        this._cultivarIndex = -1;
+        this.render();
+      }
+    }
 
-  _fmtSummaryValue(value, digits = 2) {
-    const numeric = Number(value);
-    if (!Number.isFinite(numeric)) return "—";
-    return numeric.toFixed(digits);
-  }
+    _queueCultivarSearch() {
+      window.clearTimeout(this._searchTimer);
+      this._searchTimer = window.setTimeout(() => this._searchCultivarSuggestions(), 220);
+    }
 
-  _renderRunEnergyContext(run) {
-    const summary = this._runSummaries?.[run.id];
-    if (!summary) return null;
+    _selectCultivarSuggestion(index) {
+      const item = this._cultivarSuggestions[index];
+      if (!item) {
+        return;
+      }
+      this._wizardForm = {
+        ...this._wizardForm,
+        cultivar_name: item.name || "",
+        cultivar_query: item.name || this._wizardForm.cultivar_query,
+      };
+      this._cultivarIndex = index;
+      this._cultivarSuggestions = [];
+      this.render();
+    }
 
-    const energy = this._fmtSummaryValue(summary.energy_kwh, 2);
-    const cost = this._fmtSummaryValue(summary.energy_cost, 2);
-    const currency = summary.energy_currency || "EUR";
-    const pricePerKwh = this._fmtSummaryValue(summary.energy_price_per_kwh, 3);
+    _onCultivarKeydown(event) {
+      if (!this._cultivarSuggestions.length) {
+        return;
+      }
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        this._cultivarIndex = Math.min(this._cultivarSuggestions.length - 1, this._cultivarIndex + 1);
+        this.render();
+        return;
+      }
+      if (event.key === "ArrowUp") {
+        event.preventDefault();
+        this._cultivarIndex = Math.max(0, this._cultivarIndex - 1);
+        this.render();
+        return;
+      }
+      if (event.key === "Enter" || event.key === "Tab") {
+        if (this._cultivarIndex >= 0) {
+          event.preventDefault();
+          this._selectCultivarSuggestion(this._cultivarIndex);
+        }
+        return;
+      }
+      if (event.key === "Escape") {
+        this._cultivarSuggestions = [];
+        this._cultivarIndex = -1;
+        this.render();
+      }
+    }
 
-    return html`
-      <div class="run-energy">
-        <div class="run-energy-row">
-          <span>Run energy window</span>
-          <span>${energy} kWh</span>
+    _clearCultivarSuggestionsSoon() {
+      window.clearTimeout(this._suggestionClearTimer);
+      this._suggestionClearTimer = window.setTimeout(() => {
+        this._cultivarSuggestions = [];
+        this._cultivarIndex = -1;
+        this.render();
+      }, 130);
+    }
+
+    _handleDelegatedClick(event) {
+      const target = event.target.closest("[data-page],[data-theme],[data-lang],[data-grid],[data-filter],[data-open-run],[data-toggle-expand],[data-open-wizard],[data-close-wizard],[data-wizard-next],[data-wizard-back],[data-target-chip],[data-close-detail],[data-open-entity],[data-open-binding-add],[data-edit-binding],[data-remove-binding],[data-save-binding],[data-close-binding-modal],[data-add-phase],[data-end-run],[data-edit-note],[data-save-note],[data-cancel-note],[data-delete-note],[data-add-note],[data-cultivar-index],[data-dismiss-modal],[data-confirm-modal],[data-create-run],[data-detail-layout],[data-save-detail]");
+      if (!target) {
+        return;
+      }
+      if (target.dataset.page) {
+        this._page = target.dataset.page;
+        this.render();
+      }
+      if (target.dataset.theme) this._toggleTheme(target.dataset.theme);
+      if (target.dataset.lang) this._toggleLanguage(target.dataset.lang);
+      if (target.dataset.grid) this._toggleGrid(target.dataset.grid);
+      if (target.dataset.filter) this._setFilter(target.dataset.filter);
+      if (target.dataset.openRun) this._openDetail(target.dataset.openRun);
+      if (target.dataset.toggleExpand) this._toggleRunExpansion(target.dataset.toggleExpand);
+      if (target.dataset.openWizard !== undefined) this._openWizard();
+      if (target.dataset.closeWizard !== undefined) this._closeWizard();
+      if (target.dataset.wizardNext !== undefined) this._wizardNext();
+      if (target.dataset.wizardBack !== undefined) this._wizardBack();
+      if (target.dataset.targetChip) this._setWizardField("target_days", target.dataset.targetChip);
+      if (target.dataset.closeDetail !== undefined) this._closeDetail();
+      if (target.dataset.openEntity) this._openEntity(target.dataset.openEntity);
+      if (target.dataset.openBindingAdd) this._openBindingModal(target.dataset.openBindingAdd);
+      if (target.dataset.editBinding) this._openBindingModal(target.dataset.run, target.dataset.editBinding);
+      if (target.dataset.removeBinding) {
+        this._openConfirmModal(this.t("removeBinding"), this.t("confirmRemoveBinding"), () => this._removeBinding(target.dataset.run, target.dataset.removeBinding));
+      }
+      if (target.dataset.saveBinding !== undefined) this._saveBindingDraft();
+      if (target.dataset.closeBindingModal !== undefined) this._closeBindingModal();
+      if (target.dataset.addPhase) this._addPhase(target.dataset.addPhase);
+      if (target.dataset.endRun) {
+        this._openConfirmModal(this.t("endRun"), this.t("confirmEndRun"), () => this._endRun(target.dataset.endRun));
+      }
+      if (target.dataset.editNote) {
+        const run = this._runById(this._detailRunId);
+        const note = run?.notes?.find((item) => item.id === target.dataset.editNote);
+        this._startEditingNote(target.dataset.editNote, note?.text || "");
+      }
+      if (target.dataset.saveNote) this._saveNote(target.dataset.run, target.dataset.saveNote);
+      if (target.dataset.cancelNote) this._cancelEditingNote(target.dataset.cancelNote);
+      if (target.dataset.deleteNote) {
+        this._openConfirmModal(this.t("delete"), this.t("confirmDeleteNote"), () => this._deleteNote(target.dataset.run, target.dataset.deleteNote));
+      }
+      if (target.dataset.addNote) this._addNote(target.dataset.addNote);
+      if (target.dataset.cultivarIndex) this._selectCultivarSuggestion(Number(target.dataset.cultivarIndex));
+      if (target.dataset.dismissModal !== undefined) this._dismissModal();
+      if (target.dataset.confirmModal !== undefined) this._confirmModal();
+      if (target.dataset.createRun !== undefined) this._createRunFromWizard();
+      if (target.dataset.detailLayout) this._toggleDetailLayout(target.dataset.detailLayout);
+      if (target.dataset.saveDetail) this._saveDetailDraft(target.dataset.saveDetail);
+    }
+
+    _handleInput(event) {
+      const target = event.target;
+      if (target.matches("[data-wizard-input]")) {
+        this._setWizardField(target.dataset.wizardInput, target.value);
+        if (target.dataset.wizardInput === "cultivar_query" || target.dataset.wizardInput === "cultivar_breeder") {
+          this._queueCultivarSearch();
+        }
+      }
+      if (target.matches("[data-binding-input]")) {
+        this._bindingDraft = { ...this._bindingDraft, [target.dataset.bindingInput]: target.value };
+      }
+      if (target.matches("[data-new-note]")) {
+        this._newNoteText = target.value;
+      }
+      if (target.matches("[data-note-edit]")) {
+        this._noteDrafts = { ...this._noteDrafts, [target.dataset.noteEdit]: target.value };
+      }
+      if (target.matches("[data-phase-draft]")) {
+        this._phaseDraft = target.value;
+      }
+      if (target.matches("[data-detail-input]")) {
+        const runId = target.dataset.run;
+        this._detailDrafts = {
+          ...this._detailDrafts,
+          [runId]: {
+            ...(this._detailDrafts[runId] || {}),
+            [target.dataset.detailInput]: target.value,
+          },
+        };
+      }
+    }
+
+    _bindInteractions() {
+      this.shadowRoot.onclick = (event) => this._handleDelegatedClick(event);
+      this.shadowRoot.oninput = (event) => this._handleInput(event);
+      this.shadowRoot.onchange = (event) => this._handleInput(event);
+
+      this.shadowRoot.querySelectorAll("[data-cultivar-input]").forEach((input) => {
+        input.onkeydown = (event) => this._onCultivarKeydown(event);
+        input.onblur = () => this._clearCultivarSuggestionsSoon();
+        input.onfocus = () => {
+          if (this._cultivarSuggestions.length) this.render();
+        };
+      });
+
+      this.shadowRoot.querySelectorAll("[data-cultivar-index]").forEach((button) => {
+        // @mousedown=${(e) => e.preventDefault()}
+        button.onmousedown = (event) => event.preventDefault();
+      });
+
+      this.shadowRoot.querySelectorAll("[data-press-target='sensor']").forEach((button) => {
+        const runId = button.dataset.run;
+        const entityId = button.dataset.entity;
+        // @click=${(e) => e.preventDefault()}
+        button.onclick = (e) => e.preventDefault();
+        button.onpointerdown = () => this._sensorPressStart(runId, entityId);
+        button.onpointerup = () => this._sensorPressEnd(runId, entityId);
+        button.onpointerleave = () => this._sensorPressCancel(runId, entityId);
+        button.onpointercancel = () => this._sensorPressCancel(runId, entityId);
+      });
+    }
+
+    _overviewMarkup() {
+      const runs = this._filteredRuns();
+      if (!runs.length) {
+        return this._emptyStateMarkup();
+      }
+      return `
+        <section class="overview-grid ${this._gridMode}">
+          ${runs.map((run) => this._runCardMarkup(run)).join("")}
+        </section>
+      `;
+    }
+
+    render() {
+      if (!this.hass) return;
+
+      const detailRun = this._runById(this._detailRunId);
+      this.shadowRoot.innerHTML = `
+        <style>
+          :host {
+            display: block;
+            color: var(--primary-text-color, #edf4ff);
+            --bg-dark: #0a1015;
+            --bg-dark-soft: rgba(17, 24, 31, 0.84);
+            --bg-light: #f4f7f2;
+            --bg-light-soft: rgba(255, 255, 255, 0.88);
+            --line-dark: rgba(255, 255, 255, 0.08);
+            --line-light: rgba(17, 24, 31, 0.08);
+            --accent: #5ed37a;
+            --accent-2: #2b9a4a;
+            --text-dark: #ecf5ef;
+            --text-light: #102117;
+            --muted-dark: rgba(236, 245, 239, 0.72);
+            --muted-light: rgba(16, 33, 23, 0.7);
+            font-family: var(--primary-font-family, Inter, system-ui, sans-serif);
+          }
+          .shell {
+            min-height: 100vh;
+            box-sizing: border-box;
+            padding: clamp(16px, 2vw, 28px);
+            background:
+              radial-gradient(circle at top right, rgba(103, 223, 115, 0.16), transparent 24%),
+              linear-gradient(180deg, ${this._theme === "dark" ? "var(--bg-dark)" : "var(--bg-light)"}, ${this._theme === "dark" ? "#111923" : "#eef4ea"});
+            color: ${this._theme === "dark" ? "var(--text-dark)" : "var(--text-light)"};
+          }
+          .topbar,
+          .filters,
+          .wizard-shell,
+          .run-card,
+          .empty-state,
+          .panel-block,
+          .overlay-card,
+          .modal-card {
+            backdrop-filter: blur(18px);
+            background: ${this._theme === "dark" ? "var(--bg-dark-soft)" : "var(--bg-light-soft)"};
+            border: 1px solid ${this._theme === "dark" ? "var(--line-dark)" : "var(--line-light)"};
+            box-shadow: 0 18px 40px rgba(0, 0, 0, ${this._theme === "dark" ? 0.34 : 0.08});
+          }
+          .topbar {
+            display: grid;
+            grid-template-columns: auto 1fr auto;
+            gap: 18px;
+            align-items: center;
+            padding: 18px;
+            border-radius: 28px;
+          }
+          .brand { display:flex; gap:14px; align-items:center; min-width:0; }
+          .brand-logo { width:44px; height:44px; }
+          .brand-name { font-size: 1.1rem; font-weight: 800; }
+          .brand-subtitle { opacity: 0.72; font-size: 0.9rem; }
+          .nav-actions, .filter-row, .control-bar, .control-group, .wizard-actions, .note-actions, .detail-toolbar-actions, .inline-form, .run-card-actions, .binding-row-right { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+          .nav-btn, .seg, .filter-chip, .ghost-btn, .primary-btn, .preset, .cultivar-option, .run-card-hit, .sensor-tile {
+            font: inherit;
+          }
+          button {
+            cursor: pointer;
+          }
+          .nav-btn, .seg, .filter-chip, .ghost-btn, .preset {
+            border-radius: 999px;
+            border: 1px solid ${this._theme === "dark" ? "rgba(255,255,255,0.1)" : "rgba(17,24,31,0.08)"};
+            background: ${this._theme === "dark" ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.64)"};
+            color: inherit;
+            padding: 10px 13px;
+          }
+          .nav-btn.active, .seg.active, .filter-chip.active, .preset.on {
+            background: linear-gradient(135deg, rgba(94,211,122,0.25), rgba(43,154,74,0.28));
+            border-color: rgba(94,211,122,0.5);
+          }
+          .primary-btn {
+            border: none;
+            border-radius: 999px;
+            background: linear-gradient(135deg, var(--accent), var(--accent-2));
+            color: white;
+            padding: 11px 16px;
+          }
+          .primary-btn.small, .ghost-btn.small { padding: 8px 12px; font-size: 0.86rem; }
+          .ghost-btn.danger, .primary-btn.danger { background: ${this._theme === "dark" ? "rgba(255,95,95,0.14)" : "rgba(255,95,95,0.12)"}; color: ${this._theme === "dark" ? "#ffc0c0" : "#8d2222"}; border-color: rgba(255,95,95,0.3); }
+          .control-bar { justify-content: flex-end; }
+          .control-group { padding: 6px 8px; border-radius: 999px; background: ${this._theme === "dark" ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.56)"}; }
+          .control-group span { opacity: 0.7; font-size: 0.82rem; }
+          .filters { margin-top: 18px; border-radius: 24px; padding: 16px 18px; }
+          .eyebrow { text-transform: uppercase; letter-spacing: 0.14em; font-size: 0.72rem; opacity: 0.7; }
+          .overview-grid { margin-top: 18px; display:grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+          .overview-grid.compact { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+          .run-card { border-radius: 28px; padding: 16px; display:grid; gap: 12px; }
+          .run-card-hit { width:100%; border:none; background:none; padding:0; color:inherit; display:grid; gap: 16px; grid-template-columns: 108px 1fr; text-align:left; }
+          .run-card.comfy .run-card-hit { grid-template-columns: 120px 1fr; }
+          .run-card-art { border-radius: 24px; overflow:hidden; background: radial-gradient(circle at 20% 20%, rgba(94,211,122,0.22), transparent 52%), ${this._theme === "dark" ? "rgba(255,255,255,0.03)" : "rgba(255,255,255,0.72)"}; min-height: 120px; display:grid; place-items:center; }
+          .run-card-art img, .wizard-preview-art img, .wizard-preview-mini img, .overlay-art img, .empty-art img { width: 100%; height: 100%; object-fit: contain; padding: 10px; }
+          .run-card-copy { display:grid; gap: 10px; min-width:0; }
+          .run-card-top { display:flex; justify-content:space-between; gap: 12px; align-items:start; }
+          .run-card-top h3 { margin: 3px 0 0; font-size: 1.12rem; line-height: 1.2; }
+          .phase-pill { border-radius: 999px; padding: 7px 10px; background: ${this._theme === "dark" ? "rgba(255,255,255,0.07)" : "rgba(255,255,255,0.65)"}; font-size: 0.8rem; }
+          .run-meta { opacity: 0.78; }
+          .run-stats-row { display:grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 8px; }
+          .mini-stat, .detail-stat { border-radius: 18px; padding: 10px 12px; background: ${this._theme === "dark" ? "rgba(255,255,255,0.05)" : "rgba(255,255,255,0.64)"}; }
+          .mini-stat span, .detail-stat span { display:block; font-size: 0.74rem; opacity: 0.68; text-transform: uppercase; letter-spacing: 0.08em; }
+          .mini-stat strong, .detail-stat strong { display:block; margin-top: 4px; }
+          .mini-phase-track { display:flex; gap: 8px; }
+          .phase-dot { width: 28px; height: 28px; border-radius: 50%; display:grid; place-items:center; background: ${this._theme === "dark" ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.7)"}; font-size: 0.82rem; }
+          .phase-dot.active { background: linear-gradient(135deg, rgba(94,211,122,0.4), rgba(43,154,74,0.26)); }
+          .run-card-actions { justify-content: space-between; }
+          .expanded-grid { display:grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+          .expanded-block { border-radius: 18px; padding: 12px; background: ${this._theme === "dark" ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.56)"}; }
+          .expanded-block p { margin: 5px 0 0; opacity: 0.76; line-height: 1.4; }
+          .empty-state { margin-top: 18px; border-radius: 28px; padding: 22px; display:grid; grid-template-columns: 1.1fr 1fr; gap: 18px; align-items:center; }
+          .empty-copy h2 { margin: 8px 0 10px; font-size: clamp(1.5rem, 3vw, 2.2rem); }
+          .empty-copy p { opacity: 0.78; max-width: 42ch; line-height: 1.6; }
+          .empty-art-grid { display:grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px; align-items:end; }
+          .empty-art { border-radius: 22px; min-height: 96px; overflow:hidden; background: ${this._theme === "dark" ? "rgba(255,255,255,0.05)" : "rgba(255,255,255,0.78)"}; }
+          .empty-art.art-2, .empty-art.art-5 { transform: translateY(12px); }
+          .empty-art.art-3, .empty-art.art-6 { transform: translateY(-8px); }
+          .wizard-shell { margin-top: 18px; border-radius: 28px; padding: 22px; display:grid; gap: 18px; }
+          .wizard-grid { display:grid; grid-template-columns: 1.25fr 0.75fr; gap: 16px; }
+          .wizard-preview { display:grid; gap: 12px; }
+          .wizard-preview-art, .wizard-preview-mini { border-radius: 24px; overflow:hidden; min-height: 220px; background: ${this._theme === "dark" ? "rgba(255,255,255,0.05)" : "rgba(255,255,255,0.78)"}; }
+          .wizard-preview-stack { display:grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+          .wizard-preview-mini { min-height: 94px; }
+          .form-grid { display:grid; gap: 14px; }
+          .form-grid.two-col { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+          .field { display:grid; gap: 8px; }
+          .field.full { grid-column: 1 / -1; }
+          .field span { font-size: 0.86rem; font-weight: 700; }
+          .field small { opacity: 0.68; }
+          input, select, textarea {
+            width: 100%; box-sizing: border-box; border-radius: 16px; padding: 12px 13px;
+            border: 1px solid ${this._theme === "dark" ? "rgba(255,255,255,0.08)" : "rgba(17,24,31,0.08)"};
+            background: ${this._theme === "dark" ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.84)"};
+            color: inherit; font: inherit;
+          }
+          textarea { min-height: 92px; resize: vertical; }
+          .chip-row { display:flex; gap: 8px; flex-wrap:wrap; }
+          .cultivar-field { position: relative; }
+          .cultivar-menu { display:grid; gap: 8px; margin-top: 10px; }
+          .cultivar-option { text-align:left; border-radius: 16px; border: 1px solid ${this._theme === "dark" ? "rgba(255,255,255,0.08)" : "rgba(17,24,31,0.08)"}; background: ${this._theme === "dark" ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.72)"}; padding: 11px 12px; display:grid; gap: 4px; }
+          .cultivar-option.active { border-color: rgba(94,211,122,0.5); background: linear-gradient(135deg, rgba(94,211,122,0.2), rgba(43,154,74,0.18)); }
+          .wizard-actions.between { justify-content: space-between; }
+          .overlay, .modal-shell { position: fixed; inset: 0; z-index: 10; }
+          .overlay-backdrop, .modal-backdrop { position:absolute; inset:0; background: rgba(0,0,0,0.5); }
+          .overlay-card {
+            position: absolute; inset: 24px; border-radius: 32px; padding: 22px; overflow:auto; display:grid; gap: 18px;
+          }
+          .overlay-card.stack .detail-grid { grid-template-columns: 1fr; }
+          .overlay-close { position:absolute; top:16px; right:16px; border:none; background: ${this._theme === "dark" ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.72)"}; color:inherit; width:40px; height:40px; border-radius:50%; font-size: 1.2rem; }
+          .overlay-hero { display:grid; grid-template-columns: 1.1fr 0.9fr; gap: 16px; }
+          .overlay-hero-copy h2 { margin: 8px 0 6px; font-size: clamp(1.4rem, 2vw, 2.2rem); }
+          .overlay-hero-copy p { margin: 0; opacity: 0.78; }
+          .overlay-art-stack { display:grid; grid-template-columns: 1.2fr 0.8fr; gap: 10px; }
+          .overlay-art { border-radius: 24px; overflow:hidden; min-height: 200px; background: ${this._theme === "dark" ? "rgba(255,255,255,0.05)" : "rgba(255,255,255,0.82)"}; }
+          .detail-stats-row { margin-top: 16px; display:grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 10px; }
+          .detail-toolbar { display:flex; justify-content:space-between; gap: 12px; align-items:center; flex-wrap:wrap; }
+          .control-group.compact-inline { padding: 0; background: transparent; }
+          .detail-grid { display:grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+          .panel-block { border-radius: 24px; padding: 16px; display:grid; gap: 14px; }
+          .panel-head { display:flex; justify-content:space-between; gap:10px; align-items:center; }
+          .sensor-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+          .sensor-tile { border:none; text-align:left; border-radius: 20px; padding: 14px; display:grid; gap: 12px; background: ${this._theme === "dark" ? "rgba(255,255,255,0.05)" : "rgba(255,255,255,0.72)"}; color: inherit; }
+          .sensor-top, .sensor-status-row, .history-panel-head, .binding-row, .note-actions.bottom { display:flex; justify-content:space-between; gap: 12px; align-items:center; }
+          .sensor-label { font-weight: 700; }
+          .sensor-entity { opacity: 0.68; font-size: 0.8rem; }
+          .sensor-value { font-size: 1.05rem; font-weight: 800; }
+          .range-bar { position: relative; height: 8px; }
+          .range-track, .range-fill { position:absolute; inset:0; border-radius:999px; }
+          .range-track { background: ${this._theme === "dark" ? "rgba(255,255,255,0.08)" : "rgba(17,24,31,0.08)"}; }
+          .range-fill.ok { background: linear-gradient(135deg, #5ed37a, #1f8a47); }
+          .range-fill.warn { background: linear-gradient(135deg, #ffd166, #ff9f1c); }
+          .range-fill.high { background: linear-gradient(135deg, #ff8c7f, #ff5d5d); }
+          .sensor-status.ok { color: #73e18e; }
+          .sensor-status.warn { color: #ffc75e; }
+          .sensor-status.high { color: #ff9d9d; }
+          .sparkline { width: 100%; height: 54px; }
+          .sparkline-grid { fill:none; stroke:${this._theme === "dark" ? "rgba(255,255,255,0.14)" : "rgba(17,24,31,0.12)"}; stroke-width: 1; }
+          .sparkline-line { fill:none; stroke: var(--accent); stroke-width: 2.4; stroke-linecap:round; stroke-linejoin:round; }
+          .sparkline-empty, .history-panel-empty, .empty-list { opacity: 0.7; }
+          .history-panel-card { border-radius: 20px; padding: 14px; background: ${this._theme === "dark" ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.68)"}; }
+          .notes-list, .timeline-list { display:grid; gap: 10px; }
+          .note-card, .binding-row, .history-panel-card, .timeline-item { border-radius: 18px; padding: 12px; background: ${this._theme === "dark" ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.68)"}; }
+          .note-meta { opacity: 0.62; font-size: 0.82rem; }
+          .note-text { line-height: 1.55; }
+          .timeline-item { display:grid; grid-template-columns: 18px 1fr; gap: 12px; align-items:start; }
+          .timeline-dot { width: 10px; height: 10px; border-radius:50%; margin-top: 6px; background: rgba(94,211,122,0.9); box-shadow: 0 0 0 6px rgba(94,211,122,0.14); }
+          .timeline-item.active .timeline-dot { background: #ffd166; box-shadow: 0 0 0 6px rgba(255,209,102,0.16); }
+          .binding-row-right { justify-content:flex-end; }
+          .modal-card { position:absolute; left:50%; top:50%; transform:translate(-50%, -50%); width:min(92vw, 520px); border-radius: 26px; padding: 18px; display:grid; gap: 14px; }
+          .modal-card.small-card { width:min(92vw, 460px); }
+          .modal-copy { margin:0; line-height:1.55; opacity:0.82; }
+          @media (max-width: 980px) {
+            .topbar { grid-template-columns: 1fr; }
+            .control-bar { justify-content: flex-start; }
+            .wizard-grid, .empty-state, .overlay-hero, .detail-grid, .expanded-grid { grid-template-columns: 1fr; }
+            .detail-stats-row { grid-template-columns: repeat(2, minmax(0,1fr)); }
+            .overlay-art-stack { grid-template-columns: 1fr 1fr; }
+          }
+          @media (max-width: 760px) {
+            .shell { padding: 12px; }
+            .run-card-hit { grid-template-columns: 88px 1fr; }
+            .overview-grid, .sensor-grid { grid-template-columns: 1fr; }
+            .detail-stats-row, .run-stats-row, .form-grid.two-col { grid-template-columns: 1fr; }
+            .overlay-card { inset: 12px; padding: 16px; border-radius: 24px; }
+            .overlay-art-stack { grid-template-columns: 1fr; }
+            .wizard-preview-stack { grid-template-columns: repeat(3, 1fr); }
+          }
+        </style>
+        <div class="shell ${this._theme}">
+          ${this._renderNav()}
+          ${this._wizardStepMarkup()}
+          ${this._renderFilters()}
+          ${this._overviewMarkup()}
         </div>
-        <div class="run-energy-row">
-          <span>Estimated run cost</span>
-          <span>${cost} ${currency}</span>
-        </div>
-        <div class="range-copy">Based on summary setting: ${pricePerKwh} ${currency}/kWh.</div>
-      </div>
-    `;
-  }
-
-  _targetDaysForRun(run) {
-    const rawTarget = run?.base_config?.target_days ?? run?.target_days ?? "84";
-    const targetDays = Number.parseInt(String(rawTarget), 10);
-    if (!Number.isFinite(targetDays) || targetDays <= 0) {
-      return null;
-    }
-    return targetDays;
-  }
-
-  _renderProgressContext(run, runAgeDays) {
-    const targetDays = this._targetDaysForRun(run);
-    if (!targetDays || !runAgeDays) {
-      return null;
-    }
-
-    const progress = Math.max(0, Math.min(100, Math.round((runAgeDays / targetDays) * 100)));
-    return html`
-      <div class="progress-context">
-        <div class="progress-copy">
-          <span>Day ${runAgeDays} / ${targetDays}</span>
-          <span>${progress}%</span>
-        </div>
-        <div class="progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow=${progress}>
-          <div class="progress-fill" style=${`width:${progress}%`}></div>
-        </div>
-      </div>
-    `;
-  }
-
-  _renderSensorRangeBar(sensor) {
-    const metric = String(sensor?.metric_type || "").toLowerCase();
-    const numeric = Number(sensor?.state);
-    if (!Number.isFinite(numeric)) return null;
-
-    let min = null;
-    let max = null;
-    if (metric.includes("temp")) {
-      min = 20;
-      max = 28;
-    } else if (metric.includes("humid")) {
-      min = 45;
-      max = 60;
-    } else if (metric.includes("soil") || metric.includes("moist")) {
-      min = 30;
-      max = 60;
-    }
-    if (min === null || max === null) return null;
-
-    const span = max - min;
-    const normalized = ((numeric - min) / span) * 100;
-    const width = Math.max(0, Math.min(100, normalized));
-    const status = numeric < min ? "below" : numeric > max ? "above" : "in_range";
-    const statusClass = status === "below" ? "warn" : status === "above" ? "high" : "ok";
-    const statusLabel = status === "below" ? "Below target" : status === "above" ? "Above target" : "In range";
-
-    return html`
-      <div class="range-track" aria-hidden="true">
-        <div class="range-fill ${statusClass}" style=${`width:${width}%`}></div>
-      </div>
-      <div class="range-copy">Target range ${min}-${max}${sensor.unit ? ` ${sensor.unit}` : ""}</div>
-      <div class="range-status">${statusLabel}</div>
-    `;
-  }
-
-  _sensorPressKey(runId, entityId) {
-    return `${runId}:${entityId}`;
-  }
-
-  _sensorPressStart(event, runId, entityId) {
-    event?.preventDefault?.();
-    const key = this._sensorPressKey(runId, entityId);
-    const current = this._pressState[key];
-    if (current?.timer) {
-      window.clearTimeout(current.timer);
-    }
-
-    const state = { longPressTriggered: false, timer: null };
-    state.timer = window.setTimeout(() => {
-      state.longPressTriggered = true;
-      this._openEntity(entityId);
-    }, 450);
-    this._pressState = { ...this._pressState, [key]: state };
-  }
-
-  _sensorPressEnd(event, runId, entityId) {
-    event?.preventDefault?.();
-    const key = this._sensorPressKey(runId, entityId);
-    const state = this._pressState[key];
-    if (!state) return;
-
-    if (state.timer) {
-      window.clearTimeout(state.timer);
-    }
-
-    const wasLongPress = !!state.longPressTriggered;
-    const next = { ...this._pressState };
-    delete next[key];
-    this._pressState = next;
-
-    if (!wasLongPress) {
-      this._openRunHistory(runId, entityId);
+        ${this._bindingModalMarkup()}
+        ${this._modalMarkup()}
+        ${this._detailOverlayMarkup(detailRun)}
+      `;
+      this._bindInteractions();
     }
   }
 
-  _sensorPressCancel(event, runId, entityId) {
-    event?.preventDefault?.();
-    const key = this._sensorPressKey(runId, entityId);
-    const state = this._pressState[key];
-    if (!state) return;
-    if (state.timer) {
-      window.clearTimeout(state.timer);
-    }
-    const next = { ...this._pressState };
-    delete next[key];
-    this._pressState = next;
-  }
-
-  _openRunHistory(runId, entityId) {
-    const run = this._runs.find((item) => item.id === runId);
-    const start = run?.start_time ? new Date(run.start_time) : null;
-    const end = run?.end_time ? new Date(run.end_time) : new Date();
-
-    const startIso = start && !Number.isNaN(start.getTime()) ? start.toISOString() : "";
-    const endIso = end && !Number.isNaN(end.getTime()) ? end.toISOString() : "";
-    const params = new URLSearchParams({ entity_id: entityId });
-    if (startIso) params.set("start_time", startIso);
-    if (endIso) params.set("end_time", endIso);
-
-    window.history.pushState(null, "", `/history?${params.toString()}`);
-    window.dispatchEvent(new Event("location-changed"));
-  }
-
-  _toast(message) {
-    const event = new CustomEvent("hass-notification", {
-      bubbles: true,
-      composed: true,
-      detail: { message },
-    });
-    this.dispatchEvent(event);
-  }
-}
-
-customElements.define("plantrun-dashboard-panel", PlantRunDashboardPanel);
+  customElements.define(PANEL_TAG, PlantRunDashboardPanel);
+})();

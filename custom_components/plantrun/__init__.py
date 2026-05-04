@@ -11,8 +11,25 @@ from typing import Any
 
 import voluptuous as vol
 
+try:
+    from aiohttp import web
+except Exception:  # pragma: no cover - lightweight test stubs may not provide aiohttp.web
+    class _WebCompat:
+        @staticmethod
+        def json_response(payload: Any, status: int = 200) -> dict[str, Any]:
+            return {"status": status, "payload": payload}
+
+    web = _WebCompat()
+
 from homeassistant.components import frontend, websocket_api
-from homeassistant.components.http import StaticPathConfig
+try:
+    from homeassistant.components.http import HomeAssistantView, StaticPathConfig
+except ImportError:  # pragma: no cover - compatibility for test stubs
+    from homeassistant.components.http import StaticPathConfig
+
+    class HomeAssistantView:  # type: ignore[no-redef]
+        requires_auth = True
+
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import ServiceValidationError
@@ -35,11 +52,19 @@ from .const import (
 )
 from .coordinator import PlantRunCoordinator
 from .models import Binding, CultivarSnapshot, Note, Phase, RunData
-from .providers_seedfinder import async_fetch_cultivar_image, async_search_cultivar
+from . import providers_seedfinder as _providers_seedfinder
 from .retention import async_capture_daily_rollup, get_summary_with_rollup_fallback
 from .run_resolution import resolve_run_or_raise
 from .store import PlantRunStorage
 from .summary import summary_energy_preferences_from_options
+
+async_fetch_cultivar_image = _providers_seedfinder.async_fetch_cultivar_image
+async_search_cultivar = _providers_seedfinder.async_search_cultivar
+async_search_cultivar_by_query = getattr(
+    _providers_seedfinder,
+    "async_search_cultivar_by_query",
+    _providers_seedfinder.async_search_cultivar,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -160,6 +185,36 @@ async def websocket_get_run_summary(
     )
 
 
+class PlantRunSearchView(HomeAssistantView):
+    """HTTP endpoint used by the rebuilt frontend for live cultivar search."""
+
+    url = "/api/plantrun/search_cultivar"
+    name = "api:plantrun:search_cultivar"
+    requires_auth = True
+
+    def __init__(self, hass: HomeAssistant) -> None:
+        self.hass = hass
+
+    async def post(self, request: Any) -> Any:
+        """Return scored cultivar suggestions for breeder/query pairs."""
+        payload = await request.json()
+        breeder = str(payload.get("breeder", "")).strip()
+        query = str(
+            payload.get("query")
+            or payload.get("cultivar")
+            or payload.get("cultivar_name")
+            or payload.get("strain")
+            or ""
+        ).strip()
+
+        if not breeder or not query:
+            return web.json_response({"results": []})
+
+        session = async_get_clientsession(self.hass)
+        results = await async_search_cultivar_by_query(breeder, query, session=session)
+        return web.json_response({"results": [result.to_dict() for result in results[:5]]})
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up PlantRun from a config entry."""
     hass.data.setdefault(DOMAIN, {})
@@ -210,6 +265,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         websocket_api.async_register_command(hass, websocket_get_runs)
         websocket_api.async_register_command(hass, websocket_get_run_summary)
         hass.data[DOMAIN]["_ws_registered"] = True
+
+    if not hass.data[DOMAIN].get("_search_view_registered"):
+        search_view = PlantRunSearchView(hass)
+        if hasattr(hass.http, "register_view"):
+            hass.http.register_view(search_view)
+        elif hasattr(hass.http, "async_register_view"):
+            await hass.http.async_register_view(search_view)
+        hass.data[DOMAIN]["_search_view_registered"] = True
 
     storage = PlantRunStorage(hass)
     await storage.async_load()
@@ -447,6 +510,98 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             binding.id,
         )
 
+    def resolve_binding_from_call(call: ServiceCall, run: RunData) -> Binding:
+        """Resolve a binding from explicit binding id or exact metric/sensor match."""
+        binding_id = str(call.data.get("binding_id", "")).strip()
+        if binding_id:
+            binding = next((item for item in run.bindings if item.id == binding_id), None)
+            if binding is None:
+                raise ServiceValidationError(
+                    f"Binding '{binding_id}' not found on run '{run.id}'."
+                )
+            return binding
+
+        metric_type = str(call.data.get("metric_type", "")).strip()
+        sensor_id = str(call.data.get("sensor_id", "")).strip()
+        binding = next(
+            (
+                item
+                for item in run.bindings
+                if item.metric_type == metric_type and item.sensor_id == sensor_id
+            ),
+            None,
+        )
+        if binding is None:
+            raise ServiceValidationError(
+                "Binding lookup failed. Provide binding_id or the exact metric_type + sensor_id pair."
+            )
+        return binding
+
+    async def handle_remove_binding(call: ServiceCall) -> None:
+        """Handle the remove_binding service without deleting sensor history."""
+        run = resolve_target_run(call)
+        binding = resolve_binding_from_call(call, run)
+
+        run.bindings = [item for item in run.bindings if item.id != binding.id]
+        await storage.async_update_run(run)
+        await refresh_after_update()
+        _LOGGER.info(
+            "Removed binding %s from run %s (metric_type=%s, sensor_id=%s)",
+            binding.id,
+            run.id,
+            binding.metric_type,
+            binding.sensor_id,
+        )
+
+    async def handle_update_binding(call: ServiceCall) -> None:
+        """Handle the update_binding service for existing run bindings."""
+        run = resolve_target_run(call)
+        binding = resolve_binding_from_call(call, run)
+
+        new_metric_type = str(call.data["metric_type"]).strip()
+        new_sensor_id = str(call.data["sensor_id"]).strip()
+
+        if new_metric_type not in ALLOWED_METRIC_TYPES:
+            raise ServiceValidationError(
+                f"Unsupported metric_type '{new_metric_type}'. Allowed values: {', '.join(ALLOWED_METRIC_TYPES)}."
+            )
+
+        if new_metric_type in UNSUPPORTED_BINDING_METRIC_TYPES:
+            raise ServiceValidationError(
+                "camera bindings are not yet supported by the current sensor-only PlantRun model. "
+                "Please bind camera entities outside PlantRun for now."
+            )
+
+        if not new_sensor_id:
+            raise ServiceValidationError("sensor_id must not be empty.")
+
+        duplicate = next(
+            (
+                item
+                for item in run.bindings
+                if item.id != binding.id
+                and item.metric_type == new_metric_type
+                and item.sensor_id == new_sensor_id
+            ),
+            None,
+        )
+        if duplicate is not None:
+            raise ServiceValidationError(
+                f"Binding already exists for metric_type='{new_metric_type}' and sensor_id='{new_sensor_id}'."
+            )
+
+        binding.metric_type = new_metric_type
+        binding.sensor_id = new_sensor_id
+        await storage.async_update_run(run)
+        await refresh_after_update()
+        _LOGGER.info(
+            "Updated binding %s on run %s to metric_type=%s sensor_id=%s",
+            binding.id,
+            run.id,
+            binding.metric_type,
+            binding.sensor_id,
+        )
+
     async def handle_update_run(call: ServiceCall) -> None:
         """Handle partial run updates for sidebar CRUD flows."""
         run = resolve_target_run(call)
@@ -625,6 +780,32 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         vol.Schema(
             {
                 **run_resolution_schema,
+                vol.Required("metric_type"): vol.In(ALLOWED_METRIC_TYPES),
+                vol.Required("sensor_id"): vol.All(str, vol.Length(min=1)),
+            }
+        ),
+    )
+
+    register_service(
+        "remove_binding",
+        handle_remove_binding,
+        vol.Schema(
+            {
+                **run_resolution_schema,
+                vol.Optional("binding_id"): str,
+                vol.Optional("metric_type"): vol.In(ALLOWED_METRIC_TYPES),
+                vol.Optional("sensor_id"): str,
+            }
+        ),
+    )
+
+    register_service(
+        "update_binding",
+        handle_update_binding,
+        vol.Schema(
+            {
+                **run_resolution_schema,
+                vol.Required("binding_id"): str,
                 vol.Required("metric_type"): vol.In(ALLOWED_METRIC_TYPES),
                 vol.Required("sensor_id"): vol.All(str, vol.Length(min=1)),
             }

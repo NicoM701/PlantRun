@@ -281,6 +281,116 @@ add_binding:
       selector:
         text:
 
+remove_binding:
+  name: Remove Binding
+  description: Remove an existing metric binding from a run without deleting historical samples.
+  fields:
+    run_id:
+      name: Run ID
+      required: false
+      selector:
+        text:
+    run_name:
+      name: Run Name
+      required: false
+      selector:
+        text:
+    use_active_run:
+      name: Use Active Run
+      required: false
+      default: false
+      selector:
+        boolean:
+    strict_active_resolution:
+      name: Strict Active Resolution
+      required: false
+      default: false
+      selector:
+        boolean:
+    active_run_strategy:
+      name: Active Run Strategy
+      required: false
+      default: legacy
+      selector:
+        select:
+          options:
+            - legacy
+            - active_run_id
+            - first_active
+    binding_id:
+      name: Binding ID
+      description: Stable internal binding identifier. Preferred for exact removals.
+      required: false
+      selector:
+        text:
+    metric_type:
+      name: Metric Type
+      description: Optional fallback when binding_id is unknown.
+      required: false
+      selector:
+        text:
+    sensor_id:
+      name: Sensor ID
+      description: Optional fallback paired with metric_type when binding_id is unknown.
+      required: false
+      selector:
+        text:
+
+update_binding:
+  name: Update Binding
+  description: Update the metric type and/or entity for an existing run binding.
+  fields:
+    run_id:
+      name: Run ID
+      required: false
+      selector:
+        text:
+    run_name:
+      name: Run Name
+      required: false
+      selector:
+        text:
+    use_active_run:
+      name: Use Active Run
+      required: false
+      default: false
+      selector:
+        boolean:
+    strict_active_resolution:
+      name: Strict Active Resolution
+      required: false
+      default: false
+      selector:
+        boolean:
+    active_run_strategy:
+      name: Active Run Strategy
+      required: false
+      default: legacy
+      selector:
+        select:
+          options:
+            - legacy
+            - active_run_id
+            - first_active
+    binding_id:
+      name: Binding ID
+      description: Stable internal binding identifier to update.
+      required: true
+      selector:
+        text:
+    metric_type:
+      name: Metric Type
+      description: New metric type for the binding.
+      required: true
+      selector:
+        text:
+    sensor_id:
+      name: Sensor ID
+      description: New full entity_id for the binding.
+      required: true
+      selector:
+        text:
+
 update_note:
   name: Update Note
   description: Update an existing run note.
