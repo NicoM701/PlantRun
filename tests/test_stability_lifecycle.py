@@ -47,6 +47,9 @@ def _install_homeassistant_stubs() -> None:
     def Coerce(_type):
         return _type
 
+    def Any(*args):
+        return args[0] if args else None
+
     vol.Schema = Schema
     vol.Required = Required
     vol.Optional = Optional
@@ -54,6 +57,7 @@ def _install_homeassistant_stubs() -> None:
     vol.All = All
     vol.Length = Length
     vol.Coerce = Coerce
+    vol.Any = Any
     sys.modules["voluptuous"] = vol
 
     ha = types.ModuleType("homeassistant")

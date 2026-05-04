@@ -67,10 +67,17 @@ class DashboardJsContractsTests(unittest.TestCase):
         self.assertIn('const requestNonce = ++this._searchRequestNonce;', source)
         self.assertIn('if (requestNonce !== this._searchRequestNonce)', source)
 
-    def test_panel_detail_editor_can_clear_text_fields(self):
+    def test_panel_wizard_input_updates_preserve_typing_state(self):
         source = PANEL_JS.read_text(encoding="utf-8")
-        self.assertIn('planted_date: draft.planted_date,', source)
-        self.assertIn('notes_summary: draft.notes_summary,', source)
+        self.assertIn('_setWizardField(field, value, { render = false } = {})', source)
+        self.assertIn('const focusState = this._captureFocusState();', source)
+        self.assertIn('this._restoreFocusState(focusState);', source)
+
+    def test_panel_detail_editor_sends_explicit_nulls_when_fields_are_cleared(self):
+        source = PANEL_JS.read_text(encoding="utf-8")
+        self.assertIn('planted_date: draft.planted_date || null,', source)
+        self.assertIn('notes_summary: draft.notes_summary || null,', source)
+        self.assertIn('dry_yield_grams: draft.dry_yield_grams === "" ? null : Number(draft.dry_yield_grams),', source)
 
 
 if __name__ == "__main__":

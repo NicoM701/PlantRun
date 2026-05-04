@@ -1567,9 +1567,9 @@
       await this.hass.callService(DOMAIN, "update_run", {
         run_id: runId,
         friendly_name: draft.friendly_name,
-        planted_date: draft.planted_date,
-        notes_summary: draft.notes_summary,
-        dry_yield_grams: draft.dry_yield_grams === "" ? undefined : Number(draft.dry_yield_grams),
+        planted_date: draft.planted_date || null,
+        notes_summary: draft.notes_summary || null,
+        dry_yield_grams: draft.dry_yield_grams === "" ? null : Number(draft.dry_yield_grams),
         base_config: {
           ...(run.base_config || {}),
           target_days: Number(draft.target_days || this._targetDaysForRun(run) || 84),
@@ -1602,12 +1602,15 @@
     _closeWizard() {
       this._wizardOpen = false;
       this._wizardBusy = false;
+      this._searchRequestNonce += 1;
+      window.clearTimeout(this._suggestionClearTimer);
+      window.clearTimeout(this._searchTimer);
       this._cultivarSuggestions = [];
       this._cultivarIndex = -1;
       this.render();
     }
 
-    _setWizardField(field, value) {
+    _setWizardField(field, value, { render = false } = {}) {
       const next = { ...this._wizardForm, [field]: value };
       if (
         (field === "cultivar_query" || field === "cultivar_breeder")
@@ -1616,7 +1619,9 @@
         next.cultivar_name = "";
       }
       this._wizardForm = next;
-      this.render();
+      if (render) {
+        this.render();
+      }
     }
 
     _wizardNext() {
@@ -1831,7 +1836,7 @@
       if (target.dataset.closeWizard !== undefined) this._closeWizard();
       if (target.dataset.wizardNext !== undefined) this._wizardNext();
       if (target.dataset.wizardBack !== undefined) this._wizardBack();
-      if (target.dataset.targetChip) this._setWizardField("target_days", target.dataset.targetChip);
+      if (target.dataset.targetChip) this._setWizardField("target_days", target.dataset.targetChip, { render: true });
       if (target.dataset.closeDetail !== undefined) this._closeDetail();
       if (target.dataset.openEntity) this._openEntity(target.dataset.openEntity);
       if (target.dataset.openBindingAdd) this._openBindingModal(target.dataset.openBindingAdd);
@@ -1926,6 +1931,59 @@
       });
     }
 
+    _selectorValue(value) {
+      const text = String(value ?? "");
+      if (window.CSS?.escape) {
+        return window.CSS.escape(text);
+      }
+      return text.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+    }
+
+    _focusSelectorForElement(element) {
+      if (!element || typeof element.matches !== "function") {
+        return null;
+      }
+      if (element.dataset?.wizardInput) {
+        return `[data-wizard-input="${this._selectorValue(element.dataset.wizardInput)}"]`;
+      }
+      return null;
+    }
+
+    _captureFocusState() {
+      const active = this.shadowRoot?.activeElement;
+      const selector = this._focusSelectorForElement(active);
+      if (!selector) {
+        return null;
+      }
+      return {
+        selector,
+        selectionStart: typeof active.selectionStart === "number" ? active.selectionStart : null,
+        selectionEnd: typeof active.selectionEnd === "number" ? active.selectionEnd : null,
+        selectionDirection: active.selectionDirection || "none",
+      };
+    }
+
+    _restoreFocusState(state) {
+      if (!state?.selector) {
+        return;
+      }
+      const target = this.shadowRoot?.querySelector(state.selector);
+      if (!target || typeof target.focus !== "function") {
+        return;
+      }
+      target.focus({ preventScroll: true });
+      if (typeof state.selectionStart === "number" && typeof target.setSelectionRange === "function") {
+        const valueLength = typeof target.value === "string" ? target.value.length : 0;
+        const start = Math.min(state.selectionStart, valueLength);
+        const end = Math.min(state.selectionEnd ?? state.selectionStart, valueLength);
+        try {
+          target.setSelectionRange(start, end, state.selectionDirection || "none");
+        } catch (_error) {
+          // Some input types (for example date/number) do not expose selection APIs.
+        }
+      }
+    }
+
     _overviewMarkup() {
       const runs = this._filteredRuns();
       if (!runs.length) {
@@ -1942,6 +2000,7 @@
       if (!this.hass) return;
 
       const detailRun = this._runById(this._detailRunId);
+      const focusState = this._captureFocusState();
       this.shadowRoot.innerHTML = `
         <style>
           :host {
@@ -2159,6 +2218,7 @@
         ${this._detailOverlayMarkup(detailRun)}
       `;
       this._bindInteractions();
+      this._restoreFocusState(focusState);
     }
   }
 

@@ -606,12 +606,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         """Handle partial run updates for sidebar CRUD flows."""
         run = resolve_target_run(call)
 
-        for field in ("friendly_name", "planted_date", "notes_summary", "status"):
+        for field in ("friendly_name", "status"):
             if field in call.data:
                 setattr(run, field, call.data[field])
 
+        if "planted_date" in call.data:
+            run.planted_date = call.data["planted_date"] or None
+
+        if "notes_summary" in call.data:
+            run.notes_summary = call.data["notes_summary"] or None
+
         if "dry_yield_grams" in call.data:
-            run.dry_yield_grams = float(call.data["dry_yield_grams"])
+            value = call.data["dry_yield_grams"]
+            run.dry_yield_grams = None if value is None else float(value)
 
         if "base_config" in call.data:
             base_config = call.data["base_config"]
@@ -819,10 +826,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             {
                 **run_resolution_schema,
                 vol.Optional("friendly_name"): str,
-                vol.Optional("planted_date"): str,
-                vol.Optional("notes_summary"): str,
+                vol.Optional("planted_date"): vol.Any(None, str),
+                vol.Optional("notes_summary"): vol.Any(None, str),
                 vol.Optional("status"): str,
-                vol.Optional("dry_yield_grams"): vol.Coerce(float),
+                vol.Optional("dry_yield_grams"): vol.Any(None, vol.Coerce(float)),
                 vol.Optional("base_config"): dict,
                 vol.Optional("image_url"): str,
                 vol.Optional("image_source"): str,
