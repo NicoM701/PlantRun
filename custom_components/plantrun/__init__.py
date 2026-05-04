@@ -558,6 +558,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         run = resolve_target_run(call)
         binding = resolve_binding_from_call(call, run)
 
+        previous_metric_type = binding.metric_type
+        previous_sensor_id = binding.sensor_id
         new_metric_type = str(call.data["metric_type"]).strip()
         new_sensor_id = str(call.data["sensor_id"]).strip()
 
@@ -592,6 +594,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
         binding.metric_type = new_metric_type
         binding.sensor_id = new_sensor_id
+        if previous_metric_type != new_metric_type or previous_sensor_id != new_sensor_id:
+            run.sensor_history.pop(previous_metric_type, None)
         await storage.async_update_run(run)
         await refresh_after_update()
         _LOGGER.info(
