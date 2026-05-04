@@ -383,6 +383,7 @@
       this._cultivarIndex = -1;
       this._suggestionClearTimer = null;
       this._searchTimer = null;
+      this._searchRequestNonce = 0;
       this._bindingDraft = null;
       this._sensorPressState = {};
       this._noteDrafts = {};
@@ -1566,8 +1567,8 @@
       await this.hass.callService(DOMAIN, "update_run", {
         run_id: runId,
         friendly_name: draft.friendly_name,
-        planted_date: draft.planted_date || undefined,
-        notes_summary: draft.notes_summary || undefined,
+        planted_date: draft.planted_date,
+        notes_summary: draft.notes_summary,
         dry_yield_grams: draft.dry_yield_grams === "" ? undefined : Number(draft.dry_yield_grams),
         base_config: {
           ...(run.base_config || {}),
@@ -1607,7 +1608,14 @@
     }
 
     _setWizardField(field, value) {
-      this._wizardForm = { ...this._wizardForm, [field]: value };
+      const next = { ...this._wizardForm, [field]: value };
+      if (
+        (field === "cultivar_query" || field === "cultivar_breeder")
+        && value !== this._wizardForm[field]
+      ) {
+        next.cultivar_name = "";
+      }
+      this._wizardForm = next;
       this.render();
     }
 
@@ -1633,6 +1641,7 @@
       if (!normalizedForm.friendly_name) {
         return;
       }
+      const knownRunIds = new Set(this._runs.map((run) => run.id));
       this._wizardBusy = true;
       this.render();
       try {
@@ -1641,7 +1650,7 @@
           planted_date: normalizedForm.planted_date || undefined,
         });
         await this._refreshRuns();
-        const createdRun = this._resolveNewlyCreatedRun(normalizedForm.friendly_name);
+        const createdRun = this._resolveNewlyCreatedRun(normalizedForm.friendly_name, knownRunIds);
         if (!createdRun) {
           return;
         }
@@ -1691,7 +1700,14 @@
       }
     }
 
-    _resolveNewlyCreatedRun(name) {
+    _resolveNewlyCreatedRun(name, previousRunIds = new Set()) {
+      const newlyDiscovered = this._runs.filter((run) => !previousRunIds.has(run.id));
+      if (newlyDiscovered.length === 1) {
+        return newlyDiscovered[0];
+      }
+      if (newlyDiscovered.length > 1) {
+        return [...newlyDiscovered].sort((a, b) => Date.parse(b.start_time || 0) - Date.parse(a.start_time || 0))[0];
+      }
       const sameName = this._runs.filter((run) => run.friendly_name === name);
       if (sameName.length === 1) {
         return sameName[0];
@@ -1703,11 +1719,13 @@
       const breeder = String(this._wizardForm.cultivar_breeder || "").trim();
       const query = String(this._wizardForm.cultivar_query || "").trim();
       if (!breeder || query.length < 2) {
+        this._searchRequestNonce += 1;
         this._cultivarSuggestions = [];
         this._cultivarIndex = -1;
         this.render();
         return;
       }
+      const requestNonce = ++this._searchRequestNonce;
       try {
         const token = this.hass?.auth?.data?.access_token || this.hass?.auth?.data?.accessToken;
         const response = await fetch("/api/plantrun/search_cultivar", {
@@ -1719,10 +1737,16 @@
           body: JSON.stringify({ breeder, query }),
         });
         const payload = await response.json();
+        if (requestNonce !== this._searchRequestNonce) {
+          return;
+        }
         this._cultivarSuggestions = Array.isArray(payload?.results) ? payload.results : [];
         this._cultivarIndex = this._cultivarSuggestions.length ? 0 : -1;
         this.render();
       } catch (_error) {
+        if (requestNonce !== this._searchRequestNonce) {
+          return;
+        }
         this._cultivarSuggestions = [];
         this._cultivarIndex = -1;
         this.render();

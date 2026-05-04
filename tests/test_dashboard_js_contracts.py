@@ -54,6 +54,24 @@ class DashboardJsContractsTests(unittest.TestCase):
         source = PANEL_JS.read_text(encoding="utf-8")
         self.assertIn('data-contract="compact-mini-phase-track"', source)
 
+    def test_panel_run_creation_prefers_new_run_id_over_duplicate_name_match(self):
+        source = PANEL_JS.read_text(encoding="utf-8")
+        self.assertIn('const knownRunIds = new Set(this._runs.map((run) => run.id));', source)
+        self.assertIn('this._resolveNewlyCreatedRun(normalizedForm.friendly_name, knownRunIds);', source)
+        self.assertIn('_resolveNewlyCreatedRun(name, previousRunIds = new Set())', source)
+        self.assertIn('const newlyDiscovered = this._runs.filter((run) => !previousRunIds.has(run.id));', source)
+
+    def test_panel_cultivar_search_clears_stale_selection_and_ignores_old_responses(self):
+        source = PANEL_JS.read_text(encoding="utf-8")
+        self.assertIn('next.cultivar_name = "";', source)
+        self.assertIn('const requestNonce = ++this._searchRequestNonce;', source)
+        self.assertIn('if (requestNonce !== this._searchRequestNonce)', source)
+
+    def test_panel_detail_editor_can_clear_text_fields(self):
+        source = PANEL_JS.read_text(encoding="utf-8")
+        self.assertIn('planted_date: draft.planted_date,', source)
+        self.assertIn('notes_summary: draft.notes_summary,', source)
+
 
 if __name__ == "__main__":
     unittest.main()
