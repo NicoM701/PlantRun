@@ -146,6 +146,8 @@
       this._summary = null;
       this._loading = false;
       this._artUrl = "";
+      this._loadedRunId = "";
+      this._requestNonce = 0;
     }
 
     static getConfigElement() {
@@ -184,24 +186,49 @@
     }
 
     async _fetchRunData() {
+      const requestNonce = ++this._requestNonce;
       const runId = this._normalizeRunId(this._config.run_id);
-      if (!this._hass || !runId || this._loading) {
-        return;
-      }
-      this._loading = true;
-      try {
-        const payload = await this._hass.callWS({ type: "plantrun/get_runs" });
-        this._runs = Array.isArray(payload?.runs) ? payload.runs : [];
-        this._summary = await this._hass.callWS({ type: "plantrun/get_run_summary", run_id: runId });
-        const run = this._selectedRun();
-        const stageKey = this._stageKeyForRun(run);
-        this._artUrl = await SHARED.processStageArt(stageKey);
-      } catch (_error) {
+      if (!this._hass || !runId) {
         this._runs = [];
         this._summary = null;
-      } finally {
+        this._artUrl = "";
+        this._loadedRunId = "";
         this._loading = false;
         this.render();
+        return;
+      }
+      if (runId !== this._loadedRunId) {
+        this._summary = null;
+        this._artUrl = "";
+      }
+      this._loading = true;
+      this.render();
+      try {
+        const payload = await this._hass.callWS({ type: "plantrun/get_runs" });
+        const runs = Array.isArray(payload?.runs) ? payload.runs : [];
+        const summary = await this._hass.callWS({ type: "plantrun/get_run_summary", run_id: runId });
+        const run = runs.find((item) => item.id === runId) || null;
+        const artUrl = await SHARED.processStageArt(this._stageKeyForRun(run));
+        if (requestNonce !== this._requestNonce) {
+          return;
+        }
+        this._runs = runs;
+        this._summary = summary;
+        this._artUrl = artUrl;
+        this._loadedRunId = runId;
+      } catch (_error) {
+        if (requestNonce !== this._requestNonce) {
+          return;
+        }
+        this._runs = [];
+        this._summary = null;
+        this._artUrl = "";
+        this._loadedRunId = "";
+      } finally {
+        if (requestNonce === this._requestNonce) {
+          this._loading = false;
+          this.render();
+        }
       }
     }
 

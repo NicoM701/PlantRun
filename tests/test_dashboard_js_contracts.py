@@ -19,6 +19,14 @@ class DashboardJsContractsTests(unittest.TestCase):
         self.assertIn(".chip-icon.moisture", source)
         self.assertIn('colorClass = "moisture"', source)
 
+    def test_card_ignores_stale_fetches_when_run_selection_changes(self):
+        source = CARD_JS.read_text(encoding="utf-8")
+        self.assertIn("this._requestNonce = 0;", source)
+        self.assertIn("const requestNonce = ++this._requestNonce;", source)
+        self.assertIn("if (requestNonce !== this._requestNonce)", source)
+        self.assertIn('if (runId !== this._loadedRunId)', source)
+        self.assertIn('this._loadedRunId = runId;', source)
+
     def test_panel_replaces_duplicate_run_age_copy_with_target_days_context(self):
         source = PANEL_JS.read_text(encoding="utf-8")
         self.assertIn("_targetDaysForRun(run)", source)
