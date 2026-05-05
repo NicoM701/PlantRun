@@ -1351,7 +1351,7 @@
               <button
                 class="cultivar-option ${this._cultivarIndex === index ? "active" : ""}"
                 data-cultivar-index="${index}"
-                data-cultivar-name="${SHARED.escapeHtml(item.name || "") }"
+                data-cultivar-name="${SHARED.escapeHtml(item.name || "")}"
                 type="button"
               >
                 <strong>${SHARED.escapeHtml(item.name || "Unknown")}</strong>
@@ -1851,9 +1851,26 @@
       }, 130);
     }
 
+    _findDelegatedActionTarget(event) {
+      const path = typeof event.composedPath === "function" ? event.composedPath() : [event.target];
+      for (const node of path) {
+        if (!(node instanceof Element) || !this.shadowRoot.contains(node)) {
+          continue;
+        }
+        if (node.matches?.(DELEGATED_ACTION_SELECTOR)) {
+          return node;
+        }
+        const closest = node.closest?.(DELEGATED_ACTION_SELECTOR);
+        if (closest && this.shadowRoot.contains(closest)) {
+          return closest;
+        }
+      }
+      return null;
+    }
+
     _handleDelegatedClick(event) {
-      const target = event.target.closest(DELEGATED_ACTION_SELECTOR);
-      if (!target || !this.shadowRoot.contains(target)) {
+      const target = this._findDelegatedActionTarget(event);
+      if (!target) {
         return;
       }
       if (target.dataset.page) {
