@@ -227,6 +227,13 @@
       stack: "Stack",
       noSensors: "No sensor bindings yet.",
       noNotes: "No notes yet.",
+      metricTemperature: "Temperature",
+      metricHumidity: "Humidity",
+      metricSoilMoisture: "Soil moisture",
+      metricConductivity: "Conductivity",
+      metricLight: "Light",
+      metricEnergy: "Energy",
+      metricWater: "Water",
       sensorEntity: "Entity ID",
       metricType: "Metric type",
       removeBinding: "Remove binding",
@@ -304,6 +311,13 @@
       stack: "Stack",
       noSensors: "Noch keine Sensor-Bindungen.",
       noNotes: "Noch keine Notizen.",
+      metricTemperature: "Temperatur",
+      metricHumidity: "Luftfeuchtigkeit",
+      metricSoilMoisture: "Bodenfeuchte",
+      metricConductivity: "Leitfähigkeit",
+      metricLight: "Licht",
+      metricEnergy: "Energie",
+      metricWater: "Wasser",
       sensorEntity: "Entity ID",
       metricType: "Metriktyp",
       removeBinding: "Bindung entfernen",
@@ -343,14 +357,14 @@
   };
 
   const QUICK_TARGETS = [56, 70, 84, 98, 112];
-  const METRIC_LABELS = {
-    temperature: "Temperature",
-    humidity: "Humidity",
-    soil_moisture: "Soil moisture",
-    conductivity: "Conductivity",
-    light: "Light",
-    energy: "Energy",
-    water: "Water",
+  const METRIC_LABEL_KEYS = {
+    temperature: "metricTemperature",
+    humidity: "metricHumidity",
+    soil_moisture: "metricSoilMoisture",
+    conductivity: "metricConductivity",
+    light: "metricLight",
+    energy: "metricEnergy",
+    water: "metricWater",
   };
   const PHASE_OPTIONS = ["Seedling", "Vegetative", "Flowering", "Drying", "Curing", "Harvest"];
 
@@ -391,7 +405,6 @@
       this._phaseDraft = "Vegetative";
       this._detailDrafts = {};
       this._artUrls = {};
-      this._emptyArtUrls = [];
       this._lastCreatedRunId = null;
     }
 
@@ -466,11 +479,6 @@
       for (const [stage, variant] of keys) {
         this._resolveStageArt(stage, variant);
       }
-      this._emptyArtUrls = [
-        this._resolveStageArt("seedling", "legacy"),
-        this._resolveStageArt("veg", "hero"),
-        this._resolveStageArt("flower", "legacy"),
-      ];
     }
 
     _scheduleRefresh() {
@@ -580,7 +588,7 @@
 
     _stageKeyForRun(run) {
       const phase = this._currentPhase(run).toLowerCase();
-      if (phase.includes("flower") || phase.includes("harvest")) {
+      if (phase.includes("flower") || phase.includes("bloom") || phase.includes("harvest")) {
         return "flower";
       }
       if (phase.includes("veg")) {
@@ -752,6 +760,10 @@
       }
     }
 
+    _metricLabel(metricType) {
+      return this.t(METRIC_LABEL_KEYS[metricType]) || metricType;
+    }
+
     _sensorHistorySeries(run, binding) {
       const metricHistory = Array.isArray(run?.sensor_history?.[binding.metric_type])
         ? run.sensor_history[binding.metric_type]
@@ -800,7 +812,7 @@
       const unit = state?.attributes?.unit_of_measurement || target.unit || "";
       const label = status === "below" ? "Below target" : status === "in_range" ? "In range" : "Above target";
       const pct = numeric == null ? 0 : Math.max(0, Math.min(100, ((numeric - min) / Math.max(max - min, 1)) * 100));
-      const safeName = SHARED.escapeHtml(METRIC_LABELS[binding.metric_type] || binding.metric_type);
+      const safeName = SHARED.escapeHtml(this._metricLabel(binding.metric_type));
       const safeEntity = SHARED.escapeHtml(binding.sensor_id);
       const stateText = numeric == null ? "—" : `${numeric}${unit ? ` ${unit}` : ""}`;
       return `
@@ -1014,7 +1026,7 @@
           <div class="history-panel-head">
             <div>
               <div class="eyebrow">${this.t("latestHistory")}</div>
-              <strong>${SHARED.escapeHtml(METRIC_LABELS[binding.metric_type] || binding.metric_type)}</strong>
+              <strong>${SHARED.escapeHtml(this._metricLabel(binding.metric_type))}</strong>
             </div>
             <button class="ghost-btn" data-open-entity="${SHARED.escapeHtml(binding.sensor_id)}" type="button">Entity</button>
           </div>
@@ -1149,7 +1161,7 @@
           return `
             <div class="binding-row">
               <div>
-                <strong>${SHARED.escapeHtml(METRIC_LABELS[binding.metric_type] || binding.metric_type)}</strong>
+                <strong>${SHARED.escapeHtml(this._metricLabel(binding.metric_type))}</strong>
                 <div>${SHARED.escapeHtml(binding.sensor_id)}</div>
               </div>
               <div class="binding-row-right">
@@ -1367,7 +1379,7 @@
             .map(
               ([field, metric]) => `
                 <label class="field">
-                  <span>${SHARED.escapeHtml(METRIC_LABELS[metric] || metric)}</span>
+                  <span>${SHARED.escapeHtml(this._metricLabel(metric))}</span>
                   <input data-wizard-input="${field}" value="${SHARED.escapeHtml(this._wizardForm[field])}" placeholder="sensor.grow_${metric}" />
                 </label>
               `
@@ -1395,7 +1407,7 @@
             <label class="field">
               <span>${this.t("metricType")}</span>
               <select data-binding-input="metric_type">
-                ${Object.keys(METRIC_LABELS).map((metric) => `<option value="${metric}" ${this._bindingDraft.metric_type === metric ? "selected" : ""}>${METRIC_LABELS[metric]}</option>`).join("")}
+                ${Object.keys(METRIC_LABEL_KEYS).map((metric) => `<option value="${metric}" ${this._bindingDraft.metric_type === metric ? "selected" : ""}>${this._metricLabel(metric)}</option>`).join("")}
               </select>
             </label>
             <label class="field">

@@ -159,6 +159,23 @@ async def websocket_get_runs(hass: HomeAssistant, connection: Any, msg: dict[str
     )
 
 
+@websocket_api.websocket_command({"type": "plantrun/get_run", "run_id": str})
+@websocket_api.async_response
+async def websocket_get_run(hass: HomeAssistant, connection: Any, msg: dict[str, Any]) -> None:
+    """Return one PlantRun run for lightweight frontend consumers."""
+    storage = _storage_for_hass(hass)
+    if storage is None:
+        connection.send_error(msg["id"], "not_loaded", "PlantRun is not loaded")
+        return
+
+    run = storage.get_run(msg["run_id"])
+    if run is None:
+        connection.send_error(msg["id"], "not_found", f"Run '{msg['run_id']}' not found")
+        return
+
+    connection.send_result(msg["id"], {"run": run.to_dict()})
+
+
 @websocket_api.websocket_command({"type": "plantrun/get_run_summary", "run_id": str})
 @websocket_api.async_response
 async def websocket_get_run_summary(
@@ -263,6 +280,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     if not hass.data[DOMAIN].get("_ws_registered"):
         websocket_api.async_register_command(hass, websocket_get_runs)
+        websocket_api.async_register_command(hass, websocket_get_run)
         websocket_api.async_register_command(hass, websocket_get_run_summary)
         hass.data[DOMAIN]["_ws_registered"] = True
 

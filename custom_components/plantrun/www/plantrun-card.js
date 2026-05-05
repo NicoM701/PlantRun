@@ -11,10 +11,28 @@
       return window.PlantRunShared;
     }
 
+    const ASSET_MAP = {
+      seedling: {
+        hero: "/plantrun_frontend/assets/stage-seedling-wide-2.png",
+        tall: "/plantrun_frontend/assets/stage-seedling-tall-2.png",
+        legacy: "/plantrun_frontend/assets/stage-seedling.png",
+      },
+      veg: {
+        hero: "/plantrun_frontend/assets/stage-veg-hero-2.png",
+        tall: "/plantrun_frontend/assets/stage-veg-tall-2.png",
+        legacy: "/plantrun_frontend/assets/stage-veg.png",
+      },
+      flower: {
+        hero: "/plantrun_frontend/assets/stage-flower-wide-2.png",
+        tall: "/plantrun_frontend/assets/stage-flower-tall-2.png",
+        legacy: "/plantrun_frontend/assets/stage-flower.png",
+      },
+    };
+
     const STAGE_IMAGE_URLS = {
-      seedling: "/plantrun_frontend/assets/stage-seedling-wide-2.png",
-      veg: "/plantrun_frontend/assets/stage-veg-hero-2.png",
-      flower: "/plantrun_frontend/assets/stage-flower-wide-2.png",
+      seedling: ASSET_MAP.seedling.hero,
+      veg: ASSET_MAP.veg.hero,
+      flower: ASSET_MAP.flower.hero,
     };
 
     const STAGE_SVGS = {
@@ -25,6 +43,7 @@
 
     const LEAF_LOGO = `<svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs><linearGradient id="prLogoGrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#8effa9"/><stop offset="100%" stop-color="#1f8a47"/></linearGradient></defs><path d="M60 64c-3 0-6-2-6-5 0-6 2-12 6-18 4 6 6 12 6 18 0 3-3 5-6 5Z" fill="#255b35"/><g fill="url(#prLogoGrad)"><path d="M59 58c-15-11-21-24-20-41 15 3 25 12 29 29Z"/><path d="M61 58c15-11 21-24 20-41-15 3-25 12-29 29Z"/><path d="M53 61C34 58 22 48 16 31c17-1 30 5 40 19Z"/><path d="M67 61c19-3 31-13 37-30-17-1-30 5-40 19Z"/><path d="M51 66C35 76 28 90 30 106c14-5 23-16 28-32Z"/><path d="M69 66c16 10 23 24 21 40-14-5-23-16-28-32Z"/><path d="M60 69c-4 14-3 25 4 34 7-9 8-20 4-34Z"/></g></svg>`;
 
+    const assetCache = {};
     const stageArtCache = {};
 
     const escapeHtml = (value) =>
@@ -46,20 +65,15 @@
         image.src = url;
       });
 
-    const processStageArt = async (stageKey) => {
-      if (stageArtCache[stageKey]) {
-        return stageArtCache[stageKey];
+    const processAssetUrl = async (url, fallbackSvg = STAGE_SVGS.seedling) => {
+      if (!url) {
+        return svgToDataUrl(fallbackSvg);
       }
-
-      const sourceUrl = STAGE_IMAGE_URLS[stageKey];
-      if (!sourceUrl) {
-        const fallback = svgToDataUrl(STAGE_SVGS[stageKey] || STAGE_SVGS.seedling);
-        stageArtCache[stageKey] = fallback;
-        return fallback;
+      if (assetCache[url]) {
+        return assetCache[url];
       }
-
       try {
-        const image = await loadImage(sourceUrl);
+        const image = await loadImage(url);
         const canvas = document.createElement("canvas");
         canvas.width = image.naturalWidth || image.width;
         canvas.height = image.naturalHeight || image.height;
@@ -81,12 +95,12 @@
           const pixel = index / 4;
           const x = pixel % canvas.width;
           const y = Math.floor(pixel / canvas.width);
-          const isNearWhite = red > 240 && green > 240 && blue > 240;
+          const isNearWhite = red > 242 && green > 242 && blue > 242;
           if (isNearWhite) {
             data[index + 3] = 0;
             continue;
           }
-          if (alpha > 10) {
+          if (alpha > 8) {
             found = true;
             if (x < minX) minX = x;
             if (y < minY) minY = y;
@@ -97,8 +111,8 @@
 
         ctx.putImageData(frame, 0, 0);
         if (!found) {
-          const fallback = svgToDataUrl(STAGE_SVGS[stageKey] || STAGE_SVGS.seedling);
-          stageArtCache[stageKey] = fallback;
+          const fallback = svgToDataUrl(fallbackSvg);
+          assetCache[url] = fallback;
           return fallback;
         }
 
@@ -113,20 +127,40 @@
         cropped.height = cropH;
         cropped.getContext("2d").drawImage(canvas, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
         const dataUrl = cropped.toDataURL("image/png");
-        stageArtCache[stageKey] = dataUrl;
+        assetCache[url] = dataUrl;
         return dataUrl;
       } catch (_error) {
-        const fallback = svgToDataUrl(STAGE_SVGS[stageKey] || STAGE_SVGS.seedling);
-        stageArtCache[stageKey] = fallback;
+        const fallback = svgToDataUrl(fallbackSvg);
+        assetCache[url] = fallback;
         return fallback;
       }
     };
 
+    const getStageArt = async (stageKey, variant = "hero") => {
+      const stageAssets = ASSET_MAP[stageKey] || ASSET_MAP.seedling;
+      const url = stageAssets[variant] || stageAssets.hero || stageAssets.legacy;
+      return processAssetUrl(url, STAGE_SVGS[stageKey] || STAGE_SVGS.seedling);
+    };
+
+    const processStageArt = async (stageKey, variant = "hero") => {
+      const cacheKey = `${stageKey}:${variant}`;
+      if (stageArtCache[cacheKey]) {
+        return stageArtCache[cacheKey];
+      }
+      const art = await getStageArt(stageKey, variant);
+      stageArtCache[cacheKey] = art;
+      return art;
+    };
+
     window.PlantRunShared = {
+      ASSET_MAP,
       STAGE_IMAGE_URLS,
       STAGE_SVGS,
       LEAF_LOGO,
+      assetCache,
       escapeHtml,
+      getStageArt,
+      processAssetUrl,
       processStageArt,
       stageArtCache,
       svgToDataUrl,
@@ -142,18 +176,17 @@
       this.attachShadow({ mode: "open" });
       this._hass = null;
       this._config = { type: "custom:plantrun-card", run_id: "<run_id>", compact: false };
-      this._runs = [];
+      this._run = null;
       this._summary = null;
       this._loading = false;
       this._artUrl = "";
       this._loadedRunId = "";
+      this._lastHassSignature = "";
       this._requestNonce = 0;
+      this._boundClick = (event) => this._handleClick(event);
     }
 
     static getConfigElement() {
-      if (customElements.get("plantrun-card-editor")) {
-        return document.createElement("plantrun-card-editor");
-      }
       return document.createElement("plantrun-card-editor");
     }
 
@@ -163,14 +196,32 @@
 
     setConfig(config) {
       this._config = { ...this._config, ...config };
+      this._lastHassSignature = "";
       this._fetchRunData();
       this.render();
     }
 
     set hass(value) {
       this._hass = value;
-      this._fetchRunData();
-      this.render();
+      const runId = this._normalizeRunId(this._config.run_id);
+      if (this._shouldLoadRun(runId)) {
+        this._fetchRunData();
+        return;
+      }
+      const signature = this._hassSignature(runId);
+      if (signature !== this._lastHassSignature) {
+        this._lastHassSignature = signature;
+        this.render();
+      }
+    }
+
+    connectedCallback() {
+      this.shadowRoot.addEventListener("click", this._boundClick);
+    }
+
+    disconnectedCallback() {
+      this.shadowRoot.removeEventListener("click", this._boundClick);
+      this._requestNonce += 1;
     }
 
     getCardSize() {
@@ -189,11 +240,12 @@
       const requestNonce = ++this._requestNonce;
       const runId = this._normalizeRunId(this._config.run_id);
       if (!this._hass || !runId) {
-        this._runs = [];
+        this._run = null;
         this._summary = null;
         this._artUrl = "";
         this._loadedRunId = "";
         this._loading = false;
+        this._lastHassSignature = this._hassSignature(runId);
         this.render();
         return;
       }
@@ -204,26 +256,29 @@
       this._loading = true;
       this.render();
       try {
-        const payload = await this._hass.callWS({ type: "plantrun/get_runs" });
-        const runs = Array.isArray(payload?.runs) ? payload.runs : [];
-        const summary = await this._hass.callWS({ type: "plantrun/get_run_summary", run_id: runId });
-        const run = runs.find((item) => item.id === runId) || null;
+        const [payload, summary] = await Promise.all([
+          this._hass.callWS({ type: "plantrun/get_run", run_id: runId }),
+          this._hass.callWS({ type: "plantrun/get_run_summary", run_id: runId }),
+        ]);
+        const run = payload?.run || null;
         const artUrl = await SHARED.processStageArt(this._stageKeyForRun(run));
         if (requestNonce !== this._requestNonce) {
           return;
         }
-        this._runs = runs;
+        this._run = run;
         this._summary = summary;
         this._artUrl = artUrl;
         this._loadedRunId = runId;
+        this._lastHassSignature = this._hassSignature(runId);
       } catch (_error) {
         if (requestNonce !== this._requestNonce) {
           return;
         }
-        this._runs = [];
+        this._run = null;
         this._summary = null;
         this._artUrl = "";
         this._loadedRunId = "";
+        this._lastHassSignature = this._hassSignature(runId);
       } finally {
         if (requestNonce === this._requestNonce) {
           this._loading = false;
@@ -233,8 +288,30 @@
     }
 
     _selectedRun() {
-      const runId = this._normalizeRunId(this._config.run_id);
-      return this._runs.find((run) => run.id === runId) || null;
+      return this._run;
+    }
+
+    _shouldLoadRun(runId) {
+      if (!this._hass || this._loading) {
+        return false;
+      }
+      if (!runId) {
+        return this._loadedRunId || this._run || this._summary || this._artUrl;
+      }
+      return runId !== this._loadedRunId || !this._run || !this._summary;
+    }
+
+    _hassSignature(runId) {
+      const bindings = Array.isArray(this._run?.bindings) ? this._run.bindings : [];
+      const stateParts = bindings.map((binding) => {
+        const state = this._hass?.states?.[binding.sensor_id];
+        return [
+          binding.sensor_id,
+          state?.state ?? "",
+          state?.attributes?.unit_of_measurement ?? "",
+        ].join("=");
+      });
+      return [runId, this._loadedRunId, this._config.compact ? "1" : "0", ...stateParts].join("|");
     }
 
     _currentPhase(run) {
@@ -314,6 +391,13 @@
       window.dispatchEvent(new CustomEvent("location-changed", { bubbles: true, composed: true }));
     }
 
+    _handleClick(event) {
+      const target = event.target.closest("[data-open-panel]");
+      if (target) {
+        this._openPanel();
+      }
+    }
+
     render() {
       const runId = this._normalizeRunId(this._config.run_id);
       const run = this._selectedRun();
@@ -343,12 +427,10 @@
                 </div>
               </div>
               <div class="hint">Examples detected as placeholders: "<run_id>", "your_run_id".</div>
-              <div><button id="open-panel">Open dashboard</button></div>
+              <div><button data-open-panel type="button">Open dashboard</button></div>
             </div>
           </ha-card>
         `;
-        const button = this.shadowRoot.querySelector("#open-panel");
-        if (button) button.addEventListener("click", () => this._openPanel());
         return;
       }
 
@@ -508,15 +590,10 @@
               </div>
             </div>
             <div class="chips">${this._summaryChips(run)}</div>
-            <div class="actions"><button id="open-panel">Open dashboard</button></div>
+            <div class="actions"><button data-open-panel type="button">Open dashboard</button></div>
           </div>
         </ha-card>
       `;
-
-      const button = this.shadowRoot.querySelector("#open-panel");
-      if (button) {
-        button.addEventListener("click", () => this._openPanel());
-      }
     }
   }
 
