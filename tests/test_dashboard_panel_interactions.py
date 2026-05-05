@@ -44,6 +44,28 @@ class DashboardPanelInteractionRegressionTests(unittest.TestCase):
             ],
         )
 
+    def test_delegated_clicks_are_scoped_to_shadow_root_actions(self):
+        assert_has_snippets(
+            self,
+            self.source,
+            [
+                "const DELEGATED_ACTION_SELECTOR = [",
+                "event.target.closest(DELEGATED_ACTION_SELECTOR)",
+                "if (!target || !this.shadowRoot.contains(target))",
+            ],
+        )
+
+    def test_modal_overlays_are_scoped_to_panel_host(self):
+        assert_has_snippets(
+            self,
+            self.source,
+            [
+                ":host {\n            display: block;\n            position: relative;",
+                ".overlay, .modal-shell { position: absolute; inset: 0; z-index: 20; }",
+                ".overlay-card {\n            position: absolute; inset: 24px; z-index: 1;",
+            ],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

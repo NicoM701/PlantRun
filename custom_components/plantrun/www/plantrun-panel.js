@@ -357,6 +357,40 @@
   };
 
   const QUICK_TARGETS = [56, 70, 84, 98, 112];
+  const DELEGATED_ACTION_SELECTOR = [
+    "[data-page]",
+    "[data-theme]",
+    "[data-lang]",
+    "[data-grid]",
+    "[data-filter]",
+    "[data-open-run]",
+    "[data-toggle-expand]",
+    "[data-open-wizard]",
+    "[data-close-wizard]",
+    "[data-wizard-next]",
+    "[data-wizard-back]",
+    "[data-target-chip]",
+    "[data-close-detail]",
+    "[data-open-entity]",
+    "[data-open-binding-add]",
+    "[data-edit-binding]",
+    "[data-remove-binding]",
+    "[data-save-binding]",
+    "[data-close-binding-modal]",
+    "[data-add-phase]",
+    "[data-end-run]",
+    "[data-edit-note]",
+    "[data-save-note]",
+    "[data-cancel-note]",
+    "[data-delete-note]",
+    "[data-add-note]",
+    "[data-cultivar-index]",
+    "[data-dismiss-modal]",
+    "[data-confirm-modal]",
+    "[data-create-run]",
+    "[data-detail-layout]",
+    "[data-save-detail]",
+  ].join(",");
   const METRIC_LABEL_KEYS = {
     temperature: "metricTemperature",
     humidity: "metricHumidity",
@@ -931,9 +965,6 @@
         this._resolveStageArt("seedling", "hero"),
         this._resolveStageArt("veg", "hero"),
         this._resolveStageArt("flower", "hero"),
-        this._resolveStageArt("seedling", "legacy"),
-        this._resolveStageArt("veg", "legacy"),
-        this._resolveStageArt("flower", "legacy"),
       ];
       return `
         <section class="empty-state">
@@ -943,7 +974,7 @@
             <p>${this.t("emptyBody")}</p>
             <button class="primary-btn" data-open-wizard type="button">${this.t("launchWizard")}</button>
           </div>
-          <div class="empty-art-grid">
+          <div class="empty-art-composition">
             ${arts
               .map(
                 (url, index) =>
@@ -1183,7 +1214,6 @@
       }
       const stageKey = this._stageKeyForRun(run);
       const heroArt = this._resolveStageArt(stageKey, "hero");
-      const tallArt = this._resolveStageArt(stageKey, "tall");
       const layoutClass = this._detailLayout === "stack" ? "stack" : "split";
       return `
         <div class="overlay" role="dialog" aria-modal="true">
@@ -1197,9 +1227,8 @@
                 <p>${SHARED.escapeHtml(run?.base_config?.grow_space || "Grow space unset")} · ${SHARED.escapeHtml(run?.base_config?.grow_medium || "Medium unset")}</p>
                 ${this._detailStatsMarkup(run)}
               </div>
-              <div class="overlay-art-stack">
+              <div class="overlay-art-stage">
                 <div class="overlay-art primary"><img src="${heroArt}" alt="stage hero art" /></div>
-                <div class="overlay-art secondary"><img src="${tallArt}" alt="stage tall art" /></div>
               </div>
             </div>
             <div class="detail-toolbar">
@@ -1279,10 +1308,10 @@
             </div>
             <aside class="wizard-preview">
               <div class="wizard-preview-art"><img src="${stagePreview}" alt="wizard stage preview" /></div>
-              <div class="wizard-preview-stack">
-                <div class="wizard-preview-mini"><img src="${this._resolveStageArt("seedling", "legacy")}" alt="legacy seedling" /></div>
-                <div class="wizard-preview-mini"><img src="${this._resolveStageArt("veg", "legacy")}" alt="legacy veg" /></div>
-                <div class="wizard-preview-mini"><img src="${this._resolveStageArt("flower", "legacy")}" alt="legacy flower" /></div>
+              <div class="wizard-phase-strip" aria-hidden="true">
+                <span class="${this._wizardStep >= 1 ? "active" : ""}"></span>
+                <span class="${this._wizardStep >= 2 ? "active" : ""}"></span>
+                <span class="${this._wizardStep >= 3 ? "active" : ""}"></span>
               </div>
             </aside>
           </div>
@@ -1832,8 +1861,8 @@
     }
 
     _handleDelegatedClick(event) {
-      const target = event.target.closest("[data-page],[data-theme],[data-lang],[data-grid],[data-filter],[data-open-run],[data-toggle-expand],[data-open-wizard],[data-close-wizard],[data-wizard-next],[data-wizard-back],[data-target-chip],[data-close-detail],[data-open-entity],[data-open-binding-add],[data-edit-binding],[data-remove-binding],[data-save-binding],[data-close-binding-modal],[data-add-phase],[data-end-run],[data-edit-note],[data-save-note],[data-cancel-note],[data-delete-note],[data-add-note],[data-cultivar-index],[data-dismiss-modal],[data-confirm-modal],[data-create-run],[data-detail-layout],[data-save-detail]");
-      if (!target) {
+      const target = event.target.closest(DELEGATED_ACTION_SELECTOR);
+      if (!target || !this.shadowRoot.contains(target)) {
         return;
       }
       if (target.dataset.page) {
@@ -2019,6 +2048,7 @@
         <style>
           :host {
             display: block;
+            position: relative;
             color: var(--primary-text-color, #edf4ff);
             --bg-dark: #0a1015;
             --bg-dark-soft: rgba(17, 24, 31, 0.84);
@@ -2105,8 +2135,8 @@
           .run-card { border-radius: 28px; padding: 16px; display:grid; gap: 12px; }
           .run-card-hit { width:100%; border:none; background:none; padding:0; color:inherit; display:grid; gap: 16px; grid-template-columns: 108px 1fr; text-align:left; }
           .run-card.comfy .run-card-hit { grid-template-columns: 120px 1fr; }
-          .run-card-art { border-radius: 24px; overflow:hidden; background: radial-gradient(circle at 20% 20%, rgba(94,211,122,0.22), transparent 52%), ${this._theme === "dark" ? "rgba(255,255,255,0.03)" : "rgba(255,255,255,0.72)"}; min-height: 120px; display:grid; place-items:center; }
-          .run-card-art img, .wizard-preview-art img, .wizard-preview-mini img, .overlay-art img, .empty-art img { width: 100%; height: 100%; object-fit: contain; padding: 10px; }
+          .run-card-art { border-radius: 18px 28px 18px 28px; overflow:hidden; background: radial-gradient(circle at 20% 20%, rgba(94,211,122,0.22), transparent 52%), ${this._theme === "dark" ? "rgba(255,255,255,0.03)" : "rgba(255,255,255,0.72)"}; min-height: 120px; display:grid; place-items:center; }
+          .run-card-art img, .wizard-preview-art img, .overlay-art img, .empty-art img { width: 100%; height: 100%; object-fit: contain; padding: 10px; }
           .run-card-copy { display:grid; gap: 10px; min-width:0; }
           .run-card-top { display:flex; justify-content:space-between; gap: 12px; align-items:start; }
           .run-card-top h3 { margin: 3px 0 0; font-size: 1.12rem; line-height: 1.2; }
@@ -2126,16 +2156,18 @@
           .empty-state { margin-top: 18px; border-radius: 28px; padding: 22px; display:grid; grid-template-columns: 1.1fr 1fr; gap: 18px; align-items:center; }
           .empty-copy h2 { margin: 8px 0 10px; font-size: clamp(1.5rem, 3vw, 2.2rem); }
           .empty-copy p { opacity: 0.78; max-width: 42ch; line-height: 1.6; }
-          .empty-art-grid { display:grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px; align-items:end; }
-          .empty-art { border-radius: 22px; min-height: 96px; overflow:hidden; background: ${this._theme === "dark" ? "rgba(255,255,255,0.05)" : "rgba(255,255,255,0.78)"}; }
-          .empty-art.art-2, .empty-art.art-5 { transform: translateY(12px); }
-          .empty-art.art-3, .empty-art.art-6 { transform: translateY(-8px); }
+          .empty-art-composition { min-height: 280px; position: relative; display:grid; place-items:center; }
+          .empty-art { position:absolute; overflow:hidden; background: ${this._theme === "dark" ? "rgba(255,255,255,0.05)" : "rgba(255,255,255,0.78)"}; box-shadow: inset 0 0 0 1px ${this._theme === "dark" ? "rgba(255,255,255,0.06)" : "rgba(17,24,31,0.06)"}; }
+          .empty-art.art-1 { width: 70%; height: 74%; border-radius: 34px 12px 34px 12px; transform: translate(-12%, 2%) rotate(-2deg); }
+          .empty-art.art-2 { width: 48%; height: 52%; border-radius: 14px 30px 14px 30px; right: 2%; bottom: 2%; transform: rotate(3deg); }
+          .empty-art.art-3 { width: 38%; height: 42%; border-radius: 999px; left: 2%; top: 6%; transform: rotate(-6deg); }
           .wizard-shell { margin-top: 18px; border-radius: 28px; padding: 22px; display:grid; gap: 18px; }
           .wizard-grid { display:grid; grid-template-columns: 1.25fr 0.75fr; gap: 16px; }
           .wizard-preview { display:grid; gap: 12px; }
-          .wizard-preview-art, .wizard-preview-mini { border-radius: 24px; overflow:hidden; min-height: 220px; background: ${this._theme === "dark" ? "rgba(255,255,255,0.05)" : "rgba(255,255,255,0.78)"}; }
-          .wizard-preview-stack { display:grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
-          .wizard-preview-mini { min-height: 94px; }
+          .wizard-preview-art { border-radius: 36px 14px 36px 14px; overflow:hidden; min-height: 260px; background: ${this._theme === "dark" ? "rgba(255,255,255,0.05)" : "rgba(255,255,255,0.78)"}; }
+          .wizard-phase-strip { display:grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+          .wizard-phase-strip span { height: 8px; border-radius:999px; background: ${this._theme === "dark" ? "rgba(255,255,255,0.1)" : "rgba(17,24,31,0.1)"}; }
+          .wizard-phase-strip span.active { background: linear-gradient(135deg, rgba(94,211,122,0.9), rgba(43,154,74,0.78)); }
           .form-grid { display:grid; gap: 14px; }
           .form-grid.two-col { grid-template-columns: repeat(2, minmax(0, 1fr)); }
           .field { display:grid; gap: 8px; }
@@ -2155,18 +2187,18 @@
           .cultivar-option { text-align:left; border-radius: 16px; border: 1px solid ${this._theme === "dark" ? "rgba(255,255,255,0.08)" : "rgba(17,24,31,0.08)"}; background: ${this._theme === "dark" ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.72)"}; padding: 11px 12px; display:grid; gap: 4px; }
           .cultivar-option.active { border-color: rgba(94,211,122,0.5); background: linear-gradient(135deg, rgba(94,211,122,0.2), rgba(43,154,74,0.18)); }
           .wizard-actions.between { justify-content: space-between; }
-          .overlay, .modal-shell { position: fixed; inset: 0; z-index: 10; }
+          .overlay, .modal-shell { position: absolute; inset: 0; z-index: 20; }
           .overlay-backdrop, .modal-backdrop { position:absolute; inset:0; background: rgba(0,0,0,0.5); }
           .overlay-card {
-            position: absolute; inset: 24px; border-radius: 32px; padding: 22px; overflow:auto; display:grid; gap: 18px;
+            position: absolute; inset: 24px; z-index: 1; border-radius: 32px; padding: 22px; overflow:auto; display:grid; gap: 18px;
           }
           .overlay-card.stack .detail-grid { grid-template-columns: 1fr; }
           .overlay-close { position:absolute; top:16px; right:16px; border:none; background: ${this._theme === "dark" ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.72)"}; color:inherit; width:40px; height:40px; border-radius:50%; font-size: 1.2rem; }
           .overlay-hero { display:grid; grid-template-columns: 1.1fr 0.9fr; gap: 16px; }
           .overlay-hero-copy h2 { margin: 8px 0 6px; font-size: clamp(1.4rem, 2vw, 2.2rem); }
           .overlay-hero-copy p { margin: 0; opacity: 0.78; }
-          .overlay-art-stack { display:grid; grid-template-columns: 1.2fr 0.8fr; gap: 10px; }
-          .overlay-art { border-radius: 24px; overflow:hidden; min-height: 200px; background: ${this._theme === "dark" ? "rgba(255,255,255,0.05)" : "rgba(255,255,255,0.82)"}; }
+          .overlay-art-stage { display:grid; min-height: 260px; }
+          .overlay-art { border-radius: 40px 14px 40px 14px; overflow:hidden; min-height: 260px; background: ${this._theme === "dark" ? "rgba(255,255,255,0.05)" : "rgba(255,255,255,0.82)"}; }
           .detail-stats-row { margin-top: 16px; display:grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 10px; }
           .detail-toolbar { display:flex; justify-content:space-between; gap: 12px; align-items:center; flex-wrap:wrap; }
           .control-group.compact-inline { padding: 0; background: transparent; }
@@ -2201,7 +2233,7 @@
           .timeline-dot { width: 10px; height: 10px; border-radius:50%; margin-top: 6px; background: rgba(94,211,122,0.9); box-shadow: 0 0 0 6px rgba(94,211,122,0.14); }
           .timeline-item.active .timeline-dot { background: #ffd166; box-shadow: 0 0 0 6px rgba(255,209,102,0.16); }
           .binding-row-right { justify-content:flex-end; }
-          .modal-card { position:absolute; left:50%; top:50%; transform:translate(-50%, -50%); width:min(92vw, 520px); border-radius: 26px; padding: 18px; display:grid; gap: 14px; }
+          .modal-card { position:absolute; left:50%; top:min(50%, 50vh); z-index:1; transform:translate(-50%, -50%); width:min(92vw, 520px); border-radius: 26px; padding: 18px; display:grid; gap: 14px; }
           .modal-card.small-card { width:min(92vw, 460px); }
           .modal-copy { margin:0; line-height:1.55; opacity:0.82; }
           @media (max-width: 980px) {
@@ -2209,7 +2241,6 @@
             .control-bar { justify-content: flex-start; }
             .wizard-grid, .empty-state, .overlay-hero, .detail-grid, .expanded-grid { grid-template-columns: 1fr; }
             .detail-stats-row { grid-template-columns: repeat(2, minmax(0,1fr)); }
-            .overlay-art-stack { grid-template-columns: 1fr 1fr; }
           }
           @media (max-width: 760px) {
             .shell { padding: 12px; }
@@ -2217,8 +2248,7 @@
             .overview-grid, .sensor-grid { grid-template-columns: 1fr; }
             .detail-stats-row, .run-stats-row, .form-grid.two-col { grid-template-columns: 1fr; }
             .overlay-card { inset: 12px; padding: 16px; border-radius: 24px; }
-            .overlay-art-stack { grid-template-columns: 1fr; }
-            .wizard-preview-stack { grid-template-columns: repeat(3, 1fr); }
+            .empty-art-composition { min-height: 220px; }
           }
         </style>
         <div class="shell ${this._theme}">
