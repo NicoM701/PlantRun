@@ -455,18 +455,17 @@
               padding: ${this._config.compact ? "16px" : "18px"};
               display: grid;
               gap: 14px;
-              color: var(--primary-text-color, #edf2f8);
+              color: #253024;
               background:
-                radial-gradient(circle at top right, rgba(110, 255, 166, 0.2), transparent 42%),
-                linear-gradient(160deg, rgba(15, 25, 22, 0.95), rgba(8, 13, 18, 0.98));
-              border-radius: 24px;
+                linear-gradient(135deg, rgba(255,250,240,0.96), rgba(223,233,210,0.86));
+              border-radius: 26px;
             }
             .card::after {
               content: "";
               position: absolute;
               inset: 0;
-              border: 1px solid rgba(255,255,255,0.08);
-              border-radius: 24px;
+              border: 1px solid rgba(74,85,62,0.12);
+              border-radius: 26px;
               pointer-events: none;
             }
             .header, .meta {
@@ -484,7 +483,7 @@
               font-size: 0.72rem;
               text-transform: uppercase;
               letter-spacing: 0.12em;
-              opacity: 0.7;
+              opacity: 0.58;
             }
             h3 {
               margin:0;
@@ -495,31 +494,33 @@
               border-radius: 999px;
               padding: 7px 10px;
               font-size: 0.75rem;
-              background: rgba(255,255,255,0.08);
+              background: rgba(255,250,240,0.62);
+              border: 1px solid rgba(74,85,62,0.1);
             }
             .hero {
               display:grid;
-              grid-template-columns: ${this._config.compact ? "92px 1fr" : "120px 1fr"};
+              grid-template-columns: ${this._config.compact ? "96px 1fr" : "128px 1fr"};
               gap: 16px;
               align-items:center;
+              overflow:hidden;
             }
             .hero-art {
               width: 100%;
               aspect-ratio: 1;
-              border-radius: 22px;
-              background:
-                radial-gradient(circle at 30% 30%, rgba(159,255,194,0.26), transparent 52%),
-                linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.01));
+              border-radius: 26px 10px 26px 10px;
+              background: rgba(255,250,240,0.58);
               display:grid;
               place-items:center;
-              overflow:hidden;
-              box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08);
+              overflow:visible;
+              box-shadow: inset 0 0 0 1px rgba(74,85,62,0.08);
             }
             .hero-art img {
-              width: 100%;
-              height: 100%;
+              width: 128%;
+              height: 128%;
               object-fit: contain;
-              padding: 10px;
+              padding: 0;
+              transform: translate(7%, -4%) scale(1.06);
+              filter: drop-shadow(0 16px 18px rgba(57,48,32,0.14));
             }
             .stats {
               display:grid;
@@ -529,8 +530,8 @@
             .stat {
               padding: 10px 12px;
               border-radius: 18px;
-              background: rgba(255,255,255,0.06);
-              box-shadow: inset 0 0 0 1px rgba(255,255,255,0.05);
+              background: rgba(255,250,240,0.58);
+              box-shadow: inset 0 0 0 1px rgba(74,85,62,0.08);
             }
             .stat span {
               display:block;
@@ -555,7 +556,8 @@
               align-items:center;
               padding: 10px 12px;
               border-radius: 16px;
-              background: rgba(255,255,255,0.05);
+              background: rgba(255,250,240,0.52);
+              box-shadow: inset 0 0 0 1px rgba(74,85,62,0.08);
             }
             .chip-icon {
               width: 22px;
@@ -566,19 +568,20 @@
               font-size: 0.8rem;
               font-weight: 700;
             }
-            .chip-icon.warm { background: rgba(255,154,87,0.26); color: #ffb37d; }
-            .chip-icon.cool { background: rgba(110,198,255,0.26); color: #8fdaff; }
-            .chip-icon.moisture { background: rgba(92,255,211,0.22); color: #75f1d1; }
-            .chip-icon.neutral { background: rgba(255,255,255,0.14); color: rgba(255,255,255,0.82); }
+            .chip-icon.warm { background: rgba(168,117,86,0.18); color: #8d5f42; }
+            .chip-icon.cool { background: rgba(111,143,100,0.18); color: #3f6748; }
+            .chip-icon.moisture { background: rgba(94,132,130,0.18); color: #426c69; }
+            .chip-icon.neutral { background: rgba(74,85,62,0.12); color: rgba(37,48,36,0.82); }
             .actions { display:flex; justify-content:flex-end; }
             button {
               border: none;
               border-radius: 999px;
               padding: 10px 14px;
               cursor: pointer;
-              background: linear-gradient(135deg, #69da7d, #218e48);
+              background: linear-gradient(135deg, #78996d, #365d42);
               color: white;
               font: inherit;
+              box-shadow: 0 10px 22px rgba(54, 93, 66, 0.18);
             }
           </style>
           <div class="card">
