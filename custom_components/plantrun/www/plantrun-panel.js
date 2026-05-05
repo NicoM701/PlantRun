@@ -583,7 +583,8 @@
     }
 
     _currentPhase(run) {
-      return run?.phases?.[run.phases.length - 1]?.name || "Seedling";
+      const phases = Array.isArray(run?.phases) ? run.phases : [];
+      return phases[phases.length - 1]?.name || "Seedling";
     }
 
     _stageKeyForRun(run) {
@@ -1037,9 +1038,10 @@
 
     _detailStatsMarkup(run) {
       const summary = this._summaryForRun(run.id);
+      const runAgeDays = this._runAgeDays(run);
       return `
         <div class="detail-stats-row">
-          <div class="detail-stat"><span>Age</span><strong>${this._runAgeDays(run)} ${this._runAgeDays(run) === 1 ? this.t("day") : this.t("days")}</strong></div>
+          <div class="detail-stat"><span>Age</span><strong>${runAgeDays} ${runAgeDays === 1 ? this.t("day") : this.t("days")}</strong></div>
           <div class="detail-stat"><span>${this.t("target")}</span><strong>${this._targetDaysForRun(run) || "—"} ${this.t("days")}</strong></div>
           <div class="detail-stat"><span>Energy</span><strong>${SHARED.escapeHtml(summary?.energy_kwh != null ? `${summary.energy_kwh} kWh` : "—")}</strong></div>
           <div class="detail-stat"><span>Yield</span><strong>${SHARED.escapeHtml(run?.dry_yield_grams != null ? `${run.dry_yield_grams} g` : "—")}</strong></div>

@@ -1,6 +1,5 @@
 (() => {
   const CARD_TAG = "plantrun-card";
-  const DOMAIN = "plantrun";
 
   if (customElements.get(CARD_TAG)) {
     return;
@@ -315,7 +314,18 @@
     }
 
     _currentPhase(run) {
-      return run?.phases?.[run.phases.length - 1]?.name || "Seedling";
+      const phases = Array.isArray(run?.phases) ? run.phases : [];
+      return phases[phases.length - 1]?.name || "Seedling";
+    }
+
+    _targetDaysForRun(run) {
+      const rawTarget = run?.base_config?.target_days ?? run?.target_days;
+      const parsed = Number(rawTarget);
+      return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+    }
+
+    _cultivarLabel(run) {
+      return run?.cultivar?.name || "Manual entry";
     }
 
     _stageKeyForRun(run) {
@@ -405,6 +415,7 @@
       const summary = this._summary || {};
       const stageKey = this._stageKeyForRun(run);
       const art = this._artUrl || SHARED.svgToDataUrl(SHARED.STAGE_SVGS[stageKey]);
+      const targetDays = this._targetDaysForRun(run);
 
       if (!runId) {
         this.shadowRoot.innerHTML = `
@@ -582,8 +593,8 @@
               <div class="hero-art"><img src="${art}" alt="${SHARED.escapeHtml(this._currentPhase(run))} plant art" /></div>
               <div class="stats">
                 <div class="stat"><span>Age</span><strong>${this._runAgeDays(run)} days</strong></div>
-                <div class="stat"><span>Target</span><strong>${SHARED.escapeHtml(String(run?.base_config?.target_days || "—"))} days</strong></div>
-                <div class="stat"><span>Cultivar</span><strong>${SHARED.escapeHtml(run?.cultivar?.name || "Manual")}</strong></div>
+                <div class="stat"><span>Target</span><strong>${SHARED.escapeHtml(targetDays != null ? String(targetDays) : "—")} days</strong></div>
+                <div class="stat"><span>Cultivar</span><strong>${SHARED.escapeHtml(this._cultivarLabel(run))}</strong></div>
                 <div class="stat"><span>Energy</span><strong>${SHARED.escapeHtml(
                   summary?.energy_kwh != null ? `${summary.energy_kwh} kWh` : "—"
                 )}</strong></div>
