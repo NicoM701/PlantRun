@@ -1,6 +1,7 @@
 """SeedFinder API provider for PlantRun."""
 import logging
 import re
+import time
 from dataclasses import dataclass
 from typing import Any
 
@@ -10,12 +11,17 @@ from bs4 import BeautifulSoup
 from .models import CultivarSnapshot
 
 _LOGGER = logging.getLogger(__name__)
+_BREEDER_PAGE_CACHE_TTL_SECONDS = 300
+_BREEDER_PAGE_CACHE: dict[tuple[int, str], tuple[float, str]] = {}
+
 
 def _slug(value: str) -> str:
     return re.sub(r"[^a-z0-9]+", "_", value.strip().lower()).strip("_")
 
+
 def _norm(value: str) -> str:
     return " ".join(value.strip().lower().split())
+
 
 def _score_match(query_species: str, row_species: str, prefer_automatic: bool = False) -> int:
     q = _norm(query_species)
@@ -87,6 +93,123 @@ def _extract_flower_window_days(cells: list[Any]) -> int | None:
 
     return None
 
+
+def _breeder_urls(breeder: str) -> list[str]:
+    breeder_slug = _slug(breeder)
+    return [
+        f"https://seedfinder.eu/en/database/breeder/{breeder_slug}/",
+        f"https://seedfinder.eu/de/database/breeder/{breeder_slug}/",
+    ]
+
+
+async def _async_fetch_breeder_html(
+    breeder: str,
+    *,
+    session: aiohttp.ClientSession,
+) -> str | None:
+    """Fetch one breeder page with short-lived HTML caching."""
+    cache_key = (id(session), _slug(breeder))
+    cached = _BREEDER_PAGE_CACHE.get(cache_key)
+    now = time.monotonic()
+    if cached and now - cached[0] < _BREEDER_PAGE_CACHE_TTL_SECONDS:
+        return cached[1]
+
+    for breeder_url in _breeder_urls(breeder):
+        async with session.get(breeder_url, timeout=20) as response:
+            if response.status != 200:
+                continue
+            breeder_html = await response.text()
+            _BREEDER_PAGE_CACHE[cache_key] = (now, breeder_html)
+            return breeder_html
+
+    return None
+
+
+def _collect_scored_matches(
+    breeder_html: str,
+    breeder: str,
+    query: str,
+) -> list[CultivarSnapshot]:
+    """Parse breeder HTML and return top scored cultivar matches."""
+    breeder_soup = BeautifulSoup(breeder_html, "html.parser")
+    table = breeder_soup.find("table", class_="table")
+    if not table or not table.find("tbody"):
+        _LOGGER.warning("No strain table found for breeder %s", breeder)
+        return []
+
+    scored_rows = []
+    for row in table.find("tbody").find_all("tr"):
+        cells = row.find_all("td")
+        if not cells:
+            continue
+        anchor = cells[0].find("a")
+        if not anchor:
+            continue
+        match_name = anchor.get_text(strip=True)
+        score = _score_match(query, match_name)
+        if score <= 0:
+            continue
+        scored_rows.append((score, cells, anchor))
+
+    if not scored_rows:
+        return []
+
+    scored_rows.sort(key=lambda item: item[0], reverse=True)
+    results: list[CultivarSnapshot] = []
+    for _, cells, anchor in scored_rows[:5]:
+        match_name = anchor.get_text(strip=True)
+        match_breeder = cells[1].get_text(strip=True) if len(cells) > 1 else breeder
+        detail_url = anchor.get("href")
+        flower_window_days = _extract_flower_window_days(cells)
+        if detail_url and detail_url.startswith("/"):
+            detail_url = f"https://seedfinder.eu{detail_url}"
+
+        results.append(
+            CultivarSnapshot(
+                name=match_name,
+                breeder=match_breeder,
+                flower_window_days=flower_window_days,
+                detail_url=detail_url,
+            )
+        )
+    return results
+
+
+async def async_search_cultivar_by_query(
+    breeder: str,
+    query: str,
+    *,
+    session: aiohttp.ClientSession | None = None,
+) -> list[CultivarSnapshot]:
+    """Search cultivars for a breeder using scored top-5 matching."""
+    breeder = breeder.strip()
+    query = query.strip()
+    if not breeder or not query:
+        return []
+
+    try:
+        if session is None:
+            async with aiohttp.ClientSession() as owned_session:
+                return await async_search_cultivar_by_query(
+                    breeder,
+                    query,
+                    session=owned_session,
+                )
+
+        breeder_html = await _async_fetch_breeder_html(breeder, session=session)
+        if not breeder_html:
+            _LOGGER.warning("SeedFinder breeder page not found for %s", breeder)
+            return []
+
+        results = _collect_scored_matches(breeder_html, breeder, query)
+        if not results:
+            _LOGGER.warning("Strain '%s' not found for breeder '%s'", query, breeder)
+        return results
+    except Exception as err:
+        _LOGGER.error("Error searching SeedFinder: %s", err)
+        return []
+
+
 async def async_search_cultivar(
     breeder: str,
     strain: str,
@@ -94,84 +217,11 @@ async def async_search_cultivar(
     session: aiohttp.ClientSession | None = None,
 ) -> list[CultivarSnapshot]:
     """Search for a cultivar on SeedFinder using the robust breeder scrape."""
-    results = []
-    
-    species = strain.strip()
-    breeder = breeder.strip()
-    if not species or not breeder:
-        return results
-
-    try:
-        breeder_slug = _slug(breeder)
-        breeder_urls = [
-            f"https://seedfinder.eu/en/database/breeder/{breeder_slug}/",
-            f"https://seedfinder.eu/de/database/breeder/{breeder_slug}/",
-        ]
-
-        breeder_html = None
-        if session is None:
-            async with aiohttp.ClientSession() as owned_session:
-                return await async_search_cultivar(
-                    breeder,
-                    strain,
-                    session=owned_session,
-                )
-
-        for breeder_url in breeder_urls:
-            async with session.get(breeder_url, timeout=20) as response:
-                if response.status == 200:
-                    breeder_html = await response.text()
-                    break
-
-        if not breeder_html:
-            _LOGGER.warning("SeedFinder breeder page not found for %s", breeder)
-            return results
-
-        breeder_soup = BeautifulSoup(breeder_html, "html.parser")
-        table = breeder_soup.find("table", class_="table")
-        if not table or not table.find("tbody"):
-            _LOGGER.warning("No strain table found for breeder %s", breeder)
-            return results
-
-        scored_rows = []
-        for row in table.find("tbody").find_all("tr"):
-            cells = row.find_all("td")
-            if not cells:
-                continue
-            anchor = cells[0].find("a")
-            if not anchor:
-                continue
-            score = _score_match(species, anchor.get_text(strip=True))
-            if score > 0:
-                scored_rows.append((score, cells, anchor))
-
-        if not scored_rows:
-            _LOGGER.warning("Strain '%s' not found for breeder '%s'", species, breeder)
-            return results
-
-        # We only need a small snapshot for config flows/services.
-        scored_rows.sort(key=lambda item: item[0], reverse=True)
-        for _, cells, anchor in scored_rows[:5]:
-            match_name = anchor.get_text(strip=True)
-            match_breeder = cells[1].get_text(strip=True) if len(cells) > 1 else breeder
-            detail_url = anchor.get("href")
-            flower_window_days = _extract_flower_window_days(cells)
-            if detail_url and detail_url.startswith("/"):
-                detail_url = f"https://seedfinder.eu{detail_url}"
-
-            results.append(
-                CultivarSnapshot(
-                    name=match_name,
-                    breeder=match_breeder,
-                    flower_window_days=flower_window_days,
-                    detail_url=detail_url,
-                )
-            )
-
-    except Exception as err:
-        _LOGGER.error("Error searching SeedFinder: %s", err)
-        
-    return results
+    return await async_search_cultivar_by_query(
+        breeder,
+        strain,
+        session=session,
+    )
 
 
 @dataclass

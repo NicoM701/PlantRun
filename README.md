@@ -1,67 +1,47 @@
 # PlantRun 🌱
+
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg?style=for-the-badge)](https://github.com/hacs/integration)
 
-PlantRun is a Home Assistant custom integration for tracking cultivation runs end-to-end.
+PlantRun is a Home Assistant custom integration for tracking cultivation runs end to end.
 
 It combines:
-- guided run setup,
-- optional SeedFinder enrichment,
-- sensor bindings and proxy entities,
-- a dedicated sidebar dashboard,
-- persistent run storage for long-term run history.
-
----
-
-## Current Status (March 2026)
-
-PlantRun is actively developed and already supports a full day-to-day workflow:
-
-- ✅ create/manage runs via UI
-- ✅ multiple runs with run selection in dashboard card
-- ✅ notes CRUD (add/edit/delete)
-- ✅ phase changes + end-run flow
-- ✅ SeedFinder cultivar search/enrichment
-- ✅ default run preview image from cultivar match
-- ✅ target-days prefill support from SeedFinder flower window data
-- ✅ configurable energy price + currency in summary settings
-- ✅ phase-aware detail fields in dashboard (harvest-only fields gated)
-- ✅ multi-unit light sensor compatibility (`lx`/`lux` normalization)
+- guided run setup
+- a dedicated sidebar dashboard
+- a Lovelace run card
+- sensor bindings and proxy entities
+- SeedFinder cultivar enrichment
+- persistent per-run history and summaries
 
 ---
 
 ## Features
 
-### Setup & Run Management
-- Guided configuration flow in Home Assistant (no YAML required for normal use)
-- Start new runs and manage existing runs
-- Friendly setup wording and improved setup field clarity
-- Cultivar input with suggestions/autocomplete improvements
+### Run management
+- Create and manage multiple runs
+- Track phases, notes, planted date, target days, status, and harvest yield
+- Keep one active run for compatibility with older service flows
 
-### Dashboard UI
-PlantRun provides a sidebar dashboard at:
-- **PlantRun** (`/plantrun-dashboard`)
+### Frontend
+PlantRun ships with two UI entry points:
+- **Sidebar dashboard** at `/plantrun-dashboard`
+- **Lovelace card** via `custom:plantrun-card`
 
-Includes:
-- run cards with status/phase/sensor chips
-- run-age visibility (days running)
-- collapsible notes panel with preview + count
-- image upload + SeedFinder image usage
-- safer action handling when run selection is ambiguous
+Current UI capabilities include:
+- run cards with live metric chips and stage-aware artwork
+- detail editing for metadata, notes, bindings, and images
+- a 3-step run creation wizard
+- theme/language/layout preferences
+- live cultivar suggestions backed by SeedFinder
 
-### Sensor & Summary Layer
-- Proxy sensors per run for dashboarding and grouping
-- Robust handling of light units (`lx`, `lux`, case variants)
-- Summary pipeline supports:
-  - run-window-scoped energy kWh (from run start → run end/now)
-  - configurable energy cost using integration energy-price settings
-  - explicit energy currency in summary outputs
-- Dedicated run entities for dashboarding:
-  - `sensor.<run>_run_energy`
-  - `sensor.<run>_run_energy_cost`
+### Sensor and summary layer
+- per-run status, phase, cultivar, energy, and energy cost sensors
+- proxy sensors for bound Home Assistant entities
+- run-window energy and energy cost summaries
+- light unit compatibility for `lx` / `lux`
 
-### Data Persistence
-- Run state persisted in local store (`plantrun_store.json`)
-- Designed to retain run context beyond recorder retention windows
+### Persistence
+- local store-backed run history
+- migration support for older payload shapes and legacy binding IDs
 
 ---
 
@@ -71,11 +51,11 @@ Includes:
 2. Add this repo as a **Custom repository** (category: Integration)
 3. Install PlantRun
 4. Restart Home Assistant
-5. Add integration via **Settings → Devices & Services**
+5. Add the integration via **Settings → Devices & Services**
 
 ---
 
-## Main Services
+## Main services
 
 - `plantrun.create_run`
 - `plantrun.add_phase`
@@ -85,30 +65,32 @@ Includes:
 - `plantrun.update_run`
 - `plantrun.set_cultivar`
 - `plantrun.set_run_image`
+- `plantrun.add_binding`
+- `plantrun.update_binding`
+- `plantrun.remove_binding`
 - `plantrun.end_run`
 
 ---
 
-## Known Focus Area
+## Development gate
 
-The remaining open UX epic is:
-- **#35 — Simplify and clarify run-creation setup flow**
+Primary local validation:
 
-Work is being delivered in mergeable slices to keep changes safe and testable.
+```bash
+python3 -m unittest discover -s tests -p 'test_*.py'
+node --check custom_components/plantrun/www/plantrun-panel.js
+node --check custom_components/plantrun/www/plantrun-card.js
+node --check custom_components/plantrun/www/plantrun-card-editor.js
+```
 
----
+Useful focused suite:
 
-## Development Notes
+```bash
+python3 -m unittest tests.test_dashboard_panel_interactions -q
+```
 
-- Quick pre-PR gate: `./scripts/quick_gate.sh`
-- Direct test command: `python3 -m unittest discover -s tests -q`
-- Dashboard interaction regression suite: `python3 -m unittest tests.test_dashboard_panel_interactions -q`
-- Keep changes scoped and production-runnable per PR
-- Prefer backward-compatible UX/data changes
-
-## QA & Operations Docs
-
-- Release QA sign-off (real-device, #78/#74 focus): `docs/RELEASE_QA_SIGNOFF.md`
-- Lightweight performance guide: `docs/PERFORMANCE_NOTES.md`
-- Existing release checklist: `docs/RELEASE_CHECKLIST.md`
-- 2026-03-11 closure summary for issues #66-#79: `docs/QA_WAVE_CLOSURE_2026-03-11.md`
+Related docs:
+- `docs/RELEASE_QA_SIGNOFF.md`
+- `docs/PERFORMANCE_NOTES.md`
+- `docs/RELEASE_CHECKLIST.md`
+- `PROJECT_CONTEXT.md`

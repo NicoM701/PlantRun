@@ -1,130 +1,179 @@
-import {
-    LitElement,
-    html,
-    css,
-} from "https://unpkg.com/lit-element@2.4.0/lit-element.js?module";
+(() => {
+  const TAG_NAME = "plantrun-card-editor";
+  const PLACEHOLDER_OPTIONS = ["<run_id>", "your_run_id"];
 
-class PlantRunCardEditor extends LitElement {
-    static get properties() {
-        return {
-            hass: { type: Object },
-            _config: { type: Object },
-        };
+  if (customElements.get(TAG_NAME)) {
+    return;
+  }
+
+  class PlantRunCardEditor extends HTMLElement {
+    constructor() {
+      super();
+      this.attachShadow({ mode: "open" });
+      this._hass = null;
+      this._config = { type: "custom:plantrun-card", run_id: "<run_id>", title: "" };
+      this._runs = [];
+      this._loading = false;
+    }
+
+    set hass(value) {
+      this._hass = value;
+      this._loadRuns();
+      this.render();
     }
 
     setConfig(config) {
-        this._config = config || {};
+      this._config = {
+        type: "custom:plantrun-card",
+        run_id: "<run_id>",
+        title: "",
+        ...config,
+      };
+      this.render();
     }
 
-    _getAvailableRuns() {
-        if (!this.hass) {
-            return [];
-        }
+    async _loadRuns() {
+      if (!this._hass || this._loading) {
+        return;
+      }
+      this._loading = true;
+      try {
+        const payload = await this._hass.callWS({ type: "plantrun/get_runs" });
+        this._runs = Array.isArray(payload?.runs) ? payload.runs : [];
+      } catch (_error) {
+        this._runs = [];
+      } finally {
+        this._loading = false;
+        this.render();
+      }
+    }
 
-        return Object.values(this.hass.states)
-            .filter((state) => state.entity_id.startsWith("sensor.plantrun_status_"))
-            .map((state) => {
-                const id = state.entity_id.replace("sensor.plantrun_status_", "");
-                const friendlyName = state.attributes.friendly_name || state.entity_id;
-                return {
-                    id,
-                    name: friendlyName.replace(/ Status$/, ""),
-                };
-            })
-            .sort((a, b) => a.name.localeCompare(b.name));
+    _emitConfig(nextConfig) {
+      this._config = { ...this._config, ...nextConfig };
+      this.dispatchEvent(
+        new CustomEvent("config-changed", {
+          detail: { config: this._config },
+          bubbles: true,
+          composed: true,
+        })
+      );
+      this.render();
+    }
+
+    _runOptions() {
+      const dynamicOptions = this._runs.map((run) => {
+        const suffix = run?.id ? run.id.slice(-6) : "------";
+        return `<option value="${this._escape(run.id)}">${this._escape(
+          `${run.friendly_name || "Unnamed Run"} (${suffix})`
+        )}</option>`;
+      });
+      const placeholderOptions = PLACEHOLDER_OPTIONS.map(
+        (value) => `<option value="${this._escape(value)}">${this._escape(value)}</option>`
+      );
+      return [...placeholderOptions, ...dynamicOptions].join("");
+    }
+
+    _escape(value) {
+      return String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/\"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+
+    _bindEvents() {
+      const runSelect = this.shadowRoot.querySelector("#run-id");
+      const titleInput = this.shadowRoot.querySelector("#title");
+      const compactToggle = this.shadowRoot.querySelector("#compact");
+
+      if (runSelect) {
+        runSelect.value = this._config.run_id || "<run_id>";
+        runSelect.addEventListener("change", (event) => {
+          this._emitConfig({ run_id: event.target.value });
+        });
+      }
+      if (titleInput) {
+        titleInput.value = this._config.title || "";
+        titleInput.addEventListener("input", (event) => {
+          this._emitConfig({ title: event.target.value });
+        });
+      }
+      if (compactToggle) {
+        compactToggle.checked = !!this._config.compact;
+        compactToggle.addEventListener("change", (event) => {
+          this._emitConfig({ compact: !!event.target.checked });
+        });
+      }
     }
 
     render() {
-        if (!this.hass) {
-            return html``;
-        }
-
-        const runs = this._getAvailableRuns();
-
-        return html`
-      <div class="card-config">
-        <label for="plantrun-run-select">Discovered run</label>
-        <select
-          id="plantrun-run-select"
-          .value="${this._config.run_id || ""}"
-          .configValue="${"run_id"}"
-          @change="${this._valueChanged}"
-        >
-          <option value="">${runs.length ? "Use first discovered run" : "No runs discovered"}</option>
-          ${runs.map((run) => html`<option value="${run.id}">${run.name} (${run.id})</option>`)}
-        </select>
-
-        <paper-input
-          label="Run ID (manual override)"
-          .value="${this._config.run_id || ""}"
-          .configValue="${"run_id"}"
-          @value-changed="${this._valueChanged}"
-        ></paper-input>
-
-        <div class="helper-text">
-          ${runs.length
-            ? html`Select a discovered run or enter a run ID manually.`
-            : html`No <code>sensor.plantrun_status_*</code> entities were found yet. You can still enter a run ID manually.`}
+      const loading = this._loading ? "Loading runs…" : "Pick a run discovered by PlantRun.";
+      this.shadowRoot.innerHTML = `
+        <style>
+          :host {
+            display: block;
+            font-family: var(--primary-font-family, system-ui, sans-serif);
+            color: var(--primary-text-color, #e8edf5);
+          }
+          .editor {
+            display: grid;
+            gap: 14px;
+            padding: 8px 0;
+          }
+          .field {
+            display: grid;
+            gap: 6px;
+          }
+          label {
+            font-size: 0.82rem;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+          }
+          input,
+          select {
+            width: 100%;
+            box-sizing: border-box;
+            border: 1px solid color-mix(in srgb, var(--divider-color, #5c6670) 55%, transparent);
+            border-radius: 12px;
+            padding: 12px 13px;
+            background: var(--card-background-color, rgba(20, 24, 30, 0.88));
+            color: inherit;
+          }
+          .hint {
+            font-size: 0.78rem;
+            opacity: 0.72;
+            line-height: 1.4;
+          }
+          .toggle {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 13px;
+            border-radius: 12px;
+            border: 1px solid color-mix(in srgb, var(--divider-color, #5c6670) 55%, transparent);
+            background: var(--card-background-color, rgba(20, 24, 30, 0.88));
+          }
+        </style>
+        <div class="editor">
+          <div class="field">
+            <label for="run-id">Run</label>
+            <select id="run-id">${this._runOptions()}</select>
+            <div class="hint">${this._escape(loading)}</div>
+          </div>
+          <div class="field">
+            <label for="title">Card title override</label>
+            <input id="title" type="text" placeholder="Optional custom title" />
+          </div>
+          <label class="toggle" for="compact">
+            <span>Compact layout</span>
+            <input id="compact" type="checkbox" />
+          </label>
         </div>
-      </div>
-    `;
+      `;
+      this._bindEvents();
     }
+  }
 
-    _valueChanged(ev) {
-        if (!this.hass || !this._config) {
-            return;
-        }
-        const target = ev.target;
-        if (!target?.configValue) {
-            return;
-        }
-        if (this._config[target.configValue] === target.value) {
-            return;
-        }
-
-        if (target.value === "") {
-            const tmpConfig = { ...this._config };
-            delete tmpConfig[target.configValue];
-            this._config = tmpConfig;
-        } else {
-            this._config = {
-                ...this._config,
-                [target.configValue]: target.value,
-            };
-        }
-
-        const event = new Event("config-changed", {
-            bubbles: true,
-            composed: true,
-        });
-        event.detail = { config: this._config };
-        this.dispatchEvent(event);
-    }
-
-    static get styles() {
-        return css`
-      .card-config {
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
-      }
-      label {
-        font-size: 14px;
-        font-weight: 500;
-      }
-      select {
-        padding: 8px;
-        border-radius: 6px;
-        border: 1px solid var(--divider-color);
-        background: var(--card-background-color);
-        color: var(--primary-text-color);
-      }
-      .helper-text {
-        font-size: 12px;
-        color: var(--secondary-text-color);
-      }
-    `;
-    }
-}
-
-customElements.define("plantrun-card-editor", PlantRunCardEditor);
+  customElements.define(TAG_NAME, PlantRunCardEditor);
+})();

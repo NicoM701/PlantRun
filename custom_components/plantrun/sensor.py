@@ -33,6 +33,7 @@ METRIC_METADATA: dict[str, dict[str, str]] = {
 
 # Accept common illuminance aliases and normalize to canonical "lx".
 LIGHT_ILLUMINANCE_UNIT_ALIASES = {"lx", "lux"}
+UNAVAILABLE_SENSOR_STATES = {"unknown", "unavailable", "none", ""}
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -203,7 +204,7 @@ class PlantRunEnergySensor(PlantRunBaseRunSensor):
 
     _attr_icon = "mdi:lightning-bolt"
     _attr_device_class = "energy"
-    _attr_state_class = "measurement"
+    _attr_state_class = "total"
     _attr_native_unit_of_measurement = "kWh"
 
     def __init__(self, coordinator: PlantRunCoordinator, run_id: str) -> None:
@@ -225,7 +226,7 @@ class PlantRunEnergyCostSensor(PlantRunBaseRunSensor):
 
     _attr_icon = "mdi:currency-eur"
     _attr_device_class = "monetary"
-    _attr_state_class = "measurement"
+    _attr_state_class = "total"
 
     def __init__(
         self,
@@ -340,7 +341,38 @@ class PlantRunProxySensor(CoordinatorEntity[PlantRunCoordinator], SensorEntity):
         state = self.hass.states.get(self.source_entity_id)
         if state is None:
             return False
-        return state.state != "unavailable"
+        return self._normalize_source_native_value(state.state) is not None
+
+    def _normalize_source_native_value(self, raw_value: object) -> float | int | str | None:
+        """Return a HA-safe native value for the bound source sensor."""
+        if raw_value is None:
+            return None
+
+        if isinstance(raw_value, str):
+            normalized = raw_value.strip()
+            if normalized.casefold() in UNAVAILABLE_SENSOR_STATES:
+                return None
+        else:
+            normalized = raw_value
+
+        if self.metric_type not in METRIC_METADATA:
+            return normalized
+
+        if isinstance(normalized, (int, float)):
+            return normalized
+
+        try:
+            numeric_value = float(str(normalized).replace(",", "."))
+        except (TypeError, ValueError):
+            _LOGGER.debug(
+                "Ignoring non-numeric state '%s' for %s (%s)",
+                raw_value,
+                self.source_entity_id,
+                self.metric_type,
+            )
+            return None
+
+        return int(numeric_value) if numeric_value.is_integer() else numeric_value
 
     @property
     def available(self) -> bool:
@@ -362,9 +394,8 @@ class PlantRunProxySensor(CoordinatorEntity[PlantRunCoordinator], SensorEntity):
                 # Thread-safe from worker/event contexts on newer HA cores.
                 self.schedule_update_ha_state()
                 return
-
-            self._attr_native_value = new_state.state
             self._apply_source_metadata(new_state.attributes)
+            self._attr_native_value = self._normalize_source_native_value(new_state.state)
             # Thread-safe from worker/event contexts on newer HA cores.
             self.schedule_update_ha_state()
 
@@ -378,8 +409,8 @@ class PlantRunProxySensor(CoordinatorEntity[PlantRunCoordinator], SensorEntity):
         # Initialize with current state if it exists
         state = self.hass.states.get(self.source_entity_id)
         if state:
-            self._attr_native_value = state.state
             self._apply_source_metadata(state.attributes)
+            self._attr_native_value = self._normalize_source_native_value(state.state)
             self.async_write_ha_state()
 
 

@@ -47,6 +47,9 @@ def _install_homeassistant_stubs() -> None:
     def Coerce(_type):
         return _type
 
+    def Any(*args):
+        return args[0] if args else None
+
     vol.Schema = Schema
     vol.Required = Required
     vol.Optional = Optional
@@ -54,6 +57,7 @@ def _install_homeassistant_stubs() -> None:
     vol.All = All
     vol.Length = Length
     vol.Coerce = Coerce
+    vol.Any = Any
     sys.modules["voluptuous"] = vol
 
     ha = types.ModuleType("homeassistant")
@@ -729,6 +733,37 @@ class StabilityLifecycleTests(unittest.TestCase):
         for _name, session in self.providers.calls:
             self.assertIs(session, sys.modules["homeassistant.helpers.aiohttp_client"]._session)
         self.assertEqual(run.image_source, "seedfinder")
+
+    def test_update_binding_clears_stale_metric_history_when_sensor_changes(self):
+        hass = self._build_hass()
+        entry = sys.modules["homeassistant.config_entries"].ConfigEntry("entry-binding-update")
+        asyncio.run(self.integration.async_setup_entry(hass, entry))
+
+        storage = FakeStorage.instances[-1]
+        run = self.models.RunData(
+            id="run-binding",
+            friendly_name="Tent Sensors",
+            start_time="2026-03-10T00:00:00",
+            bindings=[self.models.Binding(id="binding-temp", metric_type="temperature", sensor_id="sensor.old_temp")],
+            sensor_history={"temperature": [{"value": 24.1, "timestamp": "2026-03-10T00:00:00+00:00"}]},
+        )
+        storage.runs.append(run)
+        storage.active_run_id = run.id
+
+        handler = hass.services.get_handler(self.integration.DOMAIN, "update_binding")
+        call = sys.modules["homeassistant.core"].ServiceCall(
+            {
+                "run_id": run.id,
+                "binding_id": "binding-temp",
+                "metric_type": "temperature",
+                "sensor_id": "sensor.new_temp",
+            }
+        )
+
+        asyncio.run(handler(call))
+
+        self.assertEqual(run.bindings[0].sensor_id, "sensor.new_temp")
+        self.assertNotIn("temperature", run.sensor_history)
 
     def test_set_run_image_uses_executor_for_filesystem_writes(self):
         hass = self._build_hass()
