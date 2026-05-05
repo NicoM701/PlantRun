@@ -296,6 +296,20 @@ class TestDynamicBindingEntities(unittest.TestCase):
         coordinator._listeners[0]()
         self.assertFalse(proxy.available)
 
+    def test_run_energy_entities_use_ha_compatible_state_classes(self) -> None:
+        coordinator = FakeCoordinator([])
+
+        energy = SENSOR_MODULE.PlantRunEnergySensor(coordinator, "runEnergy")
+        cost = SENSOR_MODULE.PlantRunEnergyCostSensor(
+            coordinator,
+            "runEnergy",
+            energy_price_per_kwh=0.29,
+            energy_currency="EUR",
+        )
+
+        self.assertEqual(energy._attr_state_class, "total")
+        self.assertEqual(cost._attr_state_class, "total")
+
     def test_metadata_fallback_for_statistics_compat(self) -> None:
         run = RunData.from_dict(
             {
@@ -382,6 +396,24 @@ class TestDynamicBindingEntities(unittest.TestCase):
             states=types.SimpleNamespace(get=lambda _entity_id: unavailable_state)
         )
         self.assertFalse(proxy.available)
+
+        unknown_state = types.SimpleNamespace(state="unknown")
+        proxy.hass = types.SimpleNamespace(
+            states=types.SimpleNamespace(get=lambda _entity_id: unknown_state)
+        )
+        self.assertFalse(proxy.available)
+
+    def test_numeric_proxy_normalizes_unknown_to_none(self) -> None:
+        proxy = _build_proxy_sensor("temperature", "sensor.temp")
+
+        self.assertIsNone(proxy._normalize_source_native_value("unknown"))
+        self.assertIsNone(proxy._normalize_source_native_value("unavailable"))
+        self.assertEqual(proxy._normalize_source_native_value("21.4"), 21.4)
+
+    def test_numeric_proxy_ignores_non_numeric_strings(self) -> None:
+        proxy = _build_proxy_sensor("energy", "sensor.energy")
+
+        self.assertIsNone(proxy._normalize_source_native_value("not-a-number"))
 
 
 class TestProxyStateChangeThreadSafety(unittest.TestCase):
