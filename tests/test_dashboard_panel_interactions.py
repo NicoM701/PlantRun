@@ -68,6 +68,20 @@ class DashboardPanelInteractionRegressionTests(unittest.TestCase):
             ],
         )
 
+    def test_host_listeners_and_decorative_art_do_not_steal_pointer_input(self):
+        assert_has_snippets(
+            self,
+            self.source,
+            [
+                "this.addEventListener(\"click\", this._boundDelegatedClick, true);",
+                "this.removeEventListener(\"click\", this._boundDelegatedClick, true);",
+                ".overview-hero-art {",
+                "pointer-events: none;",
+                ".run-card-art { border-radius: 24px 10px 24px 10px; overflow:visible;",
+                ".empty-art-composition { min-height: 340px; position: relative; display:grid; place-items:center; overflow:visible; pointer-events: none; user-select: none; }",
+            ],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
