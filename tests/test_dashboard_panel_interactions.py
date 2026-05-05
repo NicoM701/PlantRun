@@ -44,14 +44,16 @@ class DashboardPanelInteractionRegressionTests(unittest.TestCase):
             ],
         )
 
-    def test_delegated_clicks_are_scoped_to_shadow_root_actions(self):
+    def test_delegated_clicks_walk_the_composed_path_inside_shadow_root(self):
         assert_has_snippets(
             self,
             self.source,
             [
                 "const DELEGATED_ACTION_SELECTOR = [",
-                "event.target.closest(DELEGATED_ACTION_SELECTOR)",
-                "if (!target || !this.shadowRoot.contains(target))",
+                "const path = typeof event.composedPath === \"function\" ? event.composedPath() : [event.target];",
+                "if (!(node instanceof Element) || !this.shadowRoot.contains(node))",
+                "if (node.matches?.(DELEGATED_ACTION_SELECTOR))",
+                "const closest = node.closest?.(DELEGATED_ACTION_SELECTOR);",
             ],
         )
 
