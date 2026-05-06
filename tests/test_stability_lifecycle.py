@@ -445,6 +445,10 @@ class StabilityLifecycleTests(unittest.TestCase):
             panel_kwargs["config"]["_panel_custom"]["module_url"],
             self.integration.PANEL_MODULE_URL,
         )
+        self.assertEqual(
+            panel_kwargs["config"]["_panel_custom"]["js_url"],
+            self.integration.PANEL_JS_URL,
+        )
         self.assertIn("storage", entry.runtime_data)
         self.assertIn("coordinator", entry.runtime_data)
 
@@ -523,13 +527,13 @@ class StabilityLifecycleTests(unittest.TestCase):
         manifest_version = json.loads((PLANTRUN_DIR / "manifest.json").read_text(encoding="utf-8"))[
             "version"
         ]
+        panel_mtime = int((PLANTRUN_DIR / "www" / "plantrun-panel.js").stat().st_mtime)
+        expected_url = f"/plantrun_frontend/plantrun-panel.js?v={manifest_version}-{panel_mtime}"
 
         self.assertNotIn('import {', panel_script)
         self.assertIn('customElements.get("ha-panel-lovelace")', panel_script)
-        self.assertEqual(
-            self.integration.PANEL_MODULE_URL,
-            f"/plantrun_frontend/plantrun-panel.js?v={manifest_version}",
-        )
+        self.assertEqual(self.integration.PANEL_MODULE_URL, expected_url)
+        self.assertEqual(self.integration.PANEL_JS_URL, expected_url)
 
     def test_options_flow_uses_shared_session_for_seedfinder_lookup(self):
         ConfigEntry = sys.modules["homeassistant.config_entries"].ConfigEntry

@@ -74,7 +74,10 @@ PANEL_ICON = "mdi:sprout"
 _MANIFEST_VERSION = json.loads((Path(__file__).parent / "manifest.json").read_text(encoding="utf-8"))[
     "version"
 ]
-PANEL_MODULE_URL = f"/plantrun_frontend/plantrun-panel.js?v={_MANIFEST_VERSION}"
+_PANEL_SCRIPT_PATH = Path(__file__).parent / "www" / "plantrun-panel.js"
+_PANEL_SCRIPT_CACHE_KEY = f"{_MANIFEST_VERSION}-{int(_PANEL_SCRIPT_PATH.stat().st_mtime)}"
+PANEL_MODULE_URL = f"/plantrun_frontend/plantrun-panel.js?v={_PANEL_SCRIPT_CACHE_KEY}"
+PANEL_JS_URL = PANEL_MODULE_URL
 UPLOADS_SUBDIR = "plantrun_uploads"
 _OBSOLETE_LEGACY_ENTITY_IDS = {
     "sensor.plantrun_active_cultivar",
@@ -271,7 +274,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     "trust_external": False,
                     # Keep both for cross-version HA compatibility.
                     "module_url": PANEL_MODULE_URL,
-                    "js_url": "/plantrun_frontend/plantrun-panel.js",
+                    "js_url": PANEL_JS_URL,
                 }
             },
             require_admin=False,
