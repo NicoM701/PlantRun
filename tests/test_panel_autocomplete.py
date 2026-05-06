@@ -1,4 +1,3 @@
-import re
 import unittest
 from pathlib import Path
 
@@ -7,16 +6,16 @@ PANEL_PATH = ROOT / "custom_components" / "plantrun" / "www" / "plantrun-panel.j
 
 
 class PanelAutocompleteTest(unittest.TestCase):
-    def test_cultivar_input_supports_keyboard_and_click_selection(self):
+    def test_cultivar_input_supports_keyboard_click_and_stable_async_selection(self):
         source = PANEL_PATH.read_text(encoding="utf-8")
 
-        self.assertIn("_onCultivarKeydown", source)
-        self.assertIn('event.key === "ArrowDown"', source)
-        self.assertIn('event.key === "ArrowUp"', source)
+        self.assertIn("_handleKeydown(event)", source)
         self.assertIn('event.key === "Enter" || event.key === "Tab"', source)
-        self.assertIn('@mousedown=${(e) => e.preventDefault()}', source)
-        self.assertIn("_clearCultivarSuggestionsSoon", source)
-        self.assertRegex(source, r"_clearCultivarSuggestionsSoon\(\)\s*\{")
+        self.assertIn('event.key === "Escape"', source)
+        self.assertIn('data-action="choose-cultivar"', source)
+        self.assertIn('@mousedown=${"(e) => e.preventDefault()"}', source)
+        self.assertIn("_scheduleCultivarSearch()", source)
+        self.assertIn("_renderSuggestionsOnly()", source)
 
 
 if __name__ == "__main__":

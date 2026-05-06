@@ -1,187 +1,44 @@
 (() => {
-  const CARD_TAG = "plantrun-card";
+  const TAG = "plantrun-card";
 
-  if (customElements.get(CARD_TAG)) {
-    return;
-  }
+  if (customElements.get(TAG)) return;
 
-  const ensurePlantRunShared = () => {
-    if (window.PlantRunShared) {
-      return window.PlantRunShared;
-    }
-
-    const ASSET_MAP = {
-      seedling: {
-        hero: "/plantrun_frontend/assets/stage-seedling-wide-2.png",
-        tall: "/plantrun_frontend/assets/stage-seedling-tall-2.png",
-        legacy: "/plantrun_frontend/assets/stage-seedling.png",
-      },
-      veg: {
-        hero: "/plantrun_frontend/assets/stage-veg-hero-2.png",
-        tall: "/plantrun_frontend/assets/stage-veg-tall-2.png",
-        legacy: "/plantrun_frontend/assets/stage-veg.png",
-      },
-      flower: {
-        hero: "/plantrun_frontend/assets/stage-flower-wide-2.png",
-        tall: "/plantrun_frontend/assets/stage-flower-tall-2.png",
-        legacy: "/plantrun_frontend/assets/stage-flower.png",
-      },
-    };
-
-    const STAGE_IMAGE_URLS = {
-      seedling: ASSET_MAP.seedling.hero,
-      veg: ASSET_MAP.veg.hero,
-      flower: ASSET_MAP.flower.hero,
-    };
-
-    const STAGE_SVGS = {
-      seedling: `<svg viewBox="0 0 240 240" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs><linearGradient id="prSeedStem" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#63d66f"/><stop offset="100%" stop-color="#2d7f3d"/></linearGradient></defs><circle cx="120" cy="120" r="106" fill="rgba(120,255,175,0.08)"/><path d="M117 196c6 0 10-4 10-10V118h-14v68c0 6 4 10 10 10Z" fill="url(#prSeedStem)"/><path d="M114 124c-28 2-48-10-60-32 26-10 50-6 66 16Z" fill="#5ad86e"/><path d="M126 118c26-16 50-18 72-8-14 26-36 38-64 34Z" fill="#2dac53"/><ellipse cx="90" cy="105" rx="22" ry="16" fill="#b0ef94"/><ellipse cx="148" cy="106" rx="22" ry="16" fill="#99df7a"/></svg>`,
-      veg: `<svg viewBox="0 0 240 240" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><circle cx="120" cy="120" r="108" fill="rgba(110,255,156,0.08)"/><path d="M117 212c7 0 12-5 12-12v-86h-18v86c0 7 5 12 12 12Z" fill="#2c8d45"/><path d="M121 120 90 87c-19-20-24-42-18-64 24 4 44 18 56 42Z" fill="#57d46d"/><path d="M119 116 150 79c20-24 44-34 70-29-6 31-25 51-55 66Z" fill="#38b158"/><path d="M116 126 72 124c-25-1-44 7-58 24 19 17 42 24 71 16Z" fill="#34a153"/><path d="M124 127 171 134c25 4 43 17 55 38-22 13-46 13-71-3Z" fill="#2f8e4a"/><path d="M120 102 111 65c-5-21 0-40 15-56 15 16 20 36 15 58Z" fill="#7ce786"/></svg>`,
-      flower: `<svg viewBox="0 0 240 240" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><circle cx="120" cy="120" r="108" fill="rgba(255,208,122,0.1)"/><path d="M118 216c7 0 12-5 12-12v-82h-18v82c0 7 5 12 12 12Z" fill="#6d4d2c"/><path d="M122 122c-20-36-16-67 10-96 18 28 18 59 3 93Z" fill="#b68949"/><g fill="#6fa751"><path d="M93 141c-24 1-43-8-58-26 21-11 42-12 62 2Z"/><path d="M147 139c19-16 41-22 65-17-9 24-26 38-54 41Z"/></g><g fill="#e4c07c"><ellipse cx="120" cy="84" rx="29" ry="35"/><ellipse cx="86" cy="112" rx="25" ry="29"/><ellipse cx="154" cy="112" rx="25" ry="29"/><ellipse cx="105" cy="132" rx="23" ry="27"/><ellipse cx="138" cy="132" rx="23" ry="27"/></g><g fill="#d69b5f"><circle cx="120" cy="83" r="16"/><circle cx="86" cy="111" r="13"/><circle cx="154" cy="111" r="13"/></g></svg>`,
-    };
-
-    const LEAF_LOGO = `<svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs><linearGradient id="prLogoGrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#8effa9"/><stop offset="100%" stop-color="#1f8a47"/></linearGradient></defs><path d="M60 64c-3 0-6-2-6-5 0-6 2-12 6-18 4 6 6 12 6 18 0 3-3 5-6 5Z" fill="#255b35"/><g fill="url(#prLogoGrad)"><path d="M59 58c-15-11-21-24-20-41 15 3 25 12 29 29Z"/><path d="M61 58c15-11 21-24 20-41-15 3-25 12-29 29Z"/><path d="M53 61C34 58 22 48 16 31c17-1 30 5 40 19Z"/><path d="M67 61c19-3 31-13 37-30-17-1-30 5-40 19Z"/><path d="M51 66C35 76 28 90 30 106c14-5 23-16 28-32Z"/><path d="M69 66c16 10 23 24 21 40-14-5-23-16-28-32Z"/><path d="M60 69c-4 14-3 25 4 34 7-9 8-20 4-34Z"/></g></svg>`;
-
-    const assetCache = {};
-    const stageArtCache = {};
-
-    const escapeHtml = (value) =>
-      String(value ?? "")
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/\"/g, "&quot;")
-        .replace(/'/g, "&#39;");
-
-    const svgToDataUrl = (svg) => `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
-
-    const loadImage = (url) =>
-      new Promise((resolve, reject) => {
-        const image = new Image();
-        image.decoding = "async";
-        image.onload = () => resolve(image);
-        image.onerror = reject;
-        image.src = url;
+  const ensureShared = () => {
+    const existing = window.PlantRunShared || {};
+    const escapeHtml =
+      existing.escapeHtml ||
+      ((value) =>
+        String(value ?? "")
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#39;"));
+    const daysBetween =
+      existing.daysBetween ||
+      ((start) => {
+        const date = new Date(start);
+        if (Number.isNaN(date.getTime())) return 0;
+        return Math.max(0, Math.floor((Date.now() - date.getTime()) / 86400000));
       });
-
-    const processAssetUrl = async (url, fallbackSvg = STAGE_SVGS.seedling) => {
-      if (!url) {
-        return svgToDataUrl(fallbackSvg);
-      }
-      if (assetCache[url]) {
-        return assetCache[url];
-      }
-      try {
-        const image = await loadImage(url);
-        const canvas = document.createElement("canvas");
-        canvas.width = image.naturalWidth || image.width;
-        canvas.height = image.naturalHeight || image.height;
-        const ctx = canvas.getContext("2d", { willReadFrequently: true });
-        ctx.drawImage(image, 0, 0);
-        const frame = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const data = frame.data;
-        let minX = canvas.width;
-        let minY = canvas.height;
-        let maxX = 0;
-        let maxY = 0;
-        let found = false;
-
-        for (let index = 0; index < data.length; index += 4) {
-          const red = data[index];
-          const green = data[index + 1];
-          const blue = data[index + 2];
-          const alpha = data[index + 3];
-          const pixel = index / 4;
-          const x = pixel % canvas.width;
-          const y = Math.floor(pixel / canvas.width);
-          const isNearWhite = red > 242 && green > 242 && blue > 242;
-          if (isNearWhite) {
-            data[index + 3] = 0;
-            continue;
-          }
-          if (alpha > 8) {
-            found = true;
-            if (x < minX) minX = x;
-            if (y < minY) minY = y;
-            if (x > maxX) maxX = x;
-            if (y > maxY) maxY = y;
-          }
-        }
-
-        ctx.putImageData(frame, 0, 0);
-        if (!found) {
-          const fallback = svgToDataUrl(fallbackSvg);
-          assetCache[url] = fallback;
-          return fallback;
-        }
-
-        const margin = 22;
-        const cropX = Math.max(minX - margin, 0);
-        const cropY = Math.max(minY - margin, 0);
-        const cropW = Math.min(maxX - minX + margin * 2 + 1, canvas.width - cropX);
-        const cropH = Math.min(maxY - minY + margin * 2 + 1, canvas.height - cropY);
-
-        const cropped = document.createElement("canvas");
-        cropped.width = cropW;
-        cropped.height = cropH;
-        cropped.getContext("2d").drawImage(canvas, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
-        const dataUrl = cropped.toDataURL("image/png");
-        assetCache[url] = dataUrl;
-        return dataUrl;
-      } catch (_error) {
-        const fallback = svgToDataUrl(fallbackSvg);
-        assetCache[url] = fallback;
-        return fallback;
-      }
-    };
-
-    const getStageArt = async (stageKey, variant = "hero") => {
-      const stageAssets = ASSET_MAP[stageKey] || ASSET_MAP.seedling;
-      const url = stageAssets[variant] || stageAssets.hero || stageAssets.legacy;
-      return processAssetUrl(url, STAGE_SVGS[stageKey] || STAGE_SVGS.seedling);
-    };
-
-    const processStageArt = async (stageKey, variant = "hero") => {
-      const cacheKey = `${stageKey}:${variant}`;
-      if (stageArtCache[cacheKey]) {
-        return stageArtCache[cacheKey];
-      }
-      const art = await getStageArt(stageKey, variant);
-      stageArtCache[cacheKey] = art;
-      return art;
-    };
-
-    window.PlantRunShared = {
-      ASSET_MAP,
-      STAGE_IMAGE_URLS,
-      STAGE_SVGS,
-      LEAF_LOGO,
-      assetCache,
-      escapeHtml,
-      getStageArt,
-      processAssetUrl,
-      processStageArt,
-      stageArtCache,
-      svgToDataUrl,
-    };
+    const icon = existing.icon || ((name) => `<ha-icon icon="${escapeHtml(name)}"></ha-icon>`);
+    window.PlantRunShared = { ...existing, escapeHtml, daysBetween, icon };
     return window.PlantRunShared;
   };
-
-  const SHARED = ensurePlantRunShared();
+  const S = ensureShared();
 
   class PlantRunCard extends HTMLElement {
     constructor() {
       super();
       this.attachShadow({ mode: "open" });
       this._hass = null;
-      this._config = { type: "custom:plantrun-card", run_id: "<run_id>", compact: false };
+      this._config = { type: "custom:plantrun-card", run_id: "<run_id>", compact: false, title: "" };
       this._run = null;
-      this._summary = null;
+      this._summary = {};
       this._loading = false;
-      this._artUrl = "";
       this._loadedRunId = "";
-      this._lastHassSignature = "";
       this._requestNonce = 0;
+      this._lastSensorSignature = "";
       this._boundClick = (event) => this._handleClick(event);
     }
 
@@ -195,7 +52,7 @@
 
     setConfig(config) {
       this._config = { ...this._config, ...config };
-      this._lastHassSignature = "";
+      this._loadedRunId = "";
       this._fetchRunData();
       this.render();
     }
@@ -203,81 +60,56 @@
     set hass(value) {
       this._hass = value;
       const runId = this._normalizeRunId(this._config.run_id);
-      if (this._shouldLoadRun(runId)) {
+      if (runId && runId !== this._loadedRunId) {
         this._fetchRunData();
         return;
       }
-      const signature = this._hassSignature(runId);
-      if (signature !== this._lastHassSignature) {
-        this._lastHassSignature = signature;
-        this.render();
+      const signature = this._sensorSignature();
+      if (signature !== this._lastSensorSignature) {
+        this._lastSensorSignature = signature;
+        this._refreshSensorText();
       }
     }
 
     connectedCallback() {
       this.shadowRoot.addEventListener("click", this._boundClick);
+      this.render();
     }
 
     disconnectedCallback() {
       this.shadowRoot.removeEventListener("click", this._boundClick);
-      this._requestNonce += 1;
     }
 
     getCardSize() {
-      return this._config.compact ? 3 : 4;
+      return this._config.compact ? 3 : 5;
     }
 
-    _normalizeRunId(runId) {
-      const normalized = String(runId || "").trim().toLowerCase();
-      if (!normalized || normalized === "your_run_id" || normalized.includes("<run_id")) {
-        return "";
-      }
-      return String(runId).trim();
+    _normalizeRunId(value) {
+      const normalized = String(value || "").trim();
+      if (!normalized || normalized.includes("<run_id") || normalized === "your_run_id") return "";
+      return normalized;
     }
 
     async _fetchRunData() {
-      const requestNonce = ++this._requestNonce;
       const runId = this._normalizeRunId(this._config.run_id);
-      if (!this._hass || !runId) {
-        this._run = null;
-        this._summary = null;
-        this._artUrl = "";
-        this._loadedRunId = "";
-        this._loading = false;
-        this._lastHassSignature = this._hassSignature(runId);
-        this.render();
-        return;
-      }
-      if (runId !== this._loadedRunId) {
-        this._summary = null;
-        this._artUrl = "";
-      }
+      if (!this._hass || !runId || this._loading) return;
+      const requestNonce = ++this._requestNonce;
       this._loading = true;
       this.render();
       try {
-        const [payload, summary] = await Promise.all([
+        const [runPayload, summary] = await Promise.all([
           this._hass.callWS({ type: "plantrun/get_run", run_id: runId }),
           this._hass.callWS({ type: "plantrun/get_run_summary", run_id: runId }),
         ]);
-        const run = payload?.run || null;
-        const artUrl = await SHARED.processStageArt(this._stageKeyForRun(run));
-        if (requestNonce !== this._requestNonce) {
-          return;
-        }
-        this._run = run;
-        this._summary = summary;
-        this._artUrl = artUrl;
+        if (requestNonce !== this._requestNonce) return;
+        this._run = runPayload?.run || null;
+        this._summary = summary || {};
         this._loadedRunId = runId;
-        this._lastHassSignature = this._hassSignature(runId);
-      } catch (_error) {
-        if (requestNonce !== this._requestNonce) {
-          return;
-        }
+      } catch (_err) {
+        if (requestNonce !== this._requestNonce) return;
         this._run = null;
-        this._summary = null;
-        this._artUrl = "";
+        this._summary = {};
         this._loadedRunId = "";
-        this._lastHassSignature = this._hassSignature(runId);
       } finally {
         if (requestNonce === this._requestNonce) {
           this._loading = false;
@@ -286,339 +118,157 @@
       }
     }
 
-    _selectedRun() {
-      return this._run;
+    _sensorSignature() {
+      const bindings = this._run?.bindings || [];
+      return bindings.map((binding) => `${binding.sensor_id}:${this._hass?.states?.[binding.sensor_id]?.state}`).join("|");
     }
 
-    _shouldLoadRun(runId) {
-      if (!this._hass || this._loading) {
-        return false;
-      }
-      if (!runId) {
-        return this._loadedRunId || this._run || this._summary || this._artUrl;
-      }
-      return runId !== this._loadedRunId || !this._run || !this._summary;
+    _entityState(entityId) {
+      const state = this._hass?.states?.[entityId];
+      if (!state) return "Unavailable";
+      const unit = state.attributes?.unit_of_measurement || "";
+      return `${state.state}${unit ? ` ${unit}` : ""}`;
     }
 
-    _hassSignature(runId) {
-      const bindings = Array.isArray(this._run?.bindings) ? this._run.bindings : [];
-      const stateParts = bindings.map((binding) => {
-        const state = this._hass?.states?.[binding.sensor_id];
-        return [
-          binding.sensor_id,
-          state?.state ?? "",
-          state?.attributes?.unit_of_measurement ?? "",
-        ].join("=");
-      });
-      return [runId, this._loadedRunId, this._config.compact ? "1" : "0", ...stateParts].join("|");
+    _entityName(entityId) {
+      return this._hass?.states?.[entityId]?.attributes?.friendly_name || entityId;
     }
 
-    _currentPhase(run) {
-      const phases = Array.isArray(run?.phases) ? run.phases : [];
-      return phases[phases.length - 1]?.name || "Seedling";
+    _metricLabel(metric) {
+      return (
+        {
+          temperature: "Temperature",
+          humidity: "Humidity",
+          soil_moisture: "Soil moisture",
+          conductivity: "Conductivity",
+          light: "Light",
+          energy: "Energy",
+          water: "Water",
+        }[metric] || metric
+      );
     }
 
-    _targetDaysForRun(run) {
-      const rawTarget = run?.base_config?.target_days ?? run?.target_days;
-      const parsed = Number(rawTarget);
-      return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+    _metricIcon(metric) {
+      return (
+        {
+          temperature: "mdi:thermometer",
+          humidity: "mdi:water-percent",
+          soil_moisture: "mdi:sprout",
+          conductivity: "mdi:flash-triangle",
+          light: "mdi:white-balance-sunny",
+          energy: "mdi:lightning-bolt",
+          water: "mdi:water",
+        }[metric] || "mdi:chart-line"
+      );
     }
 
-    _cultivarLabel(run) {
-      return run?.cultivar?.name || "Manual entry";
+    _targetDays() {
+      const run = this._run;
+      const configured = Number(run?.base_config?.target_days || run?.base_config?.estimated_duration_days);
+      if (Number.isFinite(configured) && configured > 0) return Math.round(configured);
+      const flowerWindow = Number(run?.cultivar?.flower_window_days);
+      return Number.isFinite(flowerWindow) && flowerWindow > 0 ? Math.round(flowerWindow + 35) : 90;
     }
 
-    _stageKeyForRun(run) {
-      const phase = this._currentPhase(run).toLowerCase();
-      if (phase.includes("flower") || phase.includes("bloom") || phase.includes("harvest")) {
-        return "flower";
-      }
-      if (phase.includes("veg")) {
-        return "veg";
-      }
-      return "seedling";
+    _progress() {
+      const days = S.daysBetween(this._run?.planted_date || this._run?.start_time);
+      return Math.min(100, Math.round((days / Math.max(this._targetDays(), 1)) * 100));
     }
 
-    _runAgeDays(run) {
-      const start = Date.parse(run?.planted_date || run?.start_time || "");
-      if (!Number.isFinite(start)) {
-        return 0;
-      }
-      return Math.max(0, Math.round((Date.now() - start) / 86400000));
-    }
-
-    _summaryChips(run) {
-      const chips = [];
-      const summary = this._summary || {};
-      const currentStates = run?.bindings || [];
-      for (const binding of currentStates.slice(0, 3)) {
-        const entityState = this._hass?.states?.[binding.sensor_id];
-        const value = entityState?.state ?? "—";
-        const unit = entityState?.attributes?.unit_of_measurement || "";
-        let colorClass = "neutral";
-        if (binding.metric_type === "temperature") colorClass = "warm";
-        if (binding.metric_type === "humidity") colorClass = "cool";
-        if (binding.metric_type === "soil_moisture") colorClass = "moisture";
-        chips.push(`
-          <div class="chip ${colorClass}">
-            <span class="chip-icon ${colorClass}">${this._metricGlyph(binding.metric_type)}</span>
-            <span>${SHARED.escapeHtml(binding.metric_type.replace(/_/g, " "))}</span>
-            <strong>${SHARED.escapeHtml(`${value}${unit ? ` ${unit}` : ""}`)}</strong>
-          </div>
-        `);
-      }
-      if (!chips.length) {
-        chips.push(`
-          <div class="chip neutral">
-            <span class="chip-icon neutral">◎</span>
-            <span>Notes</span>
-            <strong>${SHARED.escapeHtml(run?.notes_summary || summary.energy_cost || "Ready to track")}</strong>
-          </div>
-        `);
-      }
-      return chips.join("");
-    }
-
-    _metricGlyph(metricType) {
-      switch (metricType) {
-        case "temperature":
-          return "℃";
-        case "humidity":
-          return "%";
-        case "soil_moisture":
-          return "◔";
-        case "light":
-          return "☼";
-        case "energy":
-          return "⚡";
-        default:
-          return "•";
-      }
-    }
-
-    _openPanel() {
-      history.pushState(null, "", "/plantrun-dashboard");
-      window.dispatchEvent(new CustomEvent("location-changed", { bubbles: true, composed: true }));
+    _bindingMarkup() {
+      const bindings = this._run?.bindings || [];
+      if (!bindings.length) return `<div class="empty">No bound sensors</div>`;
+      return bindings
+        .slice(0, this._config.compact ? 2 : 4)
+        .map(
+          (binding) => `
+            <button class="sensor" data-entity-id="${S.escapeHtml(binding.sensor_id)}" type="button">
+              <span class="chip-icon ${binding.metric_type === "soil_moisture" ? "moisture" : S.escapeHtml(binding.metric_type)}">${S.icon(this._metricIcon(binding.metric_type))}</span>
+              <span><strong>${S.escapeHtml(this._metricLabel(binding.metric_type))}</strong><small>${S.escapeHtml(this._entityName(binding.sensor_id))}</small></span>
+              <b data-live-entity="${S.escapeHtml(binding.sensor_id)}">${S.escapeHtml(this._entityState(binding.sensor_id))}</b>
+            </button>`
+        )
+        .join("");
     }
 
     _handleClick(event) {
-      const target = event.target.closest("[data-open-panel]");
-      if (target) {
-        this._openPanel();
-      }
+      const sensor = event.target.closest("[data-entity-id]");
+      if (!sensor) return;
+      this.dispatchEvent(
+        new CustomEvent("hass-more-info", {
+          detail: { entityId: sensor.dataset.entityId },
+          bubbles: true,
+          composed: true,
+        })
+      );
+    }
+
+    _refreshSensorText() {
+      this.shadowRoot.querySelectorAll("[data-live-entity]").forEach((node) => {
+        node.textContent = this._entityState(node.dataset.liveEntity);
+      });
     }
 
     render() {
       const runId = this._normalizeRunId(this._config.run_id);
-      const run = this._selectedRun();
-      const title = this._config.title || run?.friendly_name || "PlantRun";
-      const summary = this._summary || {};
-      const stageKey = this._stageKeyForRun(run);
-      const art = this._artUrl || SHARED.svgToDataUrl(SHARED.STAGE_SVGS[stageKey]);
-      const targetDays = this._targetDaysForRun(run);
-
-      if (!runId) {
-        this.shadowRoot.innerHTML = `
-          <ha-card>
-            <style>
-              :host { display: block; }
-              .wrap { padding: 18px; display: grid; gap: 12px; }
-              .hint { opacity: 0.72; line-height: 1.45; }
-              button {
-                border: none; border-radius: 999px; padding: 10px 14px; cursor: pointer;
-                background: linear-gradient(135deg, #58d36f, #1f8b45); color: white; font: inherit;
-              }
-            </style>
-            <div class="wrap">
-              <div style="display:flex;gap:12px;align-items:center;">
-                <div style="width:38px;height:38px;">${SHARED.LEAF_LOGO}</div>
-                <div>
-                  <strong>PlantRun card setup</strong>
-                  <div class="hint">Pick a real run in the card editor instead of placeholder IDs.</div>
-                </div>
-              </div>
-              <div class="hint">Examples detected as placeholders: "<run_id>", "your_run_id".</div>
-              <div><button data-open-panel type="button">Open dashboard</button></div>
-            </div>
-          </ha-card>
-        `;
-        return;
-      }
-
+      const title = this._config.title || this._run?.friendly_name || "PlantRun";
+      const days = S.daysBetween(this._run?.planted_date || this._run?.start_time);
       this.shadowRoot.innerHTML = `
+        <style>
+          :host { display:block; font-family:var(--primary-font-family, system-ui, sans-serif); color:var(--primary-text-color,#ecf1ec); }
+          ha-card { overflow:hidden; border-radius:24px; background:linear-gradient(145deg, color-mix(in srgb, var(--card-background-color,#1d2221) 94%, #183520), var(--card-background-color,#1d2221)); border:1px solid color-mix(in srgb, var(--divider-color,#53605a) 55%, transparent); box-shadow:0 18px 42px rgba(0,0,0,.18); }
+          .card { padding:18px; display:grid; gap:14px; }
+          header { display:flex; align-items:flex-start; justify-content:space-between; gap:14px; }
+          .title { min-width:0; }
+          h2 { margin:0; font-size:22px; line-height:1.05; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+          p, small, .empty { color:var(--secondary-text-color,#9aa49d); }
+          p { margin:6px 0 0; }
+          .progress { display:grid; place-items:center; width:58px; height:58px; border-radius:50%; font-weight:800; background:conic-gradient(var(--success-color,#31c76b) calc(var(--progress) * 1%), color-mix(in srgb, var(--divider-color,#53605a) 50%, transparent) 0); box-shadow:inset 0 0 0 6px color-mix(in srgb, var(--card-background-color,#1d2221) 92%, transparent); }
+          .stats { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }
+          .stats div { padding:12px; border-radius:16px; background:color-mix(in srgb, var(--primary-text-color,#fff) 6%, transparent); }
+          .stats span { display:block; font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--secondary-text-color,#9aa49d); }
+          .stats strong { display:block; margin-top:4px; font-size:17px; }
+          .sensors { display:grid; gap:8px; }
+          .sensor { width:100%; min-height:54px; border:1px solid color-mix(in srgb, var(--divider-color,#53605a) 42%, transparent); border-radius:17px; background:color-mix(in srgb, var(--primary-text-color,#fff) 5%, transparent); color:inherit; display:grid; grid-template-columns:38px minmax(0,1fr) auto; gap:10px; align-items:center; padding:8px 10px; text-align:left; transition:transform .16s ease, border-color .16s ease; }
+          .sensor:hover { transform:translateY(-1px); border-color:color-mix(in srgb, var(--success-color,#31c76b) 50%, transparent); }
+          .sensor span:not(.chip-icon), .sensor strong, .sensor small { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:block; }
+          .sensor b { font-size:15px; }
+          .chip-icon { display:grid; place-items:center; width:38px; height:38px; border-radius:14px; background:color-mix(in srgb, var(--success-color,#31c76b) 14%, transparent); color:var(--success-color,#31c76b); }
+          .chip-icon.moisture { color:#56b6ff; background:rgba(86,182,255,.14); }
+          .placeholder, .empty { min-height:120px; display:grid; place-items:center; text-align:center; padding:20px; }
+          .compact .stats { grid-template-columns:repeat(2,minmax(0,1fr)); }
+          .compact .optional { display:none; }
+        </style>
         <ha-card>
-          <style>
-            :host { display:block; }
-            .card {
-              position: relative;
-              overflow: hidden;
-              padding: ${this._config.compact ? "16px" : "18px"};
-              display: grid;
-              gap: 14px;
-              color: #253024;
-              background:
-                linear-gradient(135deg, rgba(255,250,240,0.96), rgba(223,233,210,0.86));
-              border-radius: 26px;
+          <div class="card ${this._config.compact ? "compact" : ""}">
+            ${
+              !runId
+                ? `<div class="placeholder">Choose a PlantRun run in the card editor.</div>`
+                : this._loading && !this._run
+                  ? `<div class="placeholder">Loading PlantRun...</div>`
+                  : !this._run
+                    ? `<div class="placeholder">Run not found.</div>`
+                    : `
+                      <header>
+                        <div class="title">
+                          <h2>${S.escapeHtml(title)}</h2>
+                          <p>${S.escapeHtml(this._run.cultivar?.name || "Cultivar not set")}</p>
+                        </div>
+                        <div class="progress" style="--progress:${this._progress()}">${this._progress()}%</div>
+                      </header>
+                      <div class="stats">
+                        <div><span>Day</span><strong>${days}</strong></div>
+                        <div><span>Target</span><strong>${this._targetDays()}</strong></div>
+                        <div class="optional"><span>Cost</span><strong>${S.escapeHtml(this._summary?.energy_cost_display || this._summary?.energy_cost || "—")}</strong></div>
+                      </div>
+                      <div class="sensors">${this._bindingMarkup()}</div>
+                    `
             }
-            .card::after {
-              content: "";
-              position: absolute;
-              inset: 0;
-              border: 1px solid rgba(74,85,62,0.12);
-              border-radius: 26px;
-              pointer-events: none;
-            }
-            .header, .meta {
-              display:flex;
-              align-items:center;
-              justify-content:space-between;
-              gap: 12px;
-            }
-            .title {
-              display:grid;
-              gap:4px;
-              min-width:0;
-            }
-            .eyebrow {
-              font-size: 0.72rem;
-              text-transform: uppercase;
-              letter-spacing: 0.12em;
-              opacity: 0.58;
-            }
-            h3 {
-              margin:0;
-              font-size: ${this._config.compact ? "1.0rem" : "1.15rem"};
-              line-height:1.2;
-            }
-            .badge {
-              border-radius: 999px;
-              padding: 7px 10px;
-              font-size: 0.75rem;
-              background: rgba(255,250,240,0.62);
-              border: 1px solid rgba(74,85,62,0.1);
-            }
-            .hero {
-              display:grid;
-              grid-template-columns: ${this._config.compact ? "96px 1fr" : "128px 1fr"};
-              gap: 16px;
-              align-items:center;
-              overflow:hidden;
-            }
-            .hero-art {
-              width: 100%;
-              aspect-ratio: 1;
-              border-radius: 26px 10px 26px 10px;
-              background: rgba(255,250,240,0.58);
-              display:grid;
-              place-items:center;
-              overflow:visible;
-              box-shadow: inset 0 0 0 1px rgba(74,85,62,0.08);
-            }
-            .hero-art img {
-              width: 128%;
-              height: 128%;
-              object-fit: contain;
-              padding: 0;
-              transform: translate(7%, -4%) scale(1.06);
-              filter: drop-shadow(0 16px 18px rgba(57,48,32,0.14));
-            }
-            .stats {
-              display:grid;
-              grid-template-columns: repeat(2, minmax(0, 1fr));
-              gap: 10px;
-            }
-            .stat {
-              padding: 10px 12px;
-              border-radius: 18px;
-              background: rgba(255,250,240,0.58);
-              box-shadow: inset 0 0 0 1px rgba(74,85,62,0.08);
-            }
-            .stat span {
-              display:block;
-              font-size: 0.72rem;
-              opacity: 0.68;
-              text-transform: uppercase;
-              letter-spacing: 0.08em;
-            }
-            .stat strong {
-              display:block;
-              margin-top:4px;
-              font-size: 1rem;
-            }
-            .chips {
-              display:grid;
-              gap: 8px;
-            }
-            .chip {
-              display:grid;
-              grid-template-columns: 22px 1fr auto;
-              gap: 10px;
-              align-items:center;
-              padding: 10px 12px;
-              border-radius: 16px;
-              background: rgba(255,250,240,0.52);
-              box-shadow: inset 0 0 0 1px rgba(74,85,62,0.08);
-            }
-            .chip-icon {
-              width: 22px;
-              height: 22px;
-              border-radius: 50%;
-              display:grid;
-              place-items:center;
-              font-size: 0.8rem;
-              font-weight: 700;
-            }
-            .chip-icon.warm { background: rgba(168,117,86,0.18); color: #8d5f42; }
-            .chip-icon.cool { background: rgba(111,143,100,0.18); color: #3f6748; }
-            .chip-icon.moisture { background: rgba(94,132,130,0.18); color: #426c69; }
-            .chip-icon.neutral { background: rgba(74,85,62,0.12); color: rgba(37,48,36,0.82); }
-            .actions { display:flex; justify-content:flex-end; }
-            button {
-              border: none;
-              border-radius: 999px;
-              padding: 10px 14px;
-              cursor: pointer;
-              background: linear-gradient(135deg, #78996d, #365d42);
-              color: white;
-              font: inherit;
-              box-shadow: 0 10px 22px rgba(54, 93, 66, 0.18);
-            }
-          </style>
-          <div class="card">
-            <div class="header">
-              <div class="title">
-                <span class="eyebrow">PlantRun</span>
-                <h3>${SHARED.escapeHtml(title)}</h3>
-              </div>
-              <div class="badge">${SHARED.escapeHtml(this._currentPhase(run))}</div>
-            </div>
-            <div class="hero">
-              <div class="hero-art"><img src="${art}" alt="${SHARED.escapeHtml(this._currentPhase(run))} plant art" /></div>
-              <div class="stats">
-                <div class="stat"><span>Age</span><strong>${this._runAgeDays(run)} days</strong></div>
-                <div class="stat"><span>Target</span><strong>${SHARED.escapeHtml(targetDays != null ? String(targetDays) : "—")} days</strong></div>
-                <div class="stat"><span>Cultivar</span><strong>${SHARED.escapeHtml(this._cultivarLabel(run))}</strong></div>
-                <div class="stat"><span>Energy</span><strong>${SHARED.escapeHtml(
-                  summary?.energy_kwh != null ? `${summary.energy_kwh} kWh` : "—"
-                )}</strong></div>
-              </div>
-            </div>
-            <div class="chips">${this._summaryChips(run)}</div>
-            <div class="actions"><button data-open-panel type="button">Open dashboard</button></div>
           </div>
         </ha-card>
       `;
     }
   }
 
-  customElements.define(CARD_TAG, PlantRunCard);
-  window.customCards = window.customCards || [];
-  if (!window.customCards.find((item) => item.type === "plantrun-card")) {
-    window.customCards.push({
-      type: "plantrun-card",
-      name: "PlantRun Card",
-      description: "Focused overview of a selected PlantRun grow.",
-      preview: true,
-    });
-  }
+  customElements.define(TAG, PlantRunCard);
 })();
