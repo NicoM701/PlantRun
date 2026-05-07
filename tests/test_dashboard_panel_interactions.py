@@ -45,6 +45,18 @@ class DashboardPanelInteractionRegressionTests(unittest.TestCase):
             ],
         )
 
+    def test_modal_backdrops_close_dialogs_without_inputs_triggering_overlay_close(self):
+        assert_has_snippets(
+            self,
+            self.source,
+            [
+                '<div class="overlay">',
+                'class="overlay-backdrop" data-action="close-wizard"',
+                'class="overlay-backdrop" data-action="close-binding"',
+                'class="overlay-backdrop" data-action="close-edit"',
+            ],
+        )
+
     def test_modal_overlays_are_scoped_to_panel_host(self):
         assert_has_snippets(
             self,
@@ -52,6 +64,7 @@ class DashboardPanelInteractionRegressionTests(unittest.TestCase):
             [
                 ":host { display:block; min-height:100%;",
                 ".overlay { position:absolute; inset:0; z-index:20;",
+                ".overlay-backdrop { position:absolute; inset:0;",
                 "position:relative;",
             ],
         )
@@ -77,6 +90,18 @@ class DashboardPanelInteractionRegressionTests(unittest.TestCase):
                 'data-action="toggle-sound"',
                 "_clickSound()",
                 "if (!this._sound) return;",
+            ],
+        )
+
+    def test_theme_toggle_is_binary_and_has_local_light_dark_tokens(self):
+        assert_has_snippets(
+            self,
+            self.source,
+            [
+                'this._theme = localStorage.getItem(STORAGE.theme) || (window.matchMedia?.(THEME_QUERY).matches ? "light" : "dark")',
+                'this._theme = this._resolvedTheme() === "dark" ? "light" : "dark";',
+                '.app.theme-light {',
+                '.app.theme-dark {',
             ],
         )
 

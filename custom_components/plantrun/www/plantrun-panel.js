@@ -15,6 +15,7 @@
     theme: "plantrun.ui.theme",
     sound: "plantrun.ui.sound",
   };
+  const THEME_QUERY = "(prefers-color-scheme: light)";
 
   if (customElements.get(TAG)) return;
   customElements.get("ha-panel-lovelace");
@@ -77,7 +78,7 @@
       this._noteDraft = "";
       this._phaseDraft = "Vegetative";
       this._pressState = {};
-      this._theme = localStorage.getItem(STORAGE.theme) || "auto";
+      this._theme = localStorage.getItem(STORAGE.theme) || (window.matchMedia?.(THEME_QUERY).matches ? "light" : "dark");
       this._sound = localStorage.getItem(STORAGE.sound) === "on";
       this._audio = null;
       this._refreshing = false;
@@ -128,14 +129,30 @@
       return {
         friendly_name: "",
         planted_date: new Date().toISOString().slice(0, 10),
-        target_days: "90",
-        medium: "",
-        space: "",
+        target_days: "",
         breeder: "",
         cultivar_name: "",
         selected_cultivar: null,
         bindings: [{ metric_type: "temperature", sensor_id: "" }],
       };
+    }
+
+    _resolvedTheme() {
+      return this._theme === "light" ? "light" : "dark";
+    }
+
+    _derivedTargetDays(cultivar = this._wizard.selected_cultivar) {
+      const flowerWindow = Number(cultivar?.flower_window_days);
+      if (Number.isFinite(flowerWindow) && flowerWindow > 0) {
+        return String(Math.round(flowerWindow + 35));
+      }
+      return "";
+    }
+
+    _focusWizardPrimaryField() {
+      window.requestAnimationFrame(() => {
+        this.shadowRoot.querySelector("[data-wizard-field=\"friendly_name\"]")?.focus();
+      });
     }
 
     async _refreshRuns({ keepSelection = true } = {}) {
@@ -423,7 +440,8 @@
     _renderWizard() {
       if (!this._wizardOpen) return "";
       return `
-        <div class="overlay" data-action="close-wizard">
+        <div class="overlay">
+          <button class="overlay-backdrop" data-action="close-wizard" type="button" aria-label="Close new run dialog"></button>
           <section class="modal" data-modal-card>
             <header>
               <div><span class="eyebrow">Step ${this._wizardStep} of 3</span><h2>New run</h2></div>
@@ -444,15 +462,13 @@
         <div class="form-grid">
           <label><span>Run name</span><input data-wizard-field="friendly_name" value="${S.escapeHtml(this._wizard.friendly_name)}" placeholder="Tent A · Spring run" autocomplete="off" /></label>
           <label><span>Planted date</span><input data-wizard-field="planted_date" value="${S.escapeHtml(this._wizard.planted_date)}" type="date" /></label>
-          <label><span>Estimated run duration (days)</span><input data-wizard-field="target_days" value="${S.escapeHtml(this._wizard.target_days)}" type="number" min="1" /></label>
-          <label><span>Grow medium</span><input data-wizard-field="medium" value="${S.escapeHtml(this._wizard.medium)}" placeholder="Living soil, coco, hydro..." /></label>
-          <label><span>Grow space</span><input data-wizard-field="space" value="${S.escapeHtml(this._wizard.space)}" placeholder="2x4 tent, veg shelf..." /></label>
         </div>
-        <p class="hint">The duration is stored as planning context and can be changed later.</p>
+        <p class="hint">Keep step 1 dead simple. Name it, set the plant date, move on.</p>
       `;
     }
 
     _renderWizardCultivar() {
+      const targetDays = this._wizard.target_days || this._derivedTargetDays();
       return `
         <div class="form-grid">
           <label><span>Breeder</span><input data-wizard-field="breeder" value="${S.escapeHtml(this._wizard.breeder)}" placeholder="Breeder" autocomplete="off" /></label>
@@ -461,6 +477,7 @@
             <div class="suggestions" data-suggestions>${this._suggestionMarkup()}</div>
           </label>
         </div>
+        <p class="hint">Estimated total run duration: <strong>${S.escapeHtml(targetDays || "Will be derived from SeedFinder when available")}</strong></p>
       `;
     }
 
@@ -500,7 +517,8 @@
     _renderBindingModal() {
       if (!this._bindingDraft) return "";
       return `
-        <div class="overlay" data-action="close-binding">
+        <div class="overlay">
+          <button class="overlay-backdrop" data-action="close-binding" type="button" aria-label="Close binding dialog"></button>
           <section class="modal compact" data-modal-card>
             <header>
               <div><span class="eyebrow">Sensor binding</span><h2>${this._bindingDraft.binding_id ? "Edit binding" : "Add binding"}</h2></div>
@@ -526,7 +544,8 @@
     _renderEditModal() {
       if (!this._detailDraft) return "";
       return `
-        <div class="overlay" data-action="close-edit">
+        <div class="overlay">
+          <button class="overlay-backdrop" data-action="close-edit" type="button" aria-label="Close edit dialog"></button>
           <section class="modal compact" data-modal-card>
             <header>
               <div><span class="eyebrow">Run details</span><h2>Edit run</h2></div>
@@ -547,17 +566,30 @@
       `;
     }
 
+    _brandMark() {
+      return `
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+          <path class="sprout-stem" d="M12 21V10" />
+          <path class="sprout-left" d="M7 12c0-3.2 2.2-5.7 5-6 0 3.2-2.2 5.7-5 6Z" />
+          <path class="sprout-right" d="M17 12c0-3.2-2.2-5.7-5-6 0 3.2 2.2 5.7 5 6Z" />
+          <path d="M8 21h8" opacity=".72" />
+        </svg>
+      `;
+    }
+
     render() {
+      const themeMode = this._resolvedTheme();
       this.shadowRoot.innerHTML = `
         <style>${this._styles()}</style>
-        <div class="shell theme-${S.escapeHtml(this._theme)}">
+        <div class="app theme-${S.escapeHtml(themeMode)}">
+        <div class="shell">
           <header class="topbar">
-            <div class="brand"><span class="brand-mark">${S.icon("mdi:sprout")}</span><div><strong>PlantRun</strong><span>Home Assistant grow cockpit</span></div></div>
+            <div class="brand"><span class="brand-mark" aria-hidden="true">${this._brandMark()}</span><div><strong>PlantRun</strong><span>Home Assistant grow cockpit</span></div></div>
             <nav>
               ${["active", "ended", "all"].map((filter) => `<button class="${this._filter === filter ? "active" : ""}" data-action="filter" data-filter="${filter}" type="button">${filter}</button>`).join("")}
             </nav>
             <div class="top-actions">
-              <button class="icon-button animated" data-action="toggle-theme" type="button" title="Theme">${S.icon(this._theme === "light" ? "mdi:white-balance-sunny" : this._theme === "dark" ? "mdi:weather-night" : "mdi:theme-light-dark")}</button>
+              <button class="icon-button animated" data-action="toggle-theme" type="button" title="Theme">${S.icon(themeMode === "light" ? "mdi:weather-night" : "mdi:white-balance-sunny")}</button>
               <button class="icon-button animated" data-action="toggle-sound" type="button" title="Sound">${S.icon(this._sound ? "mdi:volume-high" : "mdi:volume-off")}</button>
               <button class="primary" data-action="open-wizard" type="button">${S.icon("mdi:plus")} New run</button>
             </div>
@@ -567,9 +599,11 @@
             ${this._renderDetail()}
           </main>
         </div>
+        
         ${this._renderWizard()}
         ${this._renderBindingModal()}
         ${this._renderEditModal()}
+        </div>
       `;
       this._hydrateHaSelectors();
     }
@@ -577,7 +611,6 @@
     _handleClick(event) {
       const target = event.target.closest("[data-action]");
       if (!target || !this.shadowRoot.contains(target)) return;
-      if (target.closest("[data-modal-card]") && ["close-wizard", "close-binding", "close-edit"].includes(target.dataset.action) && target.dataset.modalCard === undefined && target === target.closest(".overlay")) return;
       event.preventDefault();
       const action = target.dataset.action;
       this._clickSound();
@@ -596,8 +629,9 @@
         this._wizard = this._blankWizard();
         this._suggestions = [];
         this.render();
+        this._focusWizardPrimaryField();
       } else if (action === "close-wizard") {
-        if (target.classList.contains("overlay") || target.dataset.action === "close-wizard") this._wizardOpen = false;
+        this._wizardOpen = false;
         this.render();
       } else if (action === "wizard-next") {
         this._wizardStep = Math.min(3, this._wizardStep + 1);
@@ -636,7 +670,7 @@
       } else if (action === "save-run") {
         this._saveRun();
       } else if (action === "toggle-theme") {
-        this._theme = this._theme === "auto" ? "dark" : this._theme === "dark" ? "light" : "auto";
+        this._theme = this._resolvedTheme() === "dark" ? "light" : "dark";
         localStorage.setItem(STORAGE.theme, this._theme);
         this.render();
       } else if (action === "toggle-sound") {
@@ -653,6 +687,7 @@
         this._wizard = { ...this._wizard, [field]: target.value };
         if (field === "breeder" || field === "cultivar_name") {
           this._wizard.selected_cultivar = null;
+          this._wizard.target_days = "";
           this._scheduleCultivarSearch();
         }
       } else if (target.matches("[data-note-draft]")) {
@@ -771,6 +806,7 @@
         ...this._wizard,
         breeder: item.breeder || this._wizard.breeder,
         cultivar_name: item.name || item.strain || this._wizard.cultivar_name,
+        target_days: this._derivedTargetDays(item),
         selected_cultivar: item,
       };
       this._suggestions = [];
@@ -789,14 +825,15 @@
       const run = this._resolveNewlyCreatedRun(name, knownRunIds);
       if (!run) return;
       this._selectedRunId = run.id;
-      await this._hass.callService(DOMAIN, "update_run", {
-        run_id: run.id,
-        base_config: {
-          target_days: Number(this._wizard.target_days) || 90,
-          medium: this._wizard.medium || null,
-          space: this._wizard.space || null,
-        },
-      });
+      const targetDays = Number(this._wizard.target_days);
+      if (Number.isFinite(targetDays) && targetDays > 0) {
+        await this._hass.callService(DOMAIN, "update_run", {
+          run_id: run.id,
+          base_config: {
+            target_days: targetDays,
+          },
+        });
+      }
       if (this._wizard.cultivar_name.trim()) {
         await this._hass.callService(DOMAIN, "set_cultivar", {
           run_id: run.id,
@@ -930,13 +967,36 @@
         * { box-sizing:border-box; }
         button, input, select, textarea { font:inherit; }
         button { cursor:pointer; }
+        .app.theme-dark {
+          --primary-background-color:#111415;
+          --card-background-color:#1b1f20;
+          --primary-text-color:#edf2ec;
+          --secondary-text-color:#9ca69d;
+          --divider-color:#51605a;
+          --success-color:#55d66a;
+          color-scheme:dark;
+        }
+        .app.theme-light {
+          --primary-background-color:#eef4ee;
+          --card-background-color:#f7faf6;
+          --primary-text-color:#18211a;
+          --secondary-text-color:#627162;
+          --divider-color:#b5c3b6;
+          --success-color:#41c85f;
+          color-scheme:light;
+        }
         .shell { min-height:100vh; padding:18px; background:
           radial-gradient(circle at 18% 0%, color-mix(in srgb, var(--success-color,#2fc46b) 18%, transparent), transparent 32%),
           linear-gradient(180deg, color-mix(in srgb, var(--card-background-color,#171b1c) 92%, #123021), var(--primary-background-color,#111416)); }
         .topbar { display:grid; grid-template-columns:minmax(220px,1fr) auto minmax(220px,1fr); align-items:center; gap:16px; max-width:1480px; margin:0 auto 14px; }
         .brand, .top-actions, nav, .hero-actions, .block-head, .inline-form, .sensor-head { display:flex; align-items:center; gap:10px; }
         .brand { min-width:0; }
-        .brand-mark, .plant-mark { display:grid; place-items:center; width:42px; height:42px; border-radius:14px; background:color-mix(in srgb, var(--success-color,#31c76b) 18%, var(--card-background-color,#1b2020)); color:var(--success-color,#31c76b); box-shadow:inset 0 1px rgba(255,255,255,.16); }
+        .brand-mark, .plant-mark { display:grid; place-items:center; width:42px; height:42px; border-radius:14px; background:color-mix(in srgb, var(--success-color,#31c76b) 18%, var(--card-background-color,#1b2020)); color:var(--success-color,#31c76b); box-shadow:inset 0 1px rgba(255,255,255,.16); overflow:hidden; }
+        .brand-mark svg { width:22px; height:22px; overflow:visible; }
+        .brand-mark .sprout-stem, .brand-mark .sprout-left, .brand-mark .sprout-right { transform-origin:center; transition:transform .35s cubic-bezier(.2,.9,.2,1), opacity .25s ease; }
+        .brand:hover .brand-mark .sprout-left { transform:rotate(-12deg) translate(-1px, -1px); }
+        .brand:hover .brand-mark .sprout-right { transform:rotate(12deg) translate(1px, -1px); }
+        .brand:hover .brand-mark .sprout-stem { transform:translateY(-1px) scaleY(1.04); }
         .brand strong { display:block; font-size:19px; }
         .brand span:last-child, .hint, small, .run-row-main span, .eyebrow { color:var(--secondary-text-color,#98a29a); }
         nav { justify-content:center; padding:4px; border-radius:999px; background:color-mix(in srgb, var(--card-background-color,#1f2424) 82%, transparent); border:1px solid color-mix(in srgb, var(--divider-color,#4b5551) 55%, transparent); }
@@ -998,9 +1058,11 @@
         input, select, textarea { width:100%; border:1px solid color-mix(in srgb, var(--divider-color,#52605a) 55%, transparent); border-radius:14px; min-height:42px; padding:10px 12px; background:color-mix(in srgb, var(--primary-text-color,#fff) 7%, transparent); color:inherit; outline:none; }
         textarea { min-height:90px; resize:vertical; }
         input:focus, select:focus, textarea:focus { border-color:var(--success-color,#31c76b); box-shadow:0 0 0 3px color-mix(in srgb, var(--success-color,#31c76b) 18%, transparent); }
-        .overlay { position:absolute; inset:0; z-index:20; display:grid; place-items:center; padding:22px; background:rgba(0,0,0,.34); backdrop-filter:blur(8px); }
+        .overlay { position:absolute; inset:0; z-index:20; display:grid; place-items:center; padding:22px; }
+        .overlay-backdrop { position:absolute; inset:0; border:0; background:rgba(0,0,0,.34); backdrop-filter:blur(8px); }
         .modal { width:min(760px,100%); max-height:min(820px,calc(100vh - 44px)); overflow:auto; border-radius:26px; padding:18px; }
         .modal.compact { width:min(560px,100%); }
+        .modal, .detail, .sidebar, .panel-block { position:relative; z-index:1; }
         .modal header, .modal footer { display:flex; align-items:center; justify-content:space-between; gap:12px; }
         .modal footer { margin-top:16px; justify-content:flex-end; }
         .form-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin-top:16px; }

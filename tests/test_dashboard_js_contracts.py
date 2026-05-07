@@ -34,11 +34,14 @@ class DashboardJsContractsTests(unittest.TestCase):
         self.assertIn("_runOptions()", source)
         self.assertIn("Placeholder IDs are ignored until replaced.", source)
 
-    def test_panel_run_creation_copy_makes_duration_explicit(self):
+    def test_panel_run_creation_basics_are_minimal_and_duration_is_seedfinder_derived(self):
         source = PANEL_JS.read_text(encoding="utf-8")
-        self.assertIn("Estimated run duration (days)", source)
-        self.assertIn("The duration is stored as planning context", source)
-        self.assertIn("target_days: Number(this._wizard.target_days) || 90", source)
+        self.assertNotIn("Grow medium", source)
+        self.assertNotIn("Grow space", source)
+        self.assertIn("Keep step 1 dead simple. Name it, set the plant date, move on.", source)
+        self.assertIn("Estimated total run duration:", source)
+        self.assertIn("target_days: this._derivedTargetDays(item)", source)
+        self.assertIn("if (Number.isFinite(targetDays) && targetDays > 0)", source)
 
     def test_panel_sensor_bindings_use_ha_entity_selector_and_sensor_fallback(self):
         source = PANEL_JS.read_text(encoding="utf-8")
@@ -66,6 +69,7 @@ class DashboardJsContractsTests(unittest.TestCase):
         source = PANEL_JS.read_text(encoding="utf-8")
         self.assertIn("_handleInput(event)", source)
         self.assertIn("this._wizard = { ...this._wizard, [field]: target.value };", source)
+        self.assertIn('this._wizard.target_days = "";', source)
         handle_input = source[source.index("_handleInput(event)") : source.index("_handleChange(event)")]
         self.assertNotIn("this.render()", handle_input)
 
