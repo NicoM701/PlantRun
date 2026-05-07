@@ -1,5 +1,6 @@
 """Sensor platform for PlantRun."""
 import logging
+from typing import Any
 
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.config_entries import ConfigEntry
@@ -17,6 +18,7 @@ from .const import (
     DOMAIN,
 )
 from .coordinator import PlantRunCoordinator
+from .history_context import build_binding_history_context
 from .models import Binding, RunData
 from .summary import build_run_summary, normalize_energy_currency, normalize_energy_price_per_kwh
 
@@ -284,6 +286,7 @@ class PlantRunProxySensor(CoordinatorEntity[PlantRunCoordinator], SensorEntity):
         self.metric_type = binding.metric_type
         self.source_entity_id = binding.sensor_id
         self.binding_id = binding.id
+        self._remove_source_listener = None
         
         self._attr_unique_id = _binding_unique_id(run_id, binding)
         self._attr_name = self.metric_type.replace("_", " ").title()
@@ -295,13 +298,52 @@ class PlantRunProxySensor(CoordinatorEntity[PlantRunCoordinator], SensorEntity):
             "manufacturer": "PlantRun",
         }
 
+    @property
+    def run_data(self) -> RunData | None:
+        for run in self.coordinator.data:
+            if run.id == self.run_id:
+                return run
+        return None
+
     def _binding_still_exists(self) -> bool:
         """Return True while this binding still exists on the run."""
+        binding = self._current_binding()
+        return (
+            binding is not None
+            and binding.metric_type == self.metric_type
+            and binding.sensor_id == self.source_entity_id
+        )
+
+    def _current_binding(self) -> Binding | None:
+        """Return the current storage binding for this proxy's stable binding id."""
         for run in self.coordinator.data:
             if run.id != self.run_id:
                 continue
-            return any(binding.id == self.binding_id for binding in run.bindings)
-        return False
+            return next((binding for binding in run.bindings if binding.id == self.binding_id), None)
+        return None
+
+    def _sync_binding_from_run(self) -> bool:
+        """Sync metric/source fields when a binding is edited without reloading HA."""
+        binding = self._current_binding()
+        if binding is None:
+            return False
+
+        source_changed = binding.sensor_id != self.source_entity_id
+        metric_changed = binding.metric_type != self.metric_type
+        if not source_changed and not metric_changed:
+            return True
+
+        self.metric_type = binding.metric_type
+        self.source_entity_id = binding.sensor_id
+        self._attr_unique_id = _binding_unique_id(self.run_id, binding)
+        self._attr_name = self.metric_type.replace("_", " ").title()
+        self._attr_native_value = None
+
+        if hasattr(self, "hass"):
+            if source_changed:
+                self._track_source_entity()
+            self._load_current_source_state(write_state=False)
+        return True
 
     def _apply_source_metadata(self, attrs: dict) -> None:
         """Apply metadata with safe metric-specific fallback for recorder/statistics."""
@@ -379,47 +421,88 @@ class PlantRunProxySensor(CoordinatorEntity[PlantRunCoordinator], SensorEntity):
         """Mark proxy unavailable when binding was removed at runtime."""
         return self._binding_still_exists() and self._source_state_available()
 
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        source_exists = True
+        if hasattr(self, "hass"):
+            source_exists = self.hass.states.get(self.source_entity_id) is not None
+        binding = self._current_binding() or Binding(
+            metric_type=self.metric_type,
+            sensor_id=self.source_entity_id,
+            id=self.binding_id,
+        )
+        context = build_binding_history_context(
+            self.run_data,
+            binding,
+            source_exists=source_exists,
+        ) if self.run_data else None
+        return {
+            "run_id": self.run_id,
+            "binding_id": self.binding_id,
+            "source_entity_id": self.source_entity_id,
+            "binding_active": self._binding_still_exists(),
+            "source_available": self._source_state_available(),
+            "history_context": context,
+        }
+
     def _handle_coordinator_update(self) -> None:
         """Update availability as runtime bindings are added/removed."""
+        if not self._sync_binding_from_run() or not self.available:
+            self._attr_native_value = None
         self.async_write_ha_state()
 
-    async def async_added_to_hass(self) -> None:
-        """Handle entity which will be added."""
-        await super().async_added_to_hass()
-        
-        def _handle_state_change(event: Event) -> None:
-            new_state = event.data.get("new_state")
-            if new_state is None:
-                self._attr_native_value = None
-                # Thread-safe from worker/event contexts on newer HA cores.
-                self.schedule_update_ha_state()
-                return
-            self._apply_source_metadata(new_state.attributes)
-            self._attr_native_value = self._normalize_source_native_value(new_state.state)
-            # Thread-safe from worker/event contexts on newer HA cores.
+    def _handle_source_state_change(self, event: Event) -> None:
+        """Mirror source state changes while preserving unavailable/orphan semantics."""
+        new_state = event.data.get("new_state")
+        if new_state is None:
+            self._attr_native_value = None
             self.schedule_update_ha_state()
+            return
+        self._apply_source_metadata(new_state.attributes)
+        self._attr_native_value = self._normalize_source_native_value(new_state.state)
+        self.schedule_update_ha_state()
 
-        # Listen to state changes from the real sensor
-        self.async_on_remove(
-            async_track_state_change_event(
-                self.hass, [self.source_entity_id], _handle_state_change
-            )
+    def _track_source_entity(self) -> None:
+        """Track the current source entity, replacing stale listeners after binding edits."""
+        if self._remove_source_listener is not None:
+            self._remove_source_listener()
+            self._remove_source_listener = None
+        remove = async_track_state_change_event(
+            self.hass, [self.source_entity_id], self._handle_source_state_change
         )
-        
-        # Initialize with current state if it exists
+        self._remove_source_listener = remove
+        self.async_on_remove(remove)
+
+    def _load_current_source_state(self, *, write_state: bool) -> None:
+        """Initialize proxy value from the current source state if it exists."""
         state = self.hass.states.get(self.source_entity_id)
         if state:
             self._apply_source_metadata(state.attributes)
             self._attr_native_value = self._normalize_source_native_value(state.state)
+        else:
+            self._attr_native_value = None
+        if write_state:
             self.async_write_ha_state()
+
+    async def async_added_to_hass(self) -> None:
+        """Handle entity which will be added."""
+        await super().async_added_to_hass()
+        self._track_source_entity()
+        self._load_current_source_state(write_state=True)
 
 
 def _binding_unique_id(run_id: str, binding: Binding) -> str:
-    """Return stable unique_id with legacy compatibility for v1 bindings."""
+    """Return stable unique_id with legacy compatibility for v1 bindings.
+
+    Modern bindings should stay stable across metric/source edits so Home Assistant
+    does not accumulate ghost registry entries for what is logically the same binding.
+    """
     # Preserve existing dashboards/entity IDs when migrating from the v1 model.
     if binding.id == f"legacy_{binding.metric_type}":
         return f"plantrun_{binding.metric_type}_{run_id}"
-    return f"plantrun_{binding.metric_type}_{run_id}_{binding.id}"
+    if binding.id.startswith("legacy_"):
+        return f"plantrun_{binding.metric_type}_{run_id}_{binding.id}"
+    return f"plantrun_binding_{run_id}_{binding.id}"
 
 
 def _normalize_light_unit(unit: str | None) -> str | None:

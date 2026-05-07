@@ -211,6 +211,14 @@ class TestSensorBindingCompatibility(unittest.TestCase):
         self.assertEqual(second, "plantrun_temperature_run123_legacy_temperature_2")
         self.assertNotEqual(first, second)
 
+    def test_unique_id_for_explicit_binding_id_is_metric_stable(self) -> None:
+        binding = Binding(metric_type="temperature", sensor_id="sensor.t1", id="bind42")
+        first = SENSOR_MODULE._binding_unique_id("run123", binding)
+        binding.metric_type = "humidity"
+        second = SENSOR_MODULE._binding_unique_id("run123", binding)
+        self.assertEqual(first, "plantrun_binding_run123_bind42")
+        self.assertEqual(second, "plantrun_binding_run123_bind42")
+
 
 class TestDynamicBindingEntities(unittest.TestCase):
     def test_adds_new_binding_entity_without_reload(self) -> None:
@@ -391,6 +399,32 @@ class TestDynamicBindingEntities(unittest.TestCase):
         proxy.hass = types.SimpleNamespace(states=types.SimpleNamespace(get=lambda _entity_id: None))
         self.assertFalse(proxy.available)
 
+    def test_proxy_extra_attributes_include_history_context(self) -> None:
+        run = RunData.from_dict(
+            {
+                "id": "runCtx",
+                "friendly_name": "Tent Context",
+                "start_time": "2026-03-01T00:00:00",
+                "bindings": [{"id": "bind_ctx", "metric_type": "temperature", "sensor_id": "sensor.temp"}],
+            }
+        )
+        coordinator = FakeCoordinator([run])
+        proxy = SENSOR_MODULE.PlantRunProxySensor(
+            coordinator=coordinator,
+            run_id="runCtx",
+            run_name="Tent Context",
+            binding=run.bindings[0],
+        )
+        proxy.hass = types.SimpleNamespace(
+            states=types.SimpleNamespace(get=lambda _entity_id: types.SimpleNamespace(state="21.4", attributes={}))
+        )
+
+        attrs = proxy.extra_state_attributes
+
+        self.assertEqual(attrs["binding_id"], "bind_ctx")
+        self.assertEqual(attrs["source_entity_id"], "sensor.temp")
+        self.assertEqual(attrs["history_context"]["binding_status"], "bound")
+
         unavailable_state = types.SimpleNamespace(state="unavailable")
         proxy.hass = types.SimpleNamespace(
             states=types.SimpleNamespace(get=lambda _entity_id: unavailable_state)
@@ -461,6 +495,8 @@ class TestProxyStateChangeThreadSafety(unittest.TestCase):
         proxy.async_write_ha_state = _async_write_ha_state
 
         asyncio.run(proxy.async_added_to_hass())
+        calls["scheduled"] = 0
+        calls["written"] = 0
 
         event = types.SimpleNamespace(
             data={

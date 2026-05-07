@@ -13,7 +13,8 @@ class PanelAutocompleteTest(unittest.TestCase):
         self.assertIn('event.key === "Enter" || event.key === "Tab"', source)
         self.assertIn('event.key === "Escape"', source)
         self.assertIn('data-action="choose-cultivar"', source)
-        self.assertIn('@mousedown=${"(e) => e.preventDefault()"}', source)
+        self.assertIn('data-prevent-mousedown', source)
+        self.assertIn('_handleMouseDown(event)', source)
         self.assertIn("_scheduleCultivarSearch()", source)
         self.assertIn("_renderSuggestionsOnly()", source)
 

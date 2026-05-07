@@ -16,6 +16,8 @@ class DashboardPanelInteractionRegressionTests(unittest.TestCase):
                 "this._openEntity(tile.dataset.entityId);",
                 "const wasLongPress = !!state.longPressTriggered;",
                 "if (!wasLongPress) this._openRunHistory(tile.dataset.runId, tile.dataset.entityId);",
+                "binding_id: binding?.id || \"\"",
+                'type: "plantrun/get_run_binding_history_context"',
                 "delete this._pressState[key];",
             ],
         )
@@ -54,6 +56,7 @@ class DashboardPanelInteractionRegressionTests(unittest.TestCase):
                 'class="overlay-backdrop" data-action="close-wizard"',
                 'class="overlay-backdrop" data-action="close-binding"',
                 'class="overlay-backdrop" data-action="close-edit"',
+                'class="overlay-backdrop" data-action="close-history"',
             ],
         )
 
@@ -78,6 +81,7 @@ class DashboardPanelInteractionRegressionTests(unittest.TestCase):
                 "pointer-events:none;",
                 ".sensor-tile {",
                 "touch-action:manipulation;",
+                ".metric-badge { display:grid; place-items:center;",
             ],
         )
 

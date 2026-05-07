@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from contextlib import nullcontext
-from datetime import datetime, timezone
+from datetime import datetime
 from statistics import mean
 from typing import Any, Mapping
 
@@ -15,6 +15,7 @@ from .const import (
 )
 from .instrumentation import PlantRunInstrumentation
 from .models import RunData
+from .run_window import parse_iso_datetime, run_window_for
 
 
 def _to_float(value: Any) -> float | None:
@@ -26,21 +27,7 @@ def _to_float(value: Any) -> float | None:
 
 def _parse_iso_datetime(value: Any) -> datetime | None:
     """Parse ISO datetime values with tolerant UTC fallback for naive timestamps."""
-    if not isinstance(value, str):
-        return None
-
-    cleaned = value.strip()
-    if not cleaned:
-        return None
-
-    try:
-        parsed = datetime.fromisoformat(cleaned.replace("Z", "+00:00"))
-    except ValueError:
-        return None
-
-    if parsed.tzinfo is None:
-        return parsed.replace(tzinfo=timezone.utc)
-    return parsed
+    return parse_iso_datetime(value)
 
 
 def _point_timestamp(point: Mapping[str, Any]) -> datetime | None:
@@ -149,13 +136,16 @@ def build_run_summary(
 
     with timer_cm:
         history = run.sensor_history or {}
-        start_dt = _parse_iso_datetime(run.start_time)
-        end_dt = _parse_iso_datetime(run.end_time) if run.end_time else datetime.now(timezone.utc)
+        window = run_window_for(run)
 
         def _maybe_window(metric_points: list[dict[str, Any]]) -> list[dict[str, Any]]:
-            if start_dt is None or end_dt is None or end_dt < start_dt:
+            if (
+                window.start is None
+                or window.effective_end is None
+                or window.effective_end < window.start
+            ):
                 return metric_points
-            return _windowed_points(metric_points, start=start_dt, end=end_dt)
+            return _windowed_points(metric_points, start=window.start, end=window.effective_end)
 
         energy_stats = _series_stats(_maybe_window(history.get("energy", [])), instrumentation=instrumentation)
         energy_delta = None

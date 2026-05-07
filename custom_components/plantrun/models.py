@@ -100,6 +100,10 @@ class RunData:
             for binding in self.bindings
         )
 
+    def get_binding(self, binding_id: str) -> Binding | None:
+        """Return one binding by id."""
+        return next((binding for binding in self.bindings if binding.id == binding_id), None)
+
     def to_dict(self) -> dict[str, Any]:
         # To avoid issues with nested dataclasses and asdict, we handle nested manually.
         data = asdict(self)

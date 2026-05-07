@@ -73,6 +73,14 @@ class DashboardJsContractsTests(unittest.TestCase):
         handle_input = source[source.index("_handleInput(event)") : source.index("_handleChange(event)")]
         self.assertNotIn("this.render()", handle_input)
 
+    def test_panel_sensor_tap_opens_run_window_inspector_instead_of_fake_history(self):
+        source = PANEL_JS.read_text(encoding="utf-8")
+        self.assertIn("Tap a sensor to inspect its run window.", source)
+        self.assertIn("_renderHistoryInspector()", source)
+        self.assertIn('type: "plantrun/get_run_binding_history_context"', source)
+        self.assertIn("PlantRun is showing the linked Home Assistant sensor in this run timeframe.", source)
+        self.assertIn('data-action="open-history-entity"', source)
+
     def test_panel_detail_editor_sends_explicit_nulls_when_fields_are_cleared(self):
         source = PANEL_JS.read_text(encoding="utf-8")
         self.assertIn("planted_date: draft.planted_date || null,", source)

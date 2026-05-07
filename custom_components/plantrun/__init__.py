@@ -51,6 +51,7 @@ from .const import (
     UNSUPPORTED_BINDING_METRIC_TYPES,
 )
 from .coordinator import PlantRunCoordinator
+from .history_context import build_binding_history_context
 from .models import Binding, CultivarSnapshot, Note, Phase, RunData
 from . import providers_seedfinder as _providers_seedfinder
 from .retention import async_capture_daily_rollup, get_summary_with_rollup_fallback
@@ -122,6 +123,14 @@ def _summary_energy_preferences_for_hass(hass: HomeAssistant) -> dict[str, Any]:
     if not entries:
         return summary_energy_preferences_from_options(None)
     return summary_energy_preferences_from_options(entries[0].options)
+
+
+def _source_entity_exists(hass: HomeAssistant, entity_id: str) -> bool:
+    """Return True when the bound HA source entity exists in the state machine."""
+    states = getattr(hass, "states", None)
+    if states is None or not hasattr(states, "get"):
+        return False
+    return states.get(entity_id) is not None
 
 
 def _is_obsolete_legacy_entity(entity_entry: Any) -> bool:
@@ -205,6 +214,45 @@ async def websocket_get_run_summary(
     )
 
 
+@websocket_api.websocket_command(
+    {"type": "plantrun/get_run_binding_history_context", "run_id": str, "binding_id": str}
+)
+@websocket_api.async_response
+async def websocket_get_run_binding_history_context(
+    hass: HomeAssistant, connection: Any, msg: dict[str, Any]
+) -> None:
+    """Return recorder query context for one run binding."""
+    storage = _storage_for_hass(hass)
+    if storage is None:
+        connection.send_error(msg["id"], "not_loaded", "PlantRun is not loaded")
+        return
+
+    run = storage.get_run(msg["run_id"])
+    if run is None:
+        connection.send_error(msg["id"], "not_found", f"Run '{msg['run_id']}' not found")
+        return
+
+    binding = run.get_binding(msg["binding_id"])
+    if binding is None:
+        connection.send_error(
+            msg["id"],
+            "not_found",
+            f"Binding '{msg['binding_id']}' not found on run '{run.id}'",
+        )
+        return
+
+    connection.send_result(
+        msg["id"],
+        {
+            "context": build_binding_history_context(
+                run,
+                binding,
+                source_exists=_source_entity_exists(hass, binding.sensor_id),
+            )
+        },
+    )
+
+
 class PlantRunSearchView(HomeAssistantView):
     """HTTP endpoint used by the rebuilt frontend for live cultivar search."""
 
@@ -285,6 +333,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         websocket_api.async_register_command(hass, websocket_get_runs)
         websocket_api.async_register_command(hass, websocket_get_run)
         websocket_api.async_register_command(hass, websocket_get_run_summary)
+        websocket_api.async_register_command(hass, websocket_get_run_binding_history_context)
         hass.data[DOMAIN]["_ws_registered"] = True
 
     if not hass.data[DOMAIN].get("_search_view_registered"):
@@ -579,8 +628,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         run = resolve_target_run(call)
         binding = resolve_binding_from_call(call, run)
 
-        previous_metric_type = binding.metric_type
-        previous_sensor_id = binding.sensor_id
         new_metric_type = str(call.data["metric_type"]).strip()
         new_sensor_id = str(call.data["sensor_id"]).strip()
 
@@ -615,8 +662,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
         binding.metric_type = new_metric_type
         binding.sensor_id = new_sensor_id
-        if previous_metric_type != new_metric_type or previous_sensor_id != new_sensor_id:
-            run.sensor_history.pop(previous_metric_type, None)
         await storage.async_update_run(run)
         await refresh_after_update()
         _LOGGER.info(

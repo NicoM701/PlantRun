@@ -75,6 +75,7 @@
       this._searchTimer = 0;
       this._bindingDraft = null;
       this._detailDraft = null;
+      this._historyInspector = null;
       this._noteDraft = "";
       this._phaseDraft = "Vegetative";
       this._pressState = {};
@@ -87,6 +88,7 @@
       this._boundInput = (event) => this._handleInput(event);
       this._boundChange = (event) => this._handleChange(event);
       this._boundKeydown = (event) => this._handleKeydown(event);
+      this._boundMouseDown = (event) => this._handleMouseDown(event);
       this._boundPointerDown = (event) => this._handlePointerDown(event);
       this._boundPointerUp = (event) => this._handlePointerUp(event);
       this._boundPointerCancel = (event) => this._handlePointerCancel(event);
@@ -107,6 +109,7 @@
       this.shadowRoot.addEventListener("input", this._boundInput);
       this.shadowRoot.addEventListener("change", this._boundChange);
       this.shadowRoot.addEventListener("keydown", this._boundKeydown);
+      this.shadowRoot.addEventListener("mousedown", this._boundMouseDown);
       this.shadowRoot.addEventListener("pointerdown", this._boundPointerDown);
       this.shadowRoot.addEventListener("pointerup", this._boundPointerUp);
       this.shadowRoot.addEventListener("pointercancel", this._boundPointerCancel);
@@ -118,6 +121,7 @@
       this.shadowRoot.removeEventListener("input", this._boundInput);
       this.shadowRoot.removeEventListener("change", this._boundChange);
       this.shadowRoot.removeEventListener("keydown", this._boundKeydown);
+      this.shadowRoot.removeEventListener("mousedown", this._boundMouseDown);
       this.shadowRoot.removeEventListener("pointerdown", this._boundPointerDown);
       this.shadowRoot.removeEventListener("pointerup", this._boundPointerUp);
       this.shadowRoot.removeEventListener("pointercancel", this._boundPointerCancel);
@@ -319,7 +323,7 @@
 
     _renderSensorTile(run, binding) {
       const entityId = binding.sensor_id;
-      const history = Array.isArray(run.sensor_history?.[binding.metric_type]) ? run.sensor_history[binding.metric_type] : [];
+      const history = this._bindingHistory(run, binding);
       const latest = this._entityState(entityId);
       const points = history.slice(-14);
       const max = Math.max(...points.map((point) => Number(point.value)).filter(Number.isFinite), 1);
@@ -330,16 +334,18 @@
           return `<span style="height:${height}px"></span>`;
         })
         .join("");
+      const historyLabel = history.length ? `${history.length} stored sample${history.length === 1 ? "" : "s"}` : "No stored samples yet";
       return `
-        <article class="sensor-tile" data-sensor-tile data-run-id="${S.escapeHtml(run.id)}" data-entity-id="${S.escapeHtml(entityId)}">
+        <article class="sensor-tile" data-sensor-tile data-run-id="${S.escapeHtml(run.id)}" data-entity-id="${S.escapeHtml(entityId)}" data-binding-id="${S.escapeHtml(binding.id || "")}">
           <div class="sensor-head">
-            <span>${S.icon(this._metricIcon(binding.metric_type))}</span>
+            <span class="metric-badge">${S.icon(this._metricIcon(binding.metric_type))}</span>
             <button class="icon-button danger" data-action="remove-binding" data-run-id="${S.escapeHtml(run.id)}" data-binding-id="${S.escapeHtml(binding.id)}" type="button" title="Remove binding">${S.icon("mdi:trash-can-outline")}</button>
           </div>
           <strong>${S.escapeHtml(this._metricLabel(binding.metric_type))}</strong>
           <span class="sensor-state" data-live-entity="${S.escapeHtml(entityId)}">${S.escapeHtml(latest)}</span>
           <small>${S.escapeHtml(this._entityName(entityId))}</small>
           <div class="spark">${bars || "<span></span><span></span><span></span>"}</div>
+          <div class="sensor-meta"><span>${S.escapeHtml(historyLabel)}</span><span>${S.icon("mdi:gesture-tap-button")} Run window</span></div>
         </article>
       `;
     }
@@ -389,7 +395,7 @@
                 <div><span class="eyebrow">Sensors</span><h2>Live bindings</h2></div>
                 <button class="icon-button" data-action="open-binding" data-run-id="${S.escapeHtml(run.id)}" type="button" title="Add binding">${S.icon("mdi:plus")}</button>
               </div>
-              <p class="hint">Tap a sensor for run history. Long press opens the Home Assistant entity.</p>
+              <p class="hint">Tap a sensor to inspect its run window. Long press opens the Home Assistant entity.</p>
               <div class="sensor-grid">
                 ${bindings.length ? bindings.map((binding) => this._renderSensorTile(run, binding)).join("") : `<div class="empty-inline">No sensor bindings yet.</div>`}
               </div>
@@ -506,7 +512,7 @@
       return this._suggestions
         .map(
           (item, index) => `
-            <button data-action="choose-cultivar" data-index="${index}" type="button" @mousedown=${"(e) => e.preventDefault()"}>
+            <button data-action="choose-cultivar" data-index="${index}" data-prevent-mousedown type="button">
               <strong>${S.escapeHtml(item.name || item.strain || "Unknown cultivar")}</strong>
               <span>${S.escapeHtml(item.breeder || this._wizard.breeder || "SeedFinder")}</span>
             </button>`
@@ -566,6 +572,84 @@
       `;
     }
 
+    _bindingHistory(run, binding) {
+      return Array.isArray(run?.sensor_history?.[binding?.metric_type]) ? run.sensor_history[binding.metric_type] : [];
+    }
+
+    _historyWindow(run) {
+      const started = run?.planted_date || run?.start_time;
+      const phases = Array.isArray(run?.phases) ? [...run.phases].reverse() : [];
+      const endedPhase = phases.find((phase) => String(phase?.name || "").toLowerCase().includes("harvest"));
+      return {
+        start: started,
+        end: endedPhase?.start_time || new Date().toISOString(),
+      };
+    }
+
+    _fallbackHistoryContext(run, binding, entityId) {
+      const windowInfo = this._historyWindow(run);
+      const sourceExists = !!this._hass?.states?.[entityId];
+      return {
+        binding_id: binding?.id || "",
+        entity_id: entityId,
+        metric_type: binding?.metric_type || "sensor",
+        run_id: run?.id || "",
+        run_start: windowInfo.start,
+        run_end: windowInfo.end,
+        stored_run_end: run?.end_time || null,
+        binding_status: sourceExists ? "bound" : "orphaned",
+        orphaned: !sourceExists,
+        error: sourceExists ? null : "source_entity_missing",
+      };
+    }
+
+    _renderHistoryInspector() {
+      const panel = this._historyInspector;
+      if (!panel) return "";
+      const run = this._runs.find((item) => item.id === panel.run_id);
+      const binding = run?.bindings?.find((item) => item.id === panel.binding_id || item.sensor_id === panel.entity_id);
+      const context = panel.context || this._fallbackHistoryContext(run, binding, panel.entity_id);
+      const history = this._bindingHistory(run, binding).slice(-24);
+      const summary = context.orphaned
+        ? "This binding is orphaned right now because the linked Home Assistant sensor no longer exists."
+        : history.length
+          ? `Showing ${history.length} stored PlantRun sample${history.length === 1 ? "" : "s"} inside this run window.`
+          : "No stored PlantRun samples yet for this linked sensor in the current run window.";
+      const points = history
+        .map((point) => {
+          const value = Number(point.value);
+          const label = Number.isFinite(value) ? `${value}` : "—";
+          const timestamp = point.timestamp || point.recorded_at || point.time || "";
+          return `<div class="history-row"><span>${S.escapeHtml(label)}</span><small>${S.escapeHtml(S.formatDate(timestamp))}</small></div>`;
+        })
+        .join("");
+      return `
+        <div class="overlay">
+          <button class="overlay-backdrop" data-action="close-history" type="button" aria-label="Close run window inspector"></button>
+          <section class="modal compact history-modal" data-modal-card>
+            <header>
+              <div><span class="eyebrow">Run window</span><h2>${S.escapeHtml(this._entityName(panel.entity_id))}</h2></div>
+              <button class="icon-button" data-action="close-history" type="button" title="Close">${S.icon("mdi:close")}</button>
+            </header>
+            <div class="history-summary">
+              <strong>${S.escapeHtml(this._metricLabel(context.metric_type || binding?.metric_type || "sensor"))}</strong>
+              <p>${S.escapeHtml(summary)}</p>
+              <div class="history-window-pill"><span>${S.icon("mdi:calendar-range")} ${S.escapeHtml(S.formatDate(context.run_start))}</span><span>${S.icon("mdi:arrow-right")}</span><span>${S.escapeHtml(S.formatDate(context.run_end))}</span></div>
+              <div class="history-status ${context.orphaned ? "orphaned" : "bound"}">${S.escapeHtml(context.orphaned ? "Binding orphaned — sensor missing in Home Assistant" : "Binding healthy — linked Home Assistant sensor resolved")}</div>
+              <p class="hint">PlantRun is showing the linked Home Assistant sensor in this run timeframe. For full Home Assistant history, open the entity details.</p>
+              ${panel.loading ? `<p class="hint">Loading recorder context…</p>` : ""}
+              ${panel.error ? `<p class="hint error-text">${S.escapeHtml(panel.error)}</p>` : ""}
+            </div>
+            <div class="history-list">${points || `<div class="empty-inline">No stored samples captured yet.</div>`}</div>
+            <footer>
+              <button class="ghost" data-action="open-history-entity" data-entity-id="${S.escapeHtml(panel.entity_id)}" type="button">${S.icon("mdi:open-in-app")} Open entity details</button>
+              <button class="primary" data-action="close-history" type="button">Done</button>
+            </footer>
+          </section>
+        </div>
+      `;
+    }
+
     _brandMark() {
       return `
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
@@ -603,6 +687,7 @@
         ${this._renderWizard()}
         ${this._renderBindingModal()}
         ${this._renderEditModal()}
+        ${this._renderHistoryInspector()}
         </div>
       `;
       this._hydrateHaSelectors();
@@ -669,6 +754,11 @@
         this.render();
       } else if (action === "save-run") {
         this._saveRun();
+      } else if (action === "close-history") {
+        this._historyInspector = null;
+        this.render();
+      } else if (action === "open-history-entity") {
+        this._openEntity(target.dataset.entityId);
       } else if (action === "toggle-theme") {
         this._theme = this._resolvedTheme() === "dark" ? "light" : "dark";
         localStorage.setItem(STORAGE.theme, this._theme);
@@ -722,6 +812,11 @@
         this._suggestions = [];
         this._renderSuggestionsOnly();
       }
+    }
+
+    _handleMouseDown(event) {
+      if (!event.target.closest("[data-prevent-mousedown]")) return;
+      event.preventDefault();
     }
 
     _handlePointerDown(event) {
@@ -928,11 +1023,46 @@
       this.dispatchEvent(new CustomEvent("hass-more-info", { detail: { entityId }, bubbles: true, composed: true }));
     }
 
-    _openRunHistory(runId, entityId) {
+    async _openRunHistory(runId, entityId) {
       this._selectedRunId = runId;
-      const tile = this.shadowRoot.querySelector(`[data-entity-id="${CSS.escape(entityId)}"]`);
+      const run = this._runs.find((item) => item.id === runId);
+      const binding = run?.bindings?.find((item) => item.sensor_id === entityId);
+      this._historyInspector = {
+        run_id: runId,
+        entity_id: entityId,
+        binding_id: binding?.id || "",
+        loading: !!(this._hass && binding?.id),
+        error: "",
+        context: this._fallbackHistoryContext(run, binding, entityId),
+      };
+      this.render();
+      const selector = `[data-sensor-tile][data-entity-id="${CSS.escape(entityId)}"]`;
+      const tile = this.shadowRoot.querySelector(selector);
       tile?.classList.add("pulse");
       window.setTimeout(() => tile?.classList.remove("pulse"), 520);
+
+      if (!this._hass || !binding?.id) return;
+      try {
+        const payload = await this._hass.callWS({
+          type: "plantrun/get_run_binding_history_context",
+          run_id: runId,
+          binding_id: binding.id,
+        });
+        if (!this._historyInspector || this._historyInspector.run_id !== runId || this._historyInspector.binding_id !== binding.id) return;
+        this._historyInspector = {
+          ...this._historyInspector,
+          loading: false,
+          context: payload?.context || this._historyInspector.context,
+        };
+      } catch (err) {
+        if (!this._historyInspector || this._historyInspector.run_id !== runId || this._historyInspector.binding_id !== binding.id) return;
+        this._historyInspector = {
+          ...this._historyInspector,
+          loading: false,
+          error: err?.message || "Unable to load run-window history context.",
+        };
+      }
+      this.render();
     }
 
     _refreshLiveSensorText() {
@@ -1032,10 +1162,13 @@
         .panel-block h2, .modal h2 { margin:2px 0 0; font-size:18px; }
         .eyebrow { text-transform:uppercase; letter-spacing:.12em; font-size:11px; font-weight:800; }
         .sensor-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(185px,1fr)); gap:10px; margin-top:10px; }
-        .sensor-tile { border-radius:20px; padding:14px; background:color-mix(in srgb, var(--primary-text-color,#fff) 5%, transparent); border:1px solid color-mix(in srgb, var(--divider-color,#52605a) 38%, transparent); transition:transform .18s ease, border-color .18s ease; user-select:none; touch-action:manipulation; }
-        .sensor-tile:hover, .sensor-tile.pulse { transform:translateY(-2px); border-color:color-mix(in srgb, var(--success-color,#31c76b) 52%, transparent); }
+        .sensor-tile { border-radius:20px; padding:14px; background:linear-gradient(180deg, color-mix(in srgb, var(--primary-text-color,#fff) 7%, transparent), color-mix(in srgb, var(--primary-text-color,#fff) 4%, transparent)); border:1px solid color-mix(in srgb, var(--divider-color,#52605a) 38%, transparent); transition:transform .18s ease, border-color .18s ease, box-shadow .18s ease; user-select:none; touch-action:manipulation; box-shadow:inset 0 1px rgba(255,255,255,.06); }
+        .sensor-tile:hover, .sensor-tile.pulse { transform:translateY(-2px); border-color:color-mix(in srgb, var(--success-color,#31c76b) 52%, transparent); box-shadow:0 14px 28px rgba(0,0,0,.16), inset 0 1px rgba(255,255,255,.08); }
+        .metric-badge { display:grid; place-items:center; width:34px; height:34px; border-radius:12px; background:color-mix(in srgb, var(--success-color,#31c76b) 16%, transparent); color:var(--success-color,#31c76b); }
         .sensor-tile strong, .sensor-tile small, .sensor-state { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
         .sensor-state { margin-top:8px; font-size:24px; font-weight:800; }
+        .sensor-meta { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:10px; color:var(--secondary-text-color,#98a29a); font-size:12px; }
+        .sensor-meta span:last-child { display:inline-flex; align-items:center; gap:5px; }
         .spark { height:54px; display:flex; align-items:end; gap:4px; margin-top:12px; }
         .spark span { flex:1; min-width:4px; border-radius:999px 999px 4px 4px; background:linear-gradient(180deg, var(--success-color,#31c76b), rgba(49,199,107,.22)); }
         .phase-list, .note-list, .binding-editor { display:grid; gap:8px; }
@@ -1046,8 +1179,8 @@
         .notes-block { grid-column:1 / -1; }
         .empty-panel, .empty-detail, .empty-inline { display:grid; place-items:center; align-content:center; gap:12px; min-height:220px; text-align:center; color:var(--secondary-text-color,#98a29a); padding:22px; }
         .empty-inline { min-height:130px; border:1px dashed color-mix(in srgb, var(--divider-color,#52605a) 60%, transparent); border-radius:18px; }
-        button.primary, button.ghost, .icon-button { border:1px solid color-mix(in srgb, var(--divider-color,#52605a) 55%, transparent); min-height:38px; border-radius:14px; display:inline-flex; align-items:center; justify-content:center; gap:8px; color:inherit; transition:transform .16s ease, background .16s ease, border-color .16s ease; }
-        button.primary { background:var(--success-color,#31c76b); color:#07110b; border-color:transparent; font-weight:800; padding:0 15px; }
+        button.primary, button.ghost, .icon-button { border:1px solid color-mix(in srgb, var(--divider-color,#52605a) 55%, transparent); min-height:38px; border-radius:14px; display:inline-flex; align-items:center; justify-content:center; gap:8px; color:inherit; transition:transform .16s ease, background .16s ease, border-color .16s ease, box-shadow .16s ease; }
+        button.primary { background:linear-gradient(180deg, color-mix(in srgb, var(--success-color,#31c76b) 88%, white 12%), var(--success-color,#31c76b)); color:#07110b; border-color:transparent; font-weight:800; padding:0 15px; box-shadow:0 10px 24px rgba(49,199,107,.22); }
         button.ghost { background:color-mix(in srgb, var(--primary-text-color,#fff) 7%, transparent); padding:0 13px; }
         .icon-button { width:38px; background:color-mix(in srgb, var(--primary-text-color,#fff) 7%, transparent); padding:0; }
         button:hover { transform:translateY(-1px); }
@@ -1070,8 +1203,20 @@
         label input, label select, label textarea, label .ha-entity-selector { color:var(--primary-text-color,#fff); font-weight:500; }
         label.wide, .search-field { grid-column:1 / -1; }
         .suggestions { display:grid; gap:6px; }
-        .suggestions button { border:0; border-radius:14px; padding:10px 12px; background:color-mix(in srgb, var(--success-color,#31c76b) 12%, transparent); color:inherit; text-align:left; display:grid; gap:2px; }
+        .suggestions button { border:0; border-radius:14px; padding:10px 12px; background:color-mix(in srgb, var(--success-color,#31c76b) 12%, transparent); color:inherit; text-align:left; display:grid; gap:2px; transition:transform .14s ease, background .14s ease; }
+        .suggestions button:hover { transform:translateY(-1px); background:color-mix(in srgb, var(--success-color,#31c76b) 18%, transparent); }
         .binding-edit-row { display:grid; grid-template-columns:160px minmax(0,1fr) 38px; gap:8px; align-items:center; }
+        .history-modal { display:grid; gap:14px; }
+        .history-summary { display:grid; gap:8px; }
+        .history-summary p { margin:0; }
+        .history-window-pill { display:flex; align-items:center; flex-wrap:wrap; gap:8px; padding:10px 12px; border-radius:14px; background:color-mix(in srgb, var(--primary-text-color,#fff) 6%, transparent); }
+        .history-window-pill span { display:inline-flex; align-items:center; gap:6px; }
+        .history-status { display:inline-flex; align-items:center; width:max-content; max-width:100%; padding:7px 10px; border-radius:999px; font-size:12px; font-weight:700; }
+        .history-status.bound { background:rgba(49,199,107,.12); color:var(--success-color,#31c76b); }
+        .history-status.orphaned { background:rgba(255,167,38,.14); color:#f4b25e; }
+        .error-text { color:#f4b25e; }
+        .history-list { display:grid; gap:8px; max-height:280px; overflow:auto; }
+        .history-row { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:11px 12px; border-radius:14px; background:color-mix(in srgb, var(--primary-text-color,#fff) 5%, transparent); }
         .entity-fallback { display:none; }
         .ha-entity-selector:not(:defined) + .entity-fallback { display:block; }
         .ha-entity-selector:not(:defined) { display:none; }
