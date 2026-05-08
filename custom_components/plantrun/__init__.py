@@ -72,6 +72,13 @@ _LOGGER = logging.getLogger(__name__)
 PANEL_URL_PATH = "plantrun-dashboard"
 PANEL_TITLE = "PlantRun"
 PANEL_ICON = "mdi:sprout"
+CANONICAL_PHASES = {
+    "seedling": "Seedling",
+    "vegetative": "Vegetative",
+    "flowering": "Flowering",
+    "harvest": "Harvested",
+    "harvested": "Harvested",
+}
 _MANIFEST_VERSION = json.loads((Path(__file__).parent / "manifest.json").read_text(encoding="utf-8"))[
     "version"
 ]
@@ -417,15 +424,25 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     async def handle_add_phase(call: ServiceCall) -> None:
         """Handle the add_phase service."""
         run = resolve_target_run(call)
-        phase_name = call.data["phase_name"]
+        phase_name = str(call.data["phase_name"]).strip()
+        canonical_phase = CANONICAL_PHASES.get(phase_name.lower())
+        if not canonical_phase:
+            raise ServiceValidationError(
+                "phase_name must be one of Seedling, Vegetative, Flowering, or Harvested."
+            )
         now = datetime.now(timezone.utc).isoformat()
+
+        current_phase = run.phases[-1].name if run.phases else None
+        if current_phase == canonical_phase:
+            _LOGGER.info("Skipped duplicate phase %s on run %s", canonical_phase, run.id)
+            return
 
         if run.phases:
             run.phases[-1].end_time = now
 
-        run.phases.append(Phase(name=phase_name, start_time=now))
+        run.phases.append(Phase(name=canonical_phase, start_time=now))
 
-        if phase_name.lower() == "harvest":
+        if canonical_phase == "Harvested":
             run.end_time = now
             run.status = "ended"
             if storage.active_run_id == run.id:
@@ -438,7 +455,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
         await storage.async_update_run(run)
         await refresh_after_update()
-        _LOGGER.info("Added phase %s to run %s", phase_name, run.id)
+        _LOGGER.info("Added phase %s to run %s", canonical_phase, run.id)
 
     async def handle_add_note(call: ServiceCall) -> None:
         """Handle the add_note service."""

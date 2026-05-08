@@ -61,7 +61,7 @@
             "add_phase": {
                 "title": "Change Phase",
                 "data": {
-                    "phase_name": "New Phase"
+                    "phase_name": "Phase"
                 }
             },
             "add_note": {

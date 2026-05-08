@@ -32,6 +32,19 @@ RunData = MODELS.RunData
 
 
 class TestRunWindow(unittest.TestCase):
+    def test_run_window_prefers_planted_date_when_present(self) -> None:
+        run = RunData(
+            id="runPlantDate",
+            friendly_name="Tent Plant Date",
+            start_time="2026-05-05T10:00:00+00:00",
+            planted_date="2026-05-01",
+            status="active",
+        )
+
+        window = HISTORY_CONTEXT.get_run_window(run, now="2026-05-08T10:00:00+00:00")
+
+        self.assertEqual(window["start"], "2026-05-01T00:00:00+00:00")
+
     def test_active_run_window_uses_now(self) -> None:
         run = RunData(
             id="runA",

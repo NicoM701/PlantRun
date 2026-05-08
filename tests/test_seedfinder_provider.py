@@ -137,6 +137,29 @@ class ParseFlowerWindowDaysTest(unittest.TestCase):
 
 
 class AsyncSearchCultivarTest(unittest.IsolatedAsyncioTestCase):
+    async def test_prefers_tolerant_automatic_alias_match_for_common_name_variant(self):
+        html = """
+        <html><body><table class="table"><tbody>
+          <tr>
+            <td><a href="/en/strain/sensi-amnesia-xxl-automatic">Sensi Amnesia XXL Automatic</a></td>
+            <td>Sensi Seeds</td>
+            <td>Hybrid</td>
+            <td>10-11 weeks</td>
+          </tr>
+          <tr>
+            <td><a href="/en/strain/amnesia-lemon">Amnesia Lemon</a></td>
+            <td>Sensi Seeds</td>
+            <td>Hybrid</td>
+            <td>9-10 weeks</td>
+          </tr>
+        </tbody></table></body></html>
+        """
+        session = _FakeSession([_FakeResponse(200, html)])
+
+        results = await provider.async_search_cultivar("Sensi Seeds", "Amnesia Haze XXL Auto", session=session)
+
+        self.assertEqual(results[0].name, "Sensi Amnesia XXL Automatic")
+
     async def test_maps_flower_window_days_from_breeder_row(self):
         html = """
         <html>

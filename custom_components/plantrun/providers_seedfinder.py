@@ -23,26 +23,72 @@ def _norm(value: str) -> str:
     return " ".join(value.strip().lower().split())
 
 
+def _canonical_tokens(value: str) -> list[str]:
+    normalized = _norm(value)
+    if not normalized:
+        return []
+
+    alias_map = {
+        "automatic": "auto",
+        "autoflower": "auto",
+        "autoflowering": "auto",
+        "feminized": "fem",
+        "feminised": "fem",
+        "xxxl": "xxl",
+    }
+    stopwords = {"strain", "seeds", "seed", "the", "by"}
+    collapsed = re.sub(r"[^a-z0-9]+", " ", normalized)
+    tokens: list[str] = []
+    for raw_token in collapsed.split():
+        token = alias_map.get(raw_token, raw_token)
+        if token in stopwords:
+            continue
+        tokens.append(token)
+    return tokens
+
+
 def _score_match(query_species: str, row_species: str, prefer_automatic: bool = False) -> int:
     q = _norm(query_species)
     r = _norm(row_species)
     if not q or not r:
         return 0
 
+    q_tokens = _canonical_tokens(query_species)
+    r_tokens = _canonical_tokens(row_species)
+    q_set = set(q_tokens)
+    r_set = set(r_tokens)
+
     if q == r:
         base = 100
     elif q in r or r in q:
         base = 70
     else:
-        q_tokens = set(q.split())
-        r_tokens = set(r.split())
-        overlap = len(q_tokens & r_tokens)
-        base = overlap * 10
+        overlap = len(q_set & r_set)
+        base = overlap * 14
 
-    if prefer_automatic and ("auto" in r or "automatic" in r):
+        if overlap:
+            ordered_hits = sum(1 for index, token in enumerate(q_tokens[:3]) if token in r_set and r_tokens.index(token) <= index + 1)
+            base += ordered_hits * 10
+
+            missing = len([token for token in q_tokens if token not in r_set])
+            base -= missing * 4
+
+        for token in q_set - r_set:
+            if any(candidate.startswith(token[:4]) or token.startswith(candidate[:4]) for candidate in r_set if len(candidate) >= 4 and len(token) >= 4):
+                base += 4
+
+    if q_tokens and r_tokens and q_tokens[0] == r_tokens[0]:
+        base += 12
+    elif q_tokens and q_tokens[0] in r_set:
+        base += 8
+
+    if prefer_automatic and ("auto" in r_tokens or "auto" in q_tokens):
         base += 35
 
-    return base
+    if "auto" in q_tokens and "auto" in r_tokens:
+        base += 18
+
+    return max(base, 0)
 
 
 def parse_flower_window_days(raw_value: str | None) -> int | None:

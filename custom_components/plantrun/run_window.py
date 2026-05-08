@@ -55,7 +55,7 @@ def parse_iso_datetime(value: Any) -> datetime | None:
 def run_window_for(run: RunData, *, now: datetime | None = None) -> RunWindow:
     """Return the canonical recorder window for a run."""
     effective_now = now or datetime.now(timezone.utc)
-    start = parse_iso_datetime(run.start_time)
+    start = parse_iso_datetime(run.planted_date) or parse_iso_datetime(run.start_time)
     stored_end = parse_iso_datetime(run.end_time) if run.end_time else None
     is_ended = run.status == "ended" or stored_end is not None
     end = stored_end if is_ended else None

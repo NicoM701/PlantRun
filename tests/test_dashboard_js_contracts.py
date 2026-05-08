@@ -46,9 +46,10 @@ class DashboardJsContractsTests(unittest.TestCase):
     def test_panel_sensor_bindings_use_ha_entity_selector_and_sensor_fallback(self):
         source = PANEL_JS.read_text(encoding="utf-8")
         self.assertIn("<ha-selector", source)
-        self.assertIn('selector.selector = { entity: { domain: "sensor" } };', source)
+        self.assertIn("_entitySelectorConfig(metricType)", source)
+        self.assertIn("_sensorEntitiesForMetric(metricType)", source)
+        self.assertIn("Choose a compatible Home Assistant sensor", source)
         self.assertIn('entityId.startsWith("sensor.")', source)
-        self.assertIn("Choose a Home Assistant sensor entity", source)
         self.assertNotIn('data-binding-input="sensor_id"', source)
 
     def test_panel_run_creation_prefers_new_run_id_over_duplicate_name_match(self):
@@ -78,8 +79,15 @@ class DashboardJsContractsTests(unittest.TestCase):
         self.assertIn("Tap a sensor to inspect its run window.", source)
         self.assertIn("_renderHistoryInspector()", source)
         self.assertIn('type: "plantrun/get_run_binding_history_context"', source)
-        self.assertIn("PlantRun is showing the linked Home Assistant sensor in this run timeframe.", source)
+        self.assertIn("there is no clean supported deep-link into native History with this exact run timespan", source)
         self.assertIn('data-action="open-history-entity"', source)
+
+    def test_panel_phase_control_is_canonical_timeline_with_confirmation(self):
+        source = PANEL_JS.read_text(encoding="utf-8")
+        self.assertIn('const CANONICAL_STAGES = ["Seedling", "Vegetative", "Flowering", "Harvested"]', source)
+        self.assertIn('<h2>Phase</h2>', source)
+        self.assertIn('data-action="select-phase"', source)
+        self.assertIn('window.confirm(`Change phase to ${nextPhase}?`)', source)
 
     def test_panel_detail_editor_sends_explicit_nulls_when_fields_are_cleared(self):
         source = PANEL_JS.read_text(encoding="utf-8")

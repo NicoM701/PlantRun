@@ -11,6 +11,16 @@
     ["water", "Water", "mdi:water"],
   ];
   const STAGES = ["Seedling", "Vegetative", "Flowering", "Harvest"];
+  const CANONICAL_STAGES = ["Seedling", "Vegetative", "Flowering", "Harvested"];
+  const METRIC_ENTITY_HINTS = {
+    temperature: { deviceClasses: ["temperature"], units: ["°c", "°f", "c", "f"] },
+    humidity: { deviceClasses: ["humidity"], units: ["%"] },
+    soil_moisture: { deviceClasses: ["moisture", "humidity"], units: ["%"] },
+    conductivity: { deviceClasses: ["conductivity"], units: ["ms/cm", "µs/cm", "us/cm", "ec"] },
+    light: { deviceClasses: ["illuminance", "irradiance"], units: ["lx", "lux", "ppfd", "dli", "µmol/m²/s", "umol/m²/s"] },
+    energy: { deviceClasses: ["energy", "power"], units: ["kwh", "wh", "w", "kw"] },
+    water: { deviceClasses: ["volume", "water"], units: ["l", "ml", "gal"] },
+  };
   const STORAGE = {
     theme: "plantrun.ui.theme",
     sound: "plantrun.ui.sound",
@@ -207,6 +217,35 @@
         .sort((a, b) => this._entityName(a).localeCompare(this._entityName(b)));
     }
 
+    _entityMatchesMetric(entityId, metricType) {
+      if (!entityId?.startsWith("sensor.")) return false;
+      const hints = METRIC_ENTITY_HINTS[metricType];
+      if (!hints) return true;
+      const state = this._hass?.states?.[entityId];
+      const attrs = state?.attributes || {};
+      const deviceClass = String(attrs.device_class || "").toLowerCase();
+      const unit = String(attrs.unit_of_measurement || attrs.native_unit_of_measurement || "").toLowerCase();
+      const name = `${entityId} ${attrs.friendly_name || ""}`.toLowerCase();
+      if (hints.deviceClasses.some((value) => deviceClass === value)) return true;
+      if (hints.units.some((value) => unit.includes(value))) return true;
+      return hints.deviceClasses.some((value) => name.includes(value.replace("_", " ")));
+    }
+
+    _sensorEntitiesForMetric(metricType) {
+      const all = this._sensorEntities();
+      const filtered = all.filter((entityId) => this._entityMatchesMetric(entityId, metricType));
+      return filtered.length ? filtered : all;
+    }
+
+    _entitySelectorConfig(metricType) {
+      const hints = METRIC_ENTITY_HINTS[metricType];
+      const filter = [{ domain: "sensor" }];
+      if (hints?.deviceClasses?.length) {
+        hints.deviceClasses.forEach((device_class) => filter.push({ domain: "sensor", device_class }));
+      }
+      return { entity: { domain: "sensor", filter } };
+    }
+
     _entityName(entityId) {
       const state = this._hass?.states?.[entityId];
       return state?.attributes?.friendly_name || entityId;
@@ -241,8 +280,8 @@
       return Math.min(100, Math.round((days / Math.max(target, 1)) * 100));
     }
 
-    _haEntityPicker(value, selectorName = "sensor_id") {
-      const options = this._sensorEntities()
+    _haEntityPicker(value, selectorName = "sensor_id", metricType = "temperature") {
+      const options = this._sensorEntitiesForMetric(metricType)
         .map(
           (entityId) =>
             `<option value="${S.escapeHtml(entityId)}" ${entityId === value ? "selected" : ""}>${S.escapeHtml(
@@ -254,10 +293,11 @@
         <ha-selector
           class="ha-entity-selector"
           data-ha-selector="${S.escapeHtml(selectorName)}"
+          data-metric-type="${S.escapeHtml(metricType)}"
           data-value="${S.escapeHtml(value || "")}">
         </ha-selector>
         <select class="entity-fallback" data-select-fallback="${S.escapeHtml(selectorName)}">
-          <option value="">Choose a Home Assistant sensor entity</option>
+          <option value="">Choose a compatible Home Assistant sensor</option>
           ${options}
         </select>
       `;
@@ -266,8 +306,9 @@
     _hydrateHaSelectors() {
       this.shadowRoot.querySelectorAll("ha-selector[data-ha-selector]").forEach((selector) => {
         const name = selector.dataset.haSelector;
+        const metricType = selector.dataset.metricType || "temperature";
         selector.hass = this._hass;
-        selector.selector = { entity: { domain: "sensor" } };
+        selector.selector = this._entitySelectorConfig(metricType);
         selector.value = selector.dataset.value || "";
         selector.addEventListener("value-changed", (event) => {
           this._setEntitySelectorValue(name, event.detail?.value || "");
@@ -403,25 +444,19 @@
 
             <section class="panel-block">
               <div class="block-head">
-                <div><span class="eyebrow">Phase timeline</span><h2>Growth stages</h2></div>
+                <div><span class="eyebrow">Phase timeline</span><h2>Phase</h2></div>
               </div>
-              <div class="phase-list">
-                ${phases
-                  .map(
-                    (phase, index) => `
-                      <div class="phase-item">
-                        <span>${index + 1}</span>
-                        <div><strong>${S.escapeHtml(phase.name)}</strong><small>${S.escapeHtml(S.formatDate(phase.start_time))}</small></div>
-                      </div>`
-                  )
-                  .join("")}
+              <div class="phase-stepper" role="list">
+                ${CANONICAL_STAGES.map((stage, index) => {
+                  const currentPhaseName = String(phases.at(-1)?.name || "seedling").toLowerCase();
+                  const normalizedCurrentPhase = currentPhaseName === "harvest" ? "harvested" : currentPhaseName;
+                  const currentIndex = Math.max(0, CANONICAL_STAGES.findIndex((item) => item.toLowerCase() === normalizedCurrentPhase));
+                  const stateClass = index < currentIndex ? "done" : index === currentIndex ? "current" : "upcoming";
+                  const phase = phases.find((item) => String(item.name || "").toLowerCase() === stage.toLowerCase());
+                  return `<button class="phase-step ${stateClass}" data-action="select-phase" data-run-id="${S.escapeHtml(run.id)}" data-phase="${S.escapeHtml(stage)}" type="button"><span>${index + 1}</span><div><strong>${S.escapeHtml(stage)}</strong><small>${S.escapeHtml(phase?.start_time ? S.formatDate(phase.start_time) : index < currentIndex ? "Completed" : index === currentIndex ? "Current phase" : "Not started")}</small></div></button>`;
+                }).join("")}
               </div>
-              <div class="inline-form">
-                <select data-phase-draft>
-                  ${STAGES.map((stage) => `<option value="${stage}" ${stage === this._phaseDraft ? "selected" : ""}>${stage}</option>`).join("")}
-                </select>
-                <button class="ghost" data-action="add-phase" data-run-id="${S.escapeHtml(run.id)}" type="button">${S.icon("mdi:timeline-plus")} Add</button>
-              </div>
+              <p class="hint">Tap a phase to move the run forward. PlantRun keeps one canonical timeline.</p>
             </section>
 
             <section class="panel-block notes-block">
@@ -495,7 +530,7 @@
               <select data-wizard-binding-metric="${index}">
                 ${METRICS.map(([value, label]) => `<option value="${value}" ${binding.metric_type === value ? "selected" : ""}>${label}</option>`).join("")}
               </select>
-              ${this._haEntityPicker(binding.sensor_id, `wizard_binding_${index}`)}
+              ${this._haEntityPicker(binding.sensor_id, `wizard_binding_${index}`, binding.metric_type)}
               <button class="icon-button danger" data-action="remove-wizard-binding" data-index="${index}" type="button" title="Remove">${S.icon("mdi:minus")}</button>
             </div>`
         )
@@ -536,7 +571,7 @@
                   ${METRICS.map(([value, label]) => `<option value="${value}" ${this._bindingDraft.metric_type === value ? "selected" : ""}>${label}</option>`).join("")}
                 </select>
               </label>
-              <label><span>Home Assistant sensor entity</span>${this._haEntityPicker(this._bindingDraft.sensor_id, "binding_sensor")}</label>
+              <label><span>Home Assistant sensor entity</span>${this._haEntityPicker(this._bindingDraft.sensor_id, "binding_sensor", this._bindingDraft.metric_type)}</label>
             </div>
             <footer>
               <button class="ghost" data-action="close-binding" type="button">Cancel</button>
@@ -636,7 +671,7 @@
               <p>${S.escapeHtml(summary)}</p>
               <div class="history-window-pill"><span>${S.icon("mdi:calendar-range")} ${S.escapeHtml(S.formatDate(context.run_start))}</span><span>${S.icon("mdi:arrow-right")}</span><span>${S.escapeHtml(S.formatDate(context.run_end))}</span></div>
               <div class="history-status ${context.orphaned ? "orphaned" : "bound"}">${S.escapeHtml(context.orphaned ? "Binding orphaned — sensor missing in Home Assistant" : "Binding healthy — linked Home Assistant sensor resolved")}</div>
-              <p class="hint">PlantRun is showing the linked Home Assistant sensor in this run timeframe. For full Home Assistant history, open the entity details.</p>
+              <p class="hint">PlantRun can open Home Assistant entity details from this custom panel, but there is no clean supported deep-link into native History with this exact run timespan. This modal keeps the run-window context honest; open entity details for full Home Assistant history.</p>
               ${panel.loading ? `<p class="hint">Loading recorder context…</p>` : ""}
               ${panel.error ? `<p class="hint error-text">${S.escapeHtml(panel.error)}</p>` : ""}
             </div>
@@ -653,9 +688,11 @@
     _brandMark() {
       return `
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
-          <path class="sprout-stem" d="M12 21V10" />
-          <path class="sprout-left" d="M7 12c0-3.2 2.2-5.7 5-6 0 3.2-2.2 5.7-5 6Z" />
-          <path class="sprout-right" d="M17 12c0-3.2-2.2-5.7-5-6 0 3.2 2.2 5.7 5 6Z" />
+          <path class="sprout-stem" d="M12 21V11.5" />
+          <path class="sprout-left" d="M11.8 11.7C8.1 12 5.4 9.3 5.2 5.4c3.8-.1 6.5 2.4 6.6 6.3Z" />
+          <path class="sprout-right" d="M12.2 13c.1-4 3-6.8 6.6-6.8.2 3.8-2.2 6.9-6.2 7.1Z" />
+          <path class="sprout-leaf" d="M12 14.2c-2.3.3-4.1 2.4-4.1 5.1 2.8.1 4.6-1.7 4.8-4.4" />
+          <path class="sprout-leaf accent" d="M12.1 15.3c2.1-.2 4.2 1.3 5 3.8-2.4.9-4.5.1-5.7-2" />
           <path d="M8 21h8" opacity=".72" />
         </svg>
       `;
@@ -743,7 +780,8 @@
         this._saveBinding();
       } else if (action === "remove-binding") {
         this._removeBinding(target.dataset.runId, target.dataset.bindingId);
-      } else if (action === "add-phase") {
+      } else if (action === "select-phase") {
+        this._phaseDraft = target.dataset.phase;
         this._addPhase(target.dataset.runId);
       } else if (action === "add-note") {
         this._addNote(target.dataset.runId);
@@ -798,8 +836,6 @@
         this._wizard.bindings = bindings;
       } else if (target.matches("[data-binding-metric]") && this._bindingDraft) {
         this._bindingDraft = { ...this._bindingDraft, metric_type: target.value };
-      } else if (target.matches("[data-phase-draft]")) {
-        this._phaseDraft = target.value;
       }
     }
 
@@ -980,7 +1016,11 @@
 
     async _addPhase(runId) {
       if (!this._hass || !this._phaseDraft) return;
-      await this._hass.callService(DOMAIN, "add_phase", { run_id: runId, phase_name: this._phaseDraft });
+      const nextPhase = this._phaseDraft === "Harvest" ? "Harvested" : this._phaseDraft;
+      const current = this._runs.find((item) => item.id === runId)?.phases?.at?.(-1)?.name;
+      if (current === nextPhase) return;
+      if (!window.confirm(`Change phase to ${nextPhase}?`)) return;
+      await this._hass.callService(DOMAIN, "add_phase", { run_id: runId, phase_name: nextPhase });
       await this._refreshRuns();
     }
 
@@ -1113,6 +1153,8 @@
           --secondary-text-color:#627162;
           --divider-color:#b5c3b6;
           --success-color:#41c85f;
+          --surface-strong:#ffffff;
+          --surface-soft:#edf3ec;
           color-scheme:light;
         }
         .shell { min-height:100vh; padding:18px; background:
@@ -1123,10 +1165,12 @@
         .brand { min-width:0; }
         .brand-mark, .plant-mark { display:grid; place-items:center; width:42px; height:42px; border-radius:14px; background:color-mix(in srgb, var(--success-color,#31c76b) 18%, var(--card-background-color,#1b2020)); color:var(--success-color,#31c76b); box-shadow:inset 0 1px rgba(255,255,255,.16); overflow:hidden; }
         .brand-mark svg { width:22px; height:22px; overflow:visible; }
-        .brand-mark .sprout-stem, .brand-mark .sprout-left, .brand-mark .sprout-right { transform-origin:center; transition:transform .35s cubic-bezier(.2,.9,.2,1), opacity .25s ease; }
+        .brand-mark .sprout-stem, .brand-mark .sprout-left, .brand-mark .sprout-right, .brand-mark .sprout-leaf { transform-origin:center; transition:transform .35s cubic-bezier(.2,.9,.2,1), opacity .25s ease; }
         .brand:hover .brand-mark .sprout-left { transform:rotate(-12deg) translate(-1px, -1px); }
         .brand:hover .brand-mark .sprout-right { transform:rotate(12deg) translate(1px, -1px); }
         .brand:hover .brand-mark .sprout-stem { transform:translateY(-1px) scaleY(1.04); }
+        .brand:hover .brand-mark .sprout-leaf { transform:translateY(-1px) scale(1.04); }
+        .brand-mark .accent { opacity:.72; }
         .brand strong { display:block; font-size:19px; }
         .brand span:last-child, .hint, small, .run-row-main span, .eyebrow { color:var(--secondary-text-color,#98a29a); }
         nav { justify-content:center; padding:4px; border-radius:999px; background:color-mix(in srgb, var(--card-background-color,#1f2424) 82%, transparent); border:1px solid color-mix(in srgb, var(--divider-color,#4b5551) 55%, transparent); }
@@ -1157,8 +1201,8 @@
         .stat-grid div { padding:16px; border-radius:18px; background:color-mix(in srgb, var(--primary-text-color,#fff) 6%, transparent); }
         .stat-grid span { display:block; color:var(--secondary-text-color,#98a29a); font-size:12px; margin-bottom:4px; }
         .stat-grid strong { font-size:20px; }
-        .content-grid { display:grid; grid-template-columns:1.15fr .85fr; gap:12px; align-items:start; }
-        .panel-block { border-radius:22px; padding:16px; }
+        .content-grid { display:grid; grid-template-columns:1.15fr .85fr; gap:16px; align-items:start; margin-top:14px; }
+        .panel-block { border-radius:22px; padding:18px; }
         .panel-block h2, .modal h2 { margin:2px 0 0; font-size:18px; }
         .eyebrow { text-transform:uppercase; letter-spacing:.12em; font-size:11px; font-weight:800; }
         .sensor-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(185px,1fr)); gap:10px; margin-top:10px; }
@@ -1171,18 +1215,26 @@
         .sensor-meta span:last-child { display:inline-flex; align-items:center; gap:5px; }
         .spark { height:54px; display:flex; align-items:end; gap:4px; margin-top:12px; }
         .spark span { flex:1; min-width:4px; border-radius:999px 999px 4px 4px; background:linear-gradient(180deg, var(--success-color,#31c76b), rgba(49,199,107,.22)); }
-        .phase-list, .note-list, .binding-editor { display:grid; gap:8px; }
-        .phase-item { display:grid; grid-template-columns:32px minmax(0,1fr); gap:10px; align-items:center; padding:10px; border-radius:16px; background:color-mix(in srgb, var(--primary-text-color,#fff) 5%, transparent); }
-        .phase-item > span { display:grid; place-items:center; width:32px; height:32px; border-radius:50%; background:color-mix(in srgb, var(--success-color,#31c76b) 18%, transparent); }
-        .note { padding:12px; border-radius:16px; background:color-mix(in srgb, var(--primary-text-color,#fff) 5%, transparent); }
+        .phase-list, .note-list, .binding-editor { display:grid; gap:12px; }
+        .phase-stepper { display:grid; gap:10px; margin-top:6px; }
+        .phase-step { width:100%; display:grid; grid-template-columns:38px minmax(0,1fr); gap:12px; align-items:center; padding:12px 14px; border-radius:18px; border:1px solid color-mix(in srgb, var(--divider-color,#52605a) 45%, transparent); background:color-mix(in srgb, var(--primary-text-color,#fff) 5%, transparent); color:inherit; text-align:left; }
+        .phase-step span { display:grid; place-items:center; width:38px; height:38px; border-radius:50%; font-weight:800; background:color-mix(in srgb, var(--primary-text-color,#fff) 9%, transparent); }
+        .phase-step.done span, .phase-step.current span { background:color-mix(in srgb, var(--success-color,#31c76b) 22%, transparent); color:var(--success-color,#31c76b); }
+        .phase-step.current { border-color:color-mix(in srgb, var(--success-color,#31c76b) 45%, transparent); box-shadow:0 0 0 1px color-mix(in srgb, var(--success-color,#31c76b) 24%, transparent); }
+        .phase-step small { display:block; margin-top:3px; color:var(--secondary-text-color,#98a29a); }
+        .note { padding:15px 16px; border-radius:18px; background:color-mix(in srgb, var(--primary-text-color,#fff) 5%, transparent); }
         .note p { margin:0 0 8px; }
-        .notes-block { grid-column:1 / -1; }
+        .notes-block { grid-column:1 / -1; margin-top:4px; }
         .empty-panel, .empty-detail, .empty-inline { display:grid; place-items:center; align-content:center; gap:12px; min-height:220px; text-align:center; color:var(--secondary-text-color,#98a29a); padding:22px; }
         .empty-inline { min-height:130px; border:1px dashed color-mix(in srgb, var(--divider-color,#52605a) 60%, transparent); border-radius:18px; }
         button.primary, button.ghost, .icon-button { border:1px solid color-mix(in srgb, var(--divider-color,#52605a) 55%, transparent); min-height:38px; border-radius:14px; display:inline-flex; align-items:center; justify-content:center; gap:8px; color:inherit; transition:transform .16s ease, background .16s ease, border-color .16s ease, box-shadow .16s ease; }
         button.primary { background:linear-gradient(180deg, color-mix(in srgb, var(--success-color,#31c76b) 88%, white 12%), var(--success-color,#31c76b)); color:#07110b; border-color:transparent; font-weight:800; padding:0 15px; box-shadow:0 10px 24px rgba(49,199,107,.22); }
         button.ghost { background:color-mix(in srgb, var(--primary-text-color,#fff) 7%, transparent); padding:0 13px; }
         .icon-button { width:38px; background:color-mix(in srgb, var(--primary-text-color,#fff) 7%, transparent); padding:0; }
+        .app.theme-light button.ghost, .app.theme-light .icon-button, .app.theme-light input, .app.theme-light select, .app.theme-light textarea, .app.theme-light .history-row, .app.theme-light .history-window-pill, .app.theme-light .phase-step, .app.theme-light .note, .app.theme-light .run-row:hover { background:var(--surface-strong,#fff); }
+        .app.theme-light nav { background:var(--surface-soft,#edf3ec); }
+        .app.theme-light nav button.active, .app.theme-light .run-row.selected { background:color-mix(in srgb, var(--success-color,#41c85f) 14%, var(--surface-strong,#fff)); }
+        .app.theme-light .panel-block, .app.theme-light .detail, .app.theme-light .sidebar, .app.theme-light .modal { box-shadow:0 14px 34px rgba(44,70,51,.08); }
         button:hover { transform:translateY(-1px); }
         button:disabled { opacity:.45; cursor:not-allowed; transform:none; }
         .danger { color:var(--error-color,#ef5350); }
@@ -1201,11 +1253,12 @@
         .form-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin-top:16px; }
         label { display:grid; gap:7px; color:var(--secondary-text-color,#98a29a); font-size:13px; font-weight:700; }
         label input, label select, label textarea, label .ha-entity-selector { color:var(--primary-text-color,#fff); font-weight:500; }
+        .app.theme-light label input, .app.theme-light label select, .app.theme-light label textarea, .app.theme-light label .ha-entity-selector { color:var(--primary-text-color,#18211a); }
         label.wide, .search-field { grid-column:1 / -1; }
         .suggestions { display:grid; gap:6px; }
         .suggestions button { border:0; border-radius:14px; padding:10px 12px; background:color-mix(in srgb, var(--success-color,#31c76b) 12%, transparent); color:inherit; text-align:left; display:grid; gap:2px; transition:transform .14s ease, background .14s ease; }
         .suggestions button:hover { transform:translateY(-1px); background:color-mix(in srgb, var(--success-color,#31c76b) 18%, transparent); }
-        .binding-edit-row { display:grid; grid-template-columns:160px minmax(0,1fr) 38px; gap:8px; align-items:center; }
+        .binding-edit-row { display:grid; grid-template-columns:160px minmax(0,1fr) 38px; gap:10px; align-items:center; }
         .history-modal { display:grid; gap:14px; }
         .history-summary { display:grid; gap:8px; }
         .history-summary p { margin:0; }

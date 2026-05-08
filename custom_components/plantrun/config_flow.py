@@ -380,11 +380,10 @@ class PlantRunOptionsFlowHandler(config_entries.OptionsFlow):
             return self.async_create_entry(title="", data={})
 
         phases = {
-            "Seedling": "Seedling", 
-            "Vegetative": "Vegetative", 
-            "Flowering": "Flowering", 
-            "Drying": "Drying", 
-            "Curing": "Curing"
+            "Seedling": "Seedling",
+            "Vegetative": "Vegetative",
+            "Flowering": "Flowering",
+            "Harvested": "Harvested",
         }
         return self.async_show_form(
             step_id="add_phase",
