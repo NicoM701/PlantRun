@@ -74,13 +74,14 @@ class DashboardJsContractsTests(unittest.TestCase):
         handle_input = source[source.index("_handleInput(event)") : source.index("_handleChange(event)")]
         self.assertNotIn("this.render()", handle_input)
 
-    def test_panel_sensor_tap_opens_run_window_inspector_instead_of_fake_history(self):
+    def test_panel_sensor_tap_attempts_native_history_deeplink_before_modal_fallback(self):
         source = PANEL_JS.read_text(encoding="utf-8")
         self.assertIn("Tap a sensor to inspect its run window.", source)
         self.assertIn("_renderHistoryInspector()", source)
         self.assertIn('type: "plantrun/get_run_binding_history_context"', source)
-        self.assertIn("there is no clean supported deep-link into native History with this exact run timespan", source)
-        self.assertIn('data-action="open-history-entity"', source)
+        self.assertIn("const EXPERIMENTAL_NATIVE_HISTORY_DEEPLINK = true;", source)
+        self.assertIn("window.history.pushState(null, \"\", `/history?${params.toString()}`);", source)
+        self.assertIn('data-action="open-native-history"', source)
 
     def test_panel_phase_control_is_canonical_timeline_with_confirmation(self):
         source = PANEL_JS.read_text(encoding="utf-8")

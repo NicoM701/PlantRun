@@ -26,6 +26,11 @@
     sound: "plantrun.ui.sound",
   };
   const THEME_QUERY = "(prefers-color-scheme: light)";
+  // Experimental Home Assistant native history deeplink hack.
+  // HA's more-info history dialog is hard-coded to ~24h and does not accept
+  // an injected run window. The full /history panel does accept start/end
+  // query params, so we route there when we have enough context.
+  const EXPERIMENTAL_NATIVE_HISTORY_DEEPLINK = true;
 
   if (customElements.get(TAG)) return;
   customElements.get("ha-panel-lovelace");
@@ -671,13 +676,14 @@
               <p>${S.escapeHtml(summary)}</p>
               <div class="history-window-pill"><span>${S.icon("mdi:calendar-range")} ${S.escapeHtml(S.formatDate(context.run_start))}</span><span>${S.icon("mdi:arrow-right")}</span><span>${S.escapeHtml(S.formatDate(context.run_end))}</span></div>
               <div class="history-status ${context.orphaned ? "orphaned" : "bound"}">${S.escapeHtml(context.orphaned ? "Binding orphaned — sensor missing in Home Assistant" : "Binding healthy — linked Home Assistant sensor resolved")}</div>
-              <p class="hint">PlantRun can open Home Assistant entity details from this custom panel, but there is no clean supported deep-link into native History with this exact run timespan. This modal keeps the run-window context honest; open entity details for full Home Assistant history.</p>
+              <p class="hint">PlantRun now tries an experimental Home Assistant history-panel deeplink for this run window. It can preload entity + start/end in the native History panel, but HA more-info still cannot be forced to this exact range.</p>
               ${panel.loading ? `<p class="hint">Loading recorder context…</p>` : ""}
               ${panel.error ? `<p class="hint error-text">${S.escapeHtml(panel.error)}</p>` : ""}
             </div>
             <div class="history-list">${points || `<div class="empty-inline">No stored samples captured yet.</div>`}</div>
             <footer>
               <button class="ghost" data-action="open-history-entity" data-entity-id="${S.escapeHtml(panel.entity_id)}" type="button">${S.icon("mdi:open-in-app")} Open entity details</button>
+              <button class="ghost" data-action="open-native-history" data-entity-id="${S.escapeHtml(panel.entity_id)}" type="button">${S.icon("mdi:chart-timeline-variant")} Open native history</button>
               <button class="primary" data-action="close-history" type="button">Done</button>
             </footer>
           </section>
@@ -797,6 +803,8 @@
         this.render();
       } else if (action === "open-history-entity") {
         this._openEntity(target.dataset.entityId);
+      } else if (action === "open-native-history") {
+        if (!this._openNativeHistory(this._historyInspector?.context)) this._openEntity(target.dataset.entityId);
       } else if (action === "toggle-theme") {
         this._theme = this._resolvedTheme() === "dark" ? "light" : "dark";
         localStorage.setItem(STORAGE.theme, this._theme);
@@ -1063,43 +1071,70 @@
       this.dispatchEvent(new CustomEvent("hass-more-info", { detail: { entityId }, bubbles: true, composed: true }));
     }
 
+    _openNativeHistory(context) {
+      if (!EXPERIMENTAL_NATIVE_HISTORY_DEEPLINK || !context?.entity_id || !context?.run_start) return false;
+      const end = context.run_end || context.stored_run_end || context.run_window?.effective_end;
+      if (!end) return false;
+      const params = new URLSearchParams({
+        entity_id: context.entity_id,
+        start_date: context.run_start,
+        end_date: end,
+        back: "1",
+      });
+      // Best-effort HA frontend hack: the history panel reads these query params
+      // on first render, so we navigate there directly and let the built-in page
+      // own the chart UI from that point.
+      window.history.pushState(null, "", `/history?${params.toString()}`);
+      window.dispatchEvent(new CustomEvent("location-changed", { detail: { replace: false } }));
+      return true;
+    }
+
     async _openRunHistory(runId, entityId) {
       this._selectedRunId = runId;
       const run = this._runs.find((item) => item.id === runId);
       const binding = run?.bindings?.find((item) => item.sensor_id === entityId);
-      this._historyInspector = {
-        run_id: runId,
-        entity_id: entityId,
-        binding_id: binding?.id || "",
-        loading: !!(this._hass && binding?.id),
-        error: "",
-        context: this._fallbackHistoryContext(run, binding, entityId),
-      };
-      this.render();
+      const fallbackContext = this._fallbackHistoryContext(run, binding, entityId);
       const selector = `[data-sensor-tile][data-entity-id="${CSS.escape(entityId)}"]`;
       const tile = this.shadowRoot.querySelector(selector);
       tile?.classList.add("pulse");
       window.setTimeout(() => tile?.classList.remove("pulse"), 520);
 
-      if (!this._hass || !binding?.id) return;
+      if (!this._hass || !binding?.id) {
+        this._historyInspector = {
+          run_id: runId,
+          entity_id: entityId,
+          binding_id: binding?.id || "",
+          loading: false,
+          error: "",
+          context: fallbackContext,
+        };
+        this.render();
+        return;
+      }
       try {
         const payload = await this._hass.callWS({
           type: "plantrun/get_run_binding_history_context",
           run_id: runId,
           binding_id: binding.id,
         });
-        if (!this._historyInspector || this._historyInspector.run_id !== runId || this._historyInspector.binding_id !== binding.id) return;
+        const context = payload?.context || fallbackContext;
+        if (this._openNativeHistory(context)) return;
         this._historyInspector = {
-          ...this._historyInspector,
+          run_id: runId,
+          entity_id: entityId,
+          binding_id: binding.id,
           loading: false,
-          context: payload?.context || this._historyInspector.context,
+          error: "",
+          context,
         };
       } catch (err) {
-        if (!this._historyInspector || this._historyInspector.run_id !== runId || this._historyInspector.binding_id !== binding.id) return;
         this._historyInspector = {
-          ...this._historyInspector,
+          run_id: runId,
+          entity_id: entityId,
+          binding_id: binding.id,
           loading: false,
           error: err?.message || "Unable to load run-window history context.",
+          context: fallbackContext,
         };
       }
       this.render();
@@ -1269,6 +1304,7 @@
         .history-status.orphaned { background:rgba(255,167,38,.14); color:#f4b25e; }
         .error-text { color:#f4b25e; }
         .history-list { display:grid; gap:8px; max-height:280px; overflow:auto; }
+        .history-modal footer { display:flex; flex-wrap:wrap; gap:10px; }
         .history-row { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:11px 12px; border-radius:14px; background:color-mix(in srgb, var(--primary-text-color,#fff) 5%, transparent); }
         .entity-fallback { display:none; }
         .ha-entity-selector:not(:defined) + .entity-fallback { display:block; }
