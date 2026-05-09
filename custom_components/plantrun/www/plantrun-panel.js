@@ -102,7 +102,6 @@
       this._noteDeleteConfirm = null;
       this._historyInspector = null;
       this._phaseConfirm = null;
-      this._noteDraft = "";
       this._phaseDraft = "Vegetative";
       this._pressState = {};
       this._theme = localStorage.getItem(STORAGE.theme) || (window.matchMedia?.(THEME_QUERY).matches ? "light" : "dark");
@@ -489,7 +488,10 @@
             </section>
 
             <section class="panel-block notes-block">
-              <div class="block-head"><div><span class="eyebrow">Notes</span><h2>Grow log</h2></div></div>
+              <div class="block-head">
+                <div><span class="eyebrow">Notes</span><h2>Grow log</h2></div>
+                <button class="icon-button animated" data-action="add-note" data-run-id="${S.escapeHtml(run.id)}" type="button" title="New note">${S.icon("mdi:plus")}</button>
+              </div>
               <div class="note-list">
                 ${notes
                   .slice()
@@ -505,11 +507,7 @@
                         <button class="icon-button danger" data-action="confirm-delete-note" data-note-id="${S.escapeHtml(note.id)}" type="button" title="Delete note">${S.icon("mdi:trash-can-outline")}</button>
                       </div>
                     </article>`)
-                  .join("") || `<div class="empty-inline">No notes yet.</div>`}
-              </div>
-              <div class="inline-form">
-                <input data-note-draft value="${S.escapeHtml(this._noteDraft)}" placeholder="Capture today's change" />
-                <button class="primary" data-action="add-note" data-run-id="${S.escapeHtml(run.id)}" type="button">${S.icon("mdi:plus")} Add</button>
+                  .join("") || `<div class="empty-inline">No notes yet. Tap + to add the first one.</div>`}
               </div>
             </section>
           </div>
@@ -641,12 +639,13 @@
 
     _renderNoteModal() {
       if (!this._noteEditor) return "";
+      const isNew = !this._noteEditor.note_id;
       return `
         <div class="overlay">
           <button class="overlay-backdrop" data-action="close-note-edit" type="button" aria-label="Close note dialog"></button>
           <section class="modal compact" data-modal-card>
             <header>
-              <div><span class="eyebrow">Grow log</span><h2>Edit note</h2></div>
+              <div><span class="eyebrow">Grow log</span><h2>${isNew ? "New note" : "Edit note"}</h2></div>
               <button class="icon-button" data-action="close-note-edit" type="button" title="Close">${S.icon("mdi:close")}</button>
             </header>
             <div class="form-grid">
@@ -654,7 +653,7 @@
             </div>
             <footer>
               <button class="ghost" data-action="close-note-edit" type="button">Cancel</button>
-              <button class="primary" data-action="save-note-edit" type="button">Save note</button>
+              <button class="primary" data-action="save-note-edit" type="button">${isNew ? "Add note" : "Save note"}</button>
             </footer>
           </section>
         </div>
@@ -927,7 +926,7 @@
       } else if (action === "confirm-phase-change") {
         this._confirmPhaseChange();
       } else if (action === "add-note") {
-        this._addNote(target.dataset.runId);
+        this._openNewNoteEditor(target.dataset.runId);
       } else if (action === "edit-note") {
         this._openNoteEditor(target.dataset.noteId);
       } else if (action === "close-note-edit") {
@@ -977,8 +976,6 @@
           this._wizard.target_days = "";
           this._scheduleCultivarSearch();
         }
-      } else if (target.matches("[data-note-draft]")) {
-        this._noteDraft = target.value;
       } else if (target.matches("[data-note-edit-text]") && this._noteEditor) {
         this._noteEditor = { ...this._noteEditor, text: target.value };
       } else if (target.matches("[data-detail-field]")) {
@@ -1285,12 +1282,10 @@
       await this._refreshRuns();
     }
 
-    async _addNote(runId) {
-      const text = this._noteDraft.trim();
-      if (!this._hass || !text) return;
-      await this._hass.callService(DOMAIN, "add_note", { run_id: runId, text });
-      this._noteDraft = "";
-      await this._refreshRuns();
+    _openNewNoteEditor(runId) {
+      if (!runId) return;
+      this._noteEditor = { run_id: runId, note_id: "", text: "" };
+      this.render();
     }
 
     _openNoteEditor(noteId) {
@@ -1312,8 +1307,12 @@
     async _saveNoteEdit() {
       const draft = this._noteEditor;
       const text = draft?.text?.trim?.() || "";
-      if (!this._hass || !draft?.run_id || !draft?.note_id || !text) return;
-      await this._hass.callService(DOMAIN, "update_note", { run_id: draft.run_id, note_id: draft.note_id, text });
+      if (!this._hass || !draft?.run_id || !text) return;
+      if (draft.note_id) {
+        await this._hass.callService(DOMAIN, "update_note", { run_id: draft.run_id, note_id: draft.note_id, text });
+      } else {
+        await this._hass.callService(DOMAIN, "add_note", { run_id: draft.run_id, text });
+      }
       this._noteEditor = null;
       await this._refreshRuns();
     }
