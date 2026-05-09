@@ -313,8 +313,8 @@
         )
         .join("");
       const currentSelectionHint = value && !filteredEntities.includes(value)
-        ? `<p class="field-hint warning">Currently selected sensor no longer matches this metric filter. Choose a compatible sensor to save changes.</p>`
-        : `<p class="field-hint">Only compatible Home Assistant sensors are shown for this metric.</p>`;
+        ? `<p class="field-hint warning">This sensor no longer matches the selected metric.</p>`
+        : "";
       return `
         <ha-selector
           class="ha-entity-selector"
