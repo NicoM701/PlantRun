@@ -120,6 +120,13 @@ class DashboardJsContractsTests(unittest.TestCase):
         self.assertIn("this._detailDraft = null;", source)
         self.assertIn("this._error = err?.message || \"Unable to save run changes.\";", source)
 
+    def test_panel_hero_uses_seedfinder_image_when_available(self):
+        source = PANEL_JS.read_text(encoding="utf-8")
+        self.assertIn("_heroMediaStyle(run)", source)
+        self.assertIn('run.image_url ? " has-image" : ""', source)
+        self.assertIn(".hero.has-image", source)
+        self.assertIn("var(--hero-image)", source)
+
 
 if __name__ == "__main__":
     unittest.main()

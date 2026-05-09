@@ -296,6 +296,12 @@
       return Math.min(100, Math.round((days / Math.max(target, 1)) * 100));
     }
 
+    _heroMediaStyle(run) {
+      if (!run?.image_url) return "";
+      const safeUrl = String(run.image_url).replace(/'/g, "%27").replace(/"/g, "&quot;");
+      return `style="--hero-image:url('${safeUrl}')"`;
+    }
+
     _haEntityPicker(value, selectorName = "sensor_id", metricType = "temperature") {
       const filteredEntities = this._sensorEntitiesForMetric(metricType);
       const options = [...filteredEntities]
@@ -432,7 +438,7 @@
       const notes = Array.isArray(run.notes) ? run.notes : [];
       return `
         <section class="detail">
-          <div class="hero ${S.stageKey(run)}">
+          <div class="hero ${S.stageKey(run)}${run.image_url ? " has-image" : ""}" ${this._heroMediaStyle(run)}>
             <div class="hero-copy">
               <span class="eyebrow">${S.escapeHtml(run.status || "active")} · day ${days}</span>
               <h1>${S.escapeHtml(run.friendly_name || "Unnamed run")}</h1>
@@ -1549,8 +1555,12 @@
         .detail { min-height:calc(100vh - 100px); border-radius:30px; padding:14px; overflow:hidden; }
         .hero { position:relative; min-height:245px; border-radius:24px; padding:24px; display:flex; justify-content:space-between; gap:20px; overflow:hidden; background:linear-gradient(135deg, color-mix(in srgb, var(--success-color,#31c76b) 20%, #101615), color-mix(in srgb, var(--card-background-color,#202524) 90%, #223928)); }
         .hero.flower { background:linear-gradient(135deg, rgba(95,73,34,.72), color-mix(in srgb, var(--card-background-color,#202524) 92%, #2b2416)); }
+        .hero.has-image { background-image:linear-gradient(135deg, rgba(9,18,11,.72), rgba(12,25,15,.42) 52%, rgba(8,15,10,.78)), var(--hero-image); background-size:cover, cover; background-position:center, center; background-repeat:no-repeat, no-repeat; }
+        .hero.has-image.flower { background-image:linear-gradient(135deg, rgba(48,34,12,.68), rgba(67,52,23,.36) 52%, rgba(34,23,9,.74)), var(--hero-image); }
         .app.theme-light .hero { background:linear-gradient(135deg, #d9efdc 0%, #edf7ee 48%, #e3efe2 100%); color:var(--hero-text,#102114); border:1px solid rgba(116, 149, 118, .28); box-shadow:inset 0 1px rgba(255,255,255,.9); }
         .app.theme-light .hero.flower { background:linear-gradient(135deg, #f1e3c8 0%, #faf4e9 52%, #ecdfc1 100%); }
+        .app.theme-light .hero.has-image { background-image:linear-gradient(135deg, rgba(241,248,242,.72), rgba(230,241,232,.46) 48%, rgba(217,232,219,.8)), var(--hero-image); }
+        .app.theme-light .hero.has-image.flower { background-image:linear-gradient(135deg, rgba(248,242,233,.74), rgba(242,232,214,.48) 48%, rgba(233,220,193,.82)), var(--hero-image); }
         .hero h1 { margin:8px 0; font-size:clamp(32px,4vw,64px); line-height:.95; letter-spacing:0; max-width:780px; }
         .hero p { margin:0; color:color-mix(in srgb, var(--primary-text-color,#fff) 72%, transparent); font-size:16px; }
         .app.theme-light .hero p, .app.theme-light .hero .eyebrow { color:var(--hero-muted,#274430); }
