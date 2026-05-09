@@ -11,24 +11,8 @@ from typing import Any
 
 import voluptuous as vol
 
-try:
-    from aiohttp import web
-except Exception:  # pragma: no cover - lightweight test stubs may not provide aiohttp.web
-    class _WebCompat:
-        @staticmethod
-        def json_response(payload: Any, status: int = 200) -> dict[str, Any]:
-            return {"status": status, "payload": payload}
-
-    web = _WebCompat()
-
 from homeassistant.components import frontend, websocket_api
-try:
-    from homeassistant.components.http import HomeAssistantView, StaticPathConfig
-except ImportError:  # pragma: no cover - compatibility for test stubs
-    from homeassistant.components.http import StaticPathConfig
-
-    class HomeAssistantView:  # type: ignore[no-redef]
-        requires_auth = True
+from homeassistant.components.http import StaticPathConfig
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, ServiceCall
@@ -260,34 +244,37 @@ async def websocket_get_run_binding_history_context(
     )
 
 
-class PlantRunSearchView(HomeAssistantView):
-    """HTTP endpoint used by the rebuilt frontend for live cultivar search."""
+@websocket_api.websocket_command(
+    {
+        "type": "plantrun/search_cultivar",
+        vol.Optional("breeder", default=""): str,
+        vol.Optional("query", default=""): str,
+        vol.Optional("cultivar", default=""): str,
+        vol.Optional("cultivar_name", default=""): str,
+        vol.Optional("strain", default=""): str,
+    }
+)
+@websocket_api.async_response
+async def websocket_search_cultivar(
+    hass: HomeAssistant, connection: Any, msg: dict[str, Any]
+) -> None:
+    """Return scored cultivar suggestions through the authenticated HA websocket."""
+    breeder = str(msg.get("breeder", "")).strip()
+    query = str(
+        msg.get("query")
+        or msg.get("cultivar")
+        or msg.get("cultivar_name")
+        or msg.get("strain")
+        or ""
+    ).strip()
 
-    url = "/api/plantrun/search_cultivar"
-    name = "api:plantrun:search_cultivar"
-    requires_auth = True
+    if not breeder or not query:
+        connection.send_result(msg["id"], {"results": []})
+        return
 
-    def __init__(self, hass: HomeAssistant) -> None:
-        self.hass = hass
-
-    async def post(self, request: Any) -> Any:
-        """Return scored cultivar suggestions for breeder/query pairs."""
-        payload = await request.json()
-        breeder = str(payload.get("breeder", "")).strip()
-        query = str(
-            payload.get("query")
-            or payload.get("cultivar")
-            or payload.get("cultivar_name")
-            or payload.get("strain")
-            or ""
-        ).strip()
-
-        if not breeder or not query:
-            return web.json_response({"results": []})
-
-        session = async_get_clientsession(self.hass)
-        results = await async_search_cultivar_by_query(breeder, query, session=session)
-        return web.json_response({"results": [result.to_dict() for result in results[:5]]})
+    session = async_get_clientsession(hass)
+    results = await async_search_cultivar_by_query(breeder, query, session=session)
+    connection.send_result(msg["id"], {"results": [result.to_dict() for result in results[:5]]})
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -341,15 +328,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         websocket_api.async_register_command(hass, websocket_get_run)
         websocket_api.async_register_command(hass, websocket_get_run_summary)
         websocket_api.async_register_command(hass, websocket_get_run_binding_history_context)
+        websocket_api.async_register_command(hass, websocket_search_cultivar)
         hass.data[DOMAIN]["_ws_registered"] = True
-
-    if not hass.data[DOMAIN].get("_search_view_registered"):
-        search_view = PlantRunSearchView(hass)
-        if hasattr(hass.http, "register_view"):
-            hass.http.register_view(search_view)
-        elif hasattr(hass.http, "async_register_view"):
-            await hass.http.async_register_view(search_view)
-        hass.data[DOMAIN]["_search_view_registered"] = True
 
     storage = PlantRunStorage(hass)
     await storage.async_load()

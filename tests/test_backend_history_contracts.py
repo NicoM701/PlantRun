@@ -13,6 +13,12 @@ class BackendHistoryContractTests(unittest.TestCase):
         self.assertIn('plantrun/get_run_binding_history_context', source)
         self.assertIn('"context": build_binding_history_context(', source)
 
+    def test_backend_exposes_authenticated_seedfinder_search_over_websocket(self):
+        source = INIT_PY.read_text(encoding="utf-8")
+        self.assertIn('plantrun/search_cultivar', source)
+        self.assertIn('connection.send_result(msg["id"], {"results": []})', source)
+        self.assertIn('results = await async_search_cultivar_by_query(breeder, query, session=session)', source)
+
     def test_binding_updates_no_longer_delete_metric_history_bucket(self):
         source = INIT_PY.read_text(encoding="utf-8")
         self.assertNotIn('run.sensor_history.pop(previous_metric_type, None)', source)

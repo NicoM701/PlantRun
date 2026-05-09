@@ -62,6 +62,9 @@ class DashboardJsContractsTests(unittest.TestCase):
     def test_panel_cultivar_search_clears_stale_selection_and_ignores_old_responses(self):
         source = PANEL_JS.read_text(encoding="utf-8")
         self.assertIn("this._wizard.selected_cultivar = null;", source)
+        self.assertIn('type: "plantrun/search_cultivar"', source)
+        self.assertIn("this._suggestionCache = new Map();", source)
+        self.assertIn("if (searchKey === this._lastSearchKey) return;", source)
         self.assertIn("const requestNonce = ++this._searchNonce;", source)
         self.assertIn("if (requestNonce !== this._searchNonce) return;", source)
         self.assertIn("this._renderSuggestionsOnly();", source)

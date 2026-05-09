@@ -86,6 +86,8 @@
       this._wizardStep = 1;
       this._wizard = this._blankWizard();
       this._suggestions = [];
+      this._suggestionCache = new Map();
+      this._lastSearchKey = "";
       this._searchNonce = 0;
       this._searchTimer = 0;
       this._bindingDraft = null;
@@ -908,24 +910,36 @@
       const breeder = this._wizard.breeder.trim();
       if (query.length < 2 || breeder.length < 2) {
         this._searchNonce += 1;
+        this._lastSearchKey = "";
         this._suggestions = [];
         this._renderSuggestionsOnly();
         return;
       }
+      const searchKey = `${breeder.toLowerCase()}::${query.toLowerCase()}`;
+      if (searchKey === this._lastSearchKey) return;
       this._searchTimer = window.setTimeout(() => this._searchCultivarSuggestions(), 260);
     }
 
     async _searchCultivarSuggestions() {
+      const breeder = this._wizard.breeder.trim();
+      const query = this._wizard.cultivar_name.trim();
+      const searchKey = `${breeder.toLowerCase()}::${query.toLowerCase()}`;
+      this._lastSearchKey = searchKey;
+      if (this._suggestionCache.has(searchKey)) {
+        this._suggestions = this._suggestionCache.get(searchKey) || [];
+        this._renderSuggestionsOnly();
+        return;
+      }
       const requestNonce = ++this._searchNonce;
       try {
-        const response = await fetch("/api/plantrun/search_cultivar", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ breeder: this._wizard.breeder, query: this._wizard.cultivar_name }),
+        const payload = await this._hass.callWS({
+          type: "plantrun/search_cultivar",
+          breeder,
+          query,
         });
-        const payload = await response.json();
         if (requestNonce !== this._searchNonce) return;
         this._suggestions = Array.isArray(payload?.results) ? payload.results : [];
+        this._suggestionCache.set(searchKey, this._suggestions);
       } catch (_err) {
         if (requestNonce !== this._searchNonce) return;
         this._suggestions = [];
