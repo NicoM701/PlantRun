@@ -11,6 +11,7 @@ It combines:
 - sensor bindings and proxy entities
 - SeedFinder cultivar enrichment
 - persistent per-run history and summaries
+- Home Assistant history deeplinks scoped to a PlantRun run window
 
 ---
 
@@ -28,20 +29,87 @@ PlantRun ships with two UI entry points:
 
 Current UI capabilities include:
 - run cards with live metric chips and stage-aware artwork
-- detail editing for metadata, notes, bindings, and images
+- detail editing for metadata, notes, bindings, cultivar, breeder, and images
 - a 3-step run creation wizard
 - theme/language/layout preferences
 - live cultivar suggestions backed by SeedFinder
+- note editing/deletion with in-panel confirmation
+- phase changes via in-panel confirmation modal
+- Home Assistant history deeplinks from bound sensor tiles
 
 ### Sensor and summary layer
 - per-run status, phase, cultivar, energy, and energy cost sensors
 - proxy sensors for bound Home Assistant entities
 - run-window energy and energy cost summaries
 - light unit compatibility for `lx` / `lux`
+- metric-aware binding UI that tries to show only compatible Home Assistant sensors
 
 ### Persistence
 - local store-backed run history
 - migration support for older payload shapes and legacy binding IDs
+
+---
+
+## Current architecture notes (important)
+
+### Run window is the source of truth
+PlantRun is moving toward a recorder-first model for time-scoped history.
+
+Important rules:
+- treat a run as a **window**: `start -> now` for active runs, `start -> end` for ended runs
+- prefer `planted_date` over raw `start_time` when presenting user-facing run history windows
+- do **not** deepen reliance on copied `run.sensor_history` for UX/history flows when Home Assistant recorder/history can be used instead
+
+Relevant pieces:
+- `custom_components/plantrun/run_window.py`
+- `custom_components/plantrun/history_context.py`
+- websocket: `plantrun/get_run_binding_history_context`
+
+### SeedFinder live preview uses Home Assistant websocket on purpose
+The cultivar preview search is intentionally implemented through Home Assistant websocket, **not** raw browser `fetch()` against a custom HTTP view.
+
+Why this matters:
+- earlier browser calls to `/api/plantrun/search_cultivar` triggered invalid-auth / ban behavior in real Home Assistant use
+- the fixed implementation uses `this._hass.callWS(...)`
+- preview results are debounced and cached client-side to avoid spam
+
+Guardrail:
+- do **not** replace the current preview flow with unauthenticated or ad-hoc browser fetch calls unless auth behavior is explicitly re-verified inside Home Assistant
+
+Relevant pieces:
+- websocket command: `plantrun/search_cultivar`
+- frontend: `custom_components/plantrun/www/plantrun-panel.js`
+- provider: `custom_components/plantrun/providers_seedfinder.py`
+
+### SeedFinder matching and flower-window extraction are custom
+The SeedFinder flow is not a stock autocomplete from the upstream site.
+
+PlantRun currently does its own:
+- breeder + query lookup
+- tolerant cultivar scoring / matching
+- flower-window extraction from SeedFinder result text
+- UI preview suggestions inside the PlantRun wizard/edit flow
+
+Guardrail:
+- do not remove the tolerant matcher or flower-window parsing just because the upstream SeedFinder website does not expose the same UX directly
+
+### Home Assistant history deeplink is a deliberate custom solution
+Bound sensor taps use a PlantRun-specific history flow:
+- short tap tries to open HA native `/history` with `entity_id`, `start_date`, and `end_date`
+- long press opens normal HA entity details / more-info
+- modal fallback still exists when the deeplink cannot be formed
+
+This is intentionally a custom solution because HA more-info does not expose a clean documented public API for forcing arbitrary run start/end ranges from this panel.
+
+Guardrail:
+- do not regress this back to a fake history modal or remove the explicit run-window start/end behavior without re-checking the user requirement
+- if replacing it, replace it with an equally-good or better recorder-backed history experience
+
+### UI behavior guardrails
+- phase changes should use an in-panel confirmation modal, **not** browser `alert()` / `confirm()`
+- note deletion should use the same in-panel confirmation pattern
+- explicit breeder field is required in create/edit cultivar flows
+- binding pickers should not silently fall back to showing all sensors when metric filtering fails; misleading lists are worse than honest empty states
 
 ---
 
