@@ -112,6 +112,14 @@ class DashboardJsContractsTests(unittest.TestCase):
         self.assertIn("notes_summary: draft.notes_summary || null,", source)
         self.assertIn('dry_yield_grams: draft.dry_yield_grams === "" ? null : Number(draft.dry_yield_grams),', source)
 
+    def test_panel_detail_editor_persists_target_days_and_keeps_dialog_open_on_error(self):
+        source = PANEL_JS.read_text(encoding="utf-8")
+        self.assertIn("const targetDays = Number(draft.target_days || this._derivedTargetDays(draft.selected_cultivar));", source)
+        self.assertIn("...(this._runs.find((item) => item.id === draft.run_id)?.base_config || {}),", source)
+        self.assertIn("target_days: targetDays,", source)
+        self.assertIn("this._detailDraft = null;", source)
+        self.assertIn("this._error = err?.message || \"Unable to save run changes.\";", source)
+
 
 if __name__ == "__main__":
     unittest.main()

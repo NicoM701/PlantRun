@@ -1342,23 +1342,37 @@
     async _saveRun() {
       const draft = this._detailDraft;
       if (!this._hass || !draft) return;
-      await this._hass.callService(DOMAIN, "update_run", {
-        run_id: draft.run_id,
-        friendly_name: draft.friendly_name,
-        planted_date: draft.planted_date || null,
-        notes_summary: draft.notes_summary || null,
-        dry_yield_grams: draft.dry_yield_grams === "" ? null : Number(draft.dry_yield_grams),
-      });
-      if (draft.cultivar_name?.trim()) {
-        await this._hass.callService(DOMAIN, "set_cultivar", {
+      try {
+        const targetDays = Number(draft.target_days || this._derivedTargetDays(draft.selected_cultivar));
+        await this._hass.callService(DOMAIN, "update_run", {
           run_id: draft.run_id,
-          cultivar_name: draft.cultivar_name.trim(),
-          breeder: draft.breeder?.trim?.() || "",
-          strain: draft.selected_cultivar?.name || draft.cultivar_name.trim(),
+          friendly_name: draft.friendly_name,
+          planted_date: draft.planted_date || null,
+          notes_summary: draft.notes_summary || null,
+          dry_yield_grams: draft.dry_yield_grams === "" ? null : Number(draft.dry_yield_grams),
+          ...(Number.isFinite(targetDays) && targetDays > 0
+            ? {
+                base_config: {
+                  ...(this._runs.find((item) => item.id === draft.run_id)?.base_config || {}),
+                  target_days: targetDays,
+                },
+              }
+            : {}),
         });
+        if (draft.cultivar_name?.trim()) {
+          await this._hass.callService(DOMAIN, "set_cultivar", {
+            run_id: draft.run_id,
+            cultivar_name: draft.cultivar_name.trim(),
+            breeder: draft.breeder?.trim?.() || "",
+            strain: draft.selected_cultivar?.name || draft.cultivar_name.trim(),
+          });
+        }
+        this._detailDraft = null;
+        await this._refreshRuns();
+      } catch (err) {
+        this._error = err?.message || "Unable to save run changes.";
+        this.render();
       }
-      this._detailDraft = null;
-      await this._refreshRuns();
     }
 
     _openEntity(entityId) {

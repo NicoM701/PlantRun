@@ -12,7 +12,7 @@ from .models import CultivarSnapshot
 
 _LOGGER = logging.getLogger(__name__)
 _BREEDER_PAGE_CACHE_TTL_SECONDS = 300
-_BREEDER_PAGE_CACHE: dict[tuple[int, str], tuple[float, str]] = {}
+_BREEDER_PAGE_CACHE: dict[tuple[object, str], tuple[float, str]] = {}
 
 
 def _slug(value: str) -> str:
@@ -110,13 +110,20 @@ def parse_flower_window_days(raw_value: str | None) -> int | None:
     )
 
     match = pattern.search(normalized)
-    if not match:
-        return None
-
-    start = float(match.group("start"))
-    end = float(match.group("end") or start)
-    midpoint = (start + end) / 2
-    unit = match.group("unit")
+    if match:
+        start = float(match.group("start"))
+        end = float(match.group("end") or start)
+        midpoint = (start + end) / 2
+        unit = match.group("unit")
+    else:
+        unit_match = re.search(r"\b(days?|d|weeks?|w|tage?|wochen?)\b", normalized)
+        numbers = [float(value) for value in re.findall(r"\d+(?:\.\d+)?", normalized)]
+        if not unit_match or not numbers:
+            return None
+        start = numbers[0]
+        end = numbers[1] if len(numbers) > 1 else start
+        midpoint = (start + end) / 2
+        unit = unit_match.group(1)
 
     if unit.startswith("w"):
         midpoint *= 7
@@ -154,7 +161,7 @@ async def _async_fetch_breeder_html(
     session: aiohttp.ClientSession,
 ) -> str | None:
     """Fetch one breeder page with short-lived HTML caching."""
-    cache_key = (id(session), _slug(breeder))
+    cache_key = (session, _slug(breeder))
     cached = _BREEDER_PAGE_CACHE.get(cache_key)
     now = time.monotonic()
     if cached and now - cached[0] < _BREEDER_PAGE_CACHE_TTL_SECONDS:
@@ -244,12 +251,12 @@ async def async_search_cultivar_by_query(
 
         breeder_html = await _async_fetch_breeder_html(breeder, session=session)
         if not breeder_html:
-            _LOGGER.warning("SeedFinder breeder page not found for %s", breeder)
+            _LOGGER.debug("SeedFinder breeder page not found for %s", breeder)
             return []
 
         results = _collect_scored_matches(breeder_html, breeder, query)
         if not results:
-            _LOGGER.warning("Strain '%s' not found for breeder '%s'", query, breeder)
+            _LOGGER.debug("Strain '%s' not found for breeder '%s'", query, breeder)
         return results
     except Exception as err:
         _LOGGER.error("Error searching SeedFinder: %s", err)
@@ -313,6 +320,18 @@ def _score_image_candidate(url: str, cultivar_name: str, context: str) -> tuple[
     return score, is_generic
 
 
+def _normalize_image_context_value(value: object) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value.strip()
+    if isinstance(value, (list, tuple, set)):
+        return " ".join(
+            part.strip() for part in (str(item) for item in value) if part and part.strip()
+        )
+    return str(value).strip()
+
+
 def _normalize_image_url(raw_url: str | None) -> str | None:
     if not raw_url:
         return None
@@ -368,7 +387,14 @@ async def async_fetch_cultivar_image(
             continue
         seen.add(normalized)
         context = " ".join(
-            part for part in (image.get("alt") or "", image.get("title") or "", image.get("class") or "", image.get("id") or "") if part
+            part
+            for part in (
+                _normalize_image_context_value(image.get("alt")),
+                _normalize_image_context_value(image.get("title")),
+                _normalize_image_context_value(image.get("class")),
+                _normalize_image_context_value(image.get("id")),
+            )
+            if part
         )
         score, generic = _score_image_candidate(normalized, cultivar_name, context)
         candidates.append((score, generic, normalized))

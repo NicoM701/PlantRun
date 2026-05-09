@@ -223,6 +223,17 @@ class AsyncSearchCultivarTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(results[0].flower_window_days, None)
 
 
+class NormalizeImageContextValueTest(unittest.TestCase):
+    def test_normalizes_non_string_attribute_values(self):
+        self.assertEqual(provider._normalize_image_context_value(None), "")
+        self.assertEqual(provider._normalize_image_context_value(" hero "), "hero")
+        self.assertEqual(
+            provider._normalize_image_context_value(["gallery", "featured", ""]),
+            "gallery featured",
+        )
+        self.assertEqual(provider._normalize_image_context_value(123), "123")
+
+
 class AsyncFetchCultivarImageTest(unittest.IsolatedAsyncioTestCase):
     async def test_prefers_strain_specific_image_over_generic_logo(self):
         html = """
@@ -269,6 +280,57 @@ class AsyncFetchCultivarImageTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(selected.url, "https://seedfinder.eu/assets/default-logo.jpg")
         self.assertEqual(selected.source_kind, "generic_fallback")
         self.assertEqual(selected.confidence, "low")
+
+    async def test_handles_list_like_class_attributes_in_image_context(self):
+        original = provider.BeautifulSoup
+
+        class _ImageTag:
+            def __init__(self, src, attrs):
+                self._src = src
+                self._attrs = attrs
+
+            def get(self, key, default=None):
+                if key == "src":
+                    return self._src
+                return self._attrs.get(key, default)
+
+        class _Soup:
+            def __init__(self, _html, _parser):
+                self._images = [
+                    _ImageTag(
+                        "/images/strains/runtz-layer-cake-photo.jpg",
+                        {
+                            "alt": "Runtz Layer Cake",
+                            "title": "Featured photo",
+                            "class": ["gallery", "strain-photo"],
+                            "id": "hero-image",
+                        },
+                    )
+                ]
+
+            def find_all(self, name):
+                if name == "meta":
+                    return []
+                if name == "img":
+                    return self._images
+                return []
+
+        provider.BeautifulSoup = _Soup
+        try:
+            session = _FakeSession([_FakeResponse(200, "<html></html>")])
+            selected = await provider.async_fetch_cultivar_image(
+                "https://seedfinder.eu/en/strain/runtz-layer-cake",
+                "Runtz Layer Cake",
+                session=session,
+            )
+        finally:
+            provider.BeautifulSoup = original
+
+        self.assertEqual(
+            selected.url,
+            "https://seedfinder.eu/images/strains/runtz-layer-cake-photo.jpg",
+        )
+        self.assertEqual(selected.source_kind, "strain_specific")
 
 
 if __name__ == "__main__":
