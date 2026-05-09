@@ -91,7 +91,9 @@ class DashboardJsContractsTests(unittest.TestCase):
         self.assertIn('const CANONICAL_STAGES = ["Seedling", "Vegetative", "Flowering", "Harvested"]', source)
         self.assertIn('<h2>Phase</h2>', source)
         self.assertIn('data-action="select-phase"', source)
-        self.assertIn('window.confirm(`Change phase to ${nextPhase}?`)', source)
+        self.assertIn("_renderPhaseConfirmModal()", source)
+        self.assertIn('data-action="confirm-phase-change"', source)
+        self.assertNotIn("window.confirm(", source)
 
     def test_panel_detail_editor_sends_explicit_nulls_when_fields_are_cleared(self):
         source = PANEL_JS.read_text(encoding="utf-8")
