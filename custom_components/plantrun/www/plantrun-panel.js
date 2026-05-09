@@ -241,17 +241,17 @@
 
     _sensorEntitiesForMetric(metricType) {
       const all = this._sensorEntities();
-      const filtered = all.filter((entityId) => this._entityMatchesMetric(entityId, metricType));
-      return filtered.length ? filtered : all;
+      return all.filter((entityId) => this._entityMatchesMetric(entityId, metricType));
     }
 
     _entitySelectorConfig(metricType) {
-      const hints = METRIC_ENTITY_HINTS[metricType];
-      const filter = [{ domain: "sensor" }];
-      if (hints?.deviceClasses?.length) {
-        hints.deviceClasses.forEach((device_class) => filter.push({ domain: "sensor", device_class }));
+      const includeEntities = this._sensorEntitiesForMetric(metricType);
+      const currentValue = this._bindingDraft?.metric_type === metricType ? this._bindingDraft?.sensor_id : "";
+      if (currentValue && !includeEntities.includes(currentValue)) includeEntities.push(currentValue);
+      if (includeEntities.length) {
+        return { entity: { domain: "sensor", include_entities: includeEntities } };
       }
-      return { entity: { domain: "sensor", filter } };
+      return { entity: { domain: "sensor", include_entities: [] } };
     }
 
     _entityName(entityId) {
@@ -289,7 +289,9 @@
     }
 
     _haEntityPicker(value, selectorName = "sensor_id", metricType = "temperature") {
-      const options = this._sensorEntitiesForMetric(metricType)
+      const filteredEntities = this._sensorEntitiesForMetric(metricType);
+      const options = [...filteredEntities]
+        .concat(value && !filteredEntities.includes(value) ? [value] : [])
         .map(
           (entityId) =>
             `<option value="${S.escapeHtml(entityId)}" ${entityId === value ? "selected" : ""}>${S.escapeHtml(
@@ -297,6 +299,9 @@
             )}</option>`
         )
         .join("");
+      const currentSelectionHint = value && !filteredEntities.includes(value)
+        ? `<p class="field-hint warning">Currently selected sensor no longer matches this metric filter. Choose a compatible sensor to save changes.</p>`
+        : `<p class="field-hint">Only compatible Home Assistant sensors are shown for this metric.</p>`;
       return `
         <ha-selector
           class="ha-entity-selector"
@@ -305,9 +310,10 @@
           data-value="${S.escapeHtml(value || "")}">
         </ha-selector>
         <select class="entity-fallback" data-select-fallback="${S.escapeHtml(selectorName)}">
-          <option value="">Choose a compatible Home Assistant sensor</option>
+          <option value="">${filteredEntities.length ? "Choose a compatible Home Assistant sensor" : "No compatible Home Assistant sensors found"}</option>
           ${options}
         </select>
+        ${currentSelectionHint}
       `;
     }
 
@@ -388,6 +394,7 @@
         <article class="sensor-tile" data-sensor-tile data-run-id="${S.escapeHtml(run.id)}" data-entity-id="${S.escapeHtml(entityId)}" data-binding-id="${S.escapeHtml(binding.id || "")}">
           <div class="sensor-head">
             <span class="metric-badge">${S.icon(this._metricIcon(binding.metric_type))}</span>
+            <button class="icon-button" data-action="edit-binding" data-run-id="${S.escapeHtml(run.id)}" data-binding-id="${S.escapeHtml(binding.id)}" type="button" title="Edit binding">${S.icon("mdi:pencil")}</button>
             <button class="icon-button danger" data-action="remove-binding" data-run-id="${S.escapeHtml(run.id)}" data-binding-id="${S.escapeHtml(binding.id)}" type="button" title="Remove binding">${S.icon("mdi:trash-can-outline")}</button>
           </div>
           <strong>${S.escapeHtml(this._metricLabel(binding.metric_type))}</strong>
@@ -720,7 +727,7 @@
             </header>
             <div class="history-summary">
               <p><strong>${S.escapeHtml(pending.run_name)}</strong> will change from <strong>${S.escapeHtml(pending.current_phase)}</strong> to <strong>${S.escapeHtml(pending.next_phase)}</strong>.</p>
-              <p class="hint">PlantRun keeps one canonical timeline. This matches the old confirmation behavior, minus the cursed browser popup.</p>
+              <p class="hint">PlantRun keeps one canonical timeline. Confirm here to move the run forward.</p>
             </div>
             <footer>
               <button class="ghost" data-action="close-phase-confirm" type="button">Cancel</button>
@@ -807,6 +814,8 @@
         this._createRun();
       } else if (action === "open-binding") {
         this._openBinding(target.dataset.runId);
+      } else if (action === "edit-binding") {
+        this._openBinding(target.dataset.runId, target.dataset.bindingId);
       } else if (action === "close-binding") {
         this._bindingDraft = null;
         this.render();
@@ -875,8 +884,10 @@
         const bindings = [...this._wizard.bindings];
         bindings[index] = { ...bindings[index], metric_type: target.value };
         this._wizard.bindings = bindings;
+        this.render();
       } else if (target.matches("[data-binding-metric]") && this._bindingDraft) {
         this._bindingDraft = { ...this._bindingDraft, metric_type: target.value };
+        this.render();
       }
     }
 
@@ -1044,8 +1055,12 @@
       return newlyDiscovered[0] || this._runs.find((run) => run.friendly_name === name) || null;
     }
 
-    _openBinding(runId) {
-      this._bindingDraft = { run_id: runId, binding_id: "", metric_type: "temperature", sensor_id: "" };
+    _openBinding(runId, bindingId = "") {
+      const run = this._runs.find((item) => item.id === runId);
+      const binding = run?.bindings?.find((item) => item.id === bindingId);
+      this._bindingDraft = binding
+        ? { run_id: runId, binding_id: binding.id || "", metric_type: binding.metric_type || "temperature", sensor_id: binding.sensor_id || "" }
+        : { run_id: runId, binding_id: "", metric_type: "temperature", sensor_id: "" };
       this.render();
     }
 
@@ -1238,6 +1253,10 @@
           --secondary-text-color:#9ca69d;
           --divider-color:#51605a;
           --success-color:#55d66a;
+          --surface-strong:#232928;
+          --surface-soft:#1c2221;
+          --surface-raised:#28302e;
+          --border-strong:#6d7a73;
           color-scheme:dark;
         }
         .app.theme-light {
@@ -1355,7 +1374,9 @@
         .danger { color:var(--error-color,#ef5350); }
         .animated ha-icon { transition:transform .28s cubic-bezier(.2,.8,.2,1); }
         .animated:hover ha-icon { transform:rotate(-18deg) scale(1.08); }
-        input, select, textarea { width:100%; border:1px solid color-mix(in srgb, var(--divider-color,#52605a) 55%, transparent); border-radius:14px; min-height:42px; padding:10px 12px; background:color-mix(in srgb, var(--primary-text-color,#fff) 7%, transparent); color:inherit; outline:none; }
+        input, select, textarea { width:100%; border:1px solid color-mix(in srgb, var(--divider-color,#52605a) 55%, transparent); border-radius:14px; min-height:42px; padding:10px 12px; background:var(--surface-strong, color-mix(in srgb, var(--primary-text-color,#fff) 7%, transparent)); color:var(--primary-text-color,#fff); outline:none; }
+        select, option, optgroup { background:var(--surface-strong,#232928); color:var(--primary-text-color,#edf2ec); }
+        select:hover, textarea:hover, input:hover { border-color:color-mix(in srgb, var(--success-color,#31c76b) 28%, var(--divider-color,#52605a)); }
         textarea { min-height:90px; resize:vertical; }
         input:focus, select:focus, textarea:focus { border-color:var(--success-color,#31c76b); box-shadow:0 0 0 3px color-mix(in srgb, var(--success-color,#31c76b) 18%, transparent); }
         .overlay { position:absolute; inset:0; z-index:20; display:grid; place-items:center; padding:22px; }
@@ -1369,6 +1390,8 @@
         label { display:grid; gap:7px; color:var(--secondary-text-color,#98a29a); font-size:13px; font-weight:700; }
         label input, label select, label textarea, label .ha-entity-selector { color:var(--primary-text-color,#fff); font-weight:500; }
         .app.theme-light label input, .app.theme-light label select, .app.theme-light label textarea, .app.theme-light label .ha-entity-selector { color:var(--primary-text-color,#18211a); }
+        .field-hint { margin:6px 2px 0; color:var(--secondary-text-color,#98a29a); font-size:12px; font-weight:600; }
+        .field-hint.warning { color:#f4b25e; }
         label.wide, .search-field { grid-column:1 / -1; }
         .suggestions { display:grid; gap:6px; }
         .suggestions button { border:0; border-radius:14px; padding:10px 12px; background:color-mix(in srgb, var(--success-color,#31c76b) 12%, transparent); color:inherit; text-align:left; display:grid; gap:2px; transition:transform .14s ease, background .14s ease; }
@@ -1389,6 +1412,8 @@
         .history-modal footer { display:flex; flex-wrap:wrap; gap:10px; }
         .history-row { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:11px 12px; border-radius:14px; background:color-mix(in srgb, var(--primary-text-color,#fff) 5%, transparent); }
         .entity-fallback { display:none; }
+        .entity-fallback, .ha-entity-selector { background:var(--surface-strong,#232928); color:var(--primary-text-color,#edf2ec); }
+        .app.theme-light .entity-fallback, .app.theme-light .ha-entity-selector, .app.theme-light select, .app.theme-light option, .app.theme-light optgroup { background:var(--surface-strong,#fff); color:var(--primary-text-color,#18211a); }
         .ha-entity-selector:not(:defined) + .entity-fallback { display:block; }
         .ha-entity-selector:not(:defined) { display:none; }
         @media (max-width: 960px) {

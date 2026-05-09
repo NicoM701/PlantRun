@@ -48,7 +48,10 @@ class DashboardJsContractsTests(unittest.TestCase):
         self.assertIn("<ha-selector", source)
         self.assertIn("_entitySelectorConfig(metricType)", source)
         self.assertIn("_sensorEntitiesForMetric(metricType)", source)
+        self.assertIn('include_entities: includeEntities', source)
         self.assertIn("Choose a compatible Home Assistant sensor", source)
+        self.assertIn("No compatible Home Assistant sensors found", source)
+        self.assertNotIn("return filtered.length ? filtered : all;", source)
         self.assertIn('entityId.startsWith("sensor.")', source)
         self.assertNotIn('data-binding-input="sensor_id"', source)
 
@@ -94,6 +97,14 @@ class DashboardJsContractsTests(unittest.TestCase):
         self.assertIn("_renderPhaseConfirmModal()", source)
         self.assertIn('data-action="confirm-phase-change"', source)
         self.assertNotIn("window.confirm(", source)
+        self.assertNotIn("minus the cursed browser popup", source)
+
+    def test_panel_binding_metric_changes_force_picker_refresh_and_edit_existing_bindings(self):
+        source = PANEL_JS.read_text(encoding="utf-8")
+        self.assertIn('data-action="edit-binding"', source)
+        self.assertIn('this._openBinding(target.dataset.runId, target.dataset.bindingId);', source)
+        self.assertIn('this._bindingDraft = binding', source)
+        self.assertIn('this.render();', source)
 
     def test_panel_detail_editor_sends_explicit_nulls_when_fields_are_cleared(self):
         source = PANEL_JS.read_text(encoding="utf-8")
