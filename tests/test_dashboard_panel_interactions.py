@@ -56,6 +56,8 @@ class DashboardPanelInteractionRegressionTests(unittest.TestCase):
                 '<div class="overlay">',
                 'class="overlay-backdrop" data-action="close-wizard"',
                 'class="overlay-backdrop" data-action="close-binding"',
+                'class="overlay-backdrop" data-action="close-note-edit"',
+                'class="overlay-backdrop" data-action="close-note-delete"',
                 'class="overlay-backdrop" data-action="close-edit"',
                 'class="overlay-backdrop" data-action="close-history"',
             ],

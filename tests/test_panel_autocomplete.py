@@ -16,6 +16,10 @@ class PanelAutocompleteTest(unittest.TestCase):
         self.assertIn('data-prevent-mousedown', source)
         self.assertIn('_handleMouseDown(event)', source)
         self.assertIn("_scheduleCultivarSearch()", source)
+        self.assertIn("_scheduleDetailCultivarSearch()", source)
+        self.assertIn('data-detail-cultivar-input', source)
+        self.assertIn('data-action="choose-detail-cultivar"', source)
+        self.assertIn("Refreshing results…", source)
         self.assertIn("_renderSuggestionsOnly()", source)
 
 

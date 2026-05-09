@@ -52,6 +52,12 @@
       if (Number.isNaN(date.getTime())) return String(value);
       return date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
     };
+    const formatDateTime = (value) => {
+      if (!value) return "Not set";
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return String(value);
+      return date.toLocaleString(undefined, { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" });
+    };
     const daysBetween = (start, end = new Date()) => {
       const date = new Date(start);
       if (Number.isNaN(date.getTime())) return 0;
@@ -65,7 +71,7 @@
       return "seedling";
     };
     const icon = (name) => `<ha-icon icon="${escapeHtml(name)}"></ha-icon>`;
-    window.PlantRunShared = { ...existing, escapeHtml, formatDate, daysBetween, stageKey, icon };
+    window.PlantRunShared = { ...existing, escapeHtml, formatDate, formatDateTime, daysBetween, stageKey, icon };
     return window.PlantRunShared;
   };
   const S = shared();
@@ -92,6 +98,8 @@
       this._searchTimer = 0;
       this._bindingDraft = null;
       this._detailDraft = null;
+      this._noteEditor = null;
+      this._noteDeleteConfirm = null;
       this._historyInspector = null;
       this._phaseConfirm = null;
       this._noteDraft = "";
@@ -480,7 +488,17 @@
                 ${notes
                   .slice()
                   .reverse()
-                  .map((note) => `<article class="note"><p>${S.escapeHtml(note.text)}</p><small>${S.escapeHtml(S.formatDate(note.timestamp))}</small></article>`)
+                  .map((note) => `
+                    <article class="note">
+                      <div class="note-copy">
+                        <p>${S.escapeHtml(note.text)}</p>
+                        <small>${S.escapeHtml(S.formatDateTime(note.timestamp))}</small>
+                      </div>
+                      <div class="note-actions">
+                        <button class="icon-button" data-action="edit-note" data-note-id="${S.escapeHtml(note.id)}" type="button" title="Edit note">${S.icon("mdi:pencil")}</button>
+                        <button class="icon-button danger" data-action="confirm-delete-note" data-note-id="${S.escapeHtml(note.id)}" type="button" title="Delete note">${S.icon("mdi:trash-can-outline")}</button>
+                      </div>
+                    </article>`)
                   .join("") || `<div class="empty-inline">No notes yet.</div>`}
               </div>
               <div class="inline-form">
@@ -559,12 +577,30 @@
     }
 
     _suggestionMarkup() {
+      if (this._suggestions.length === 1 && this._suggestions[0]?.name === "Refreshing results…") {
+        return `<div class="suggestion-state">Refreshing results…</div>`;
+      }
       return this._suggestions
         .map(
           (item, index) => `
             <button data-action="choose-cultivar" data-index="${index}" data-prevent-mousedown type="button">
               <strong>${S.escapeHtml(item.name || item.strain || "Unknown cultivar")}</strong>
               <span>${S.escapeHtml(item.breeder || this._wizard.breeder || "SeedFinder")}</span>
+            </button>`
+        )
+        .join("");
+    }
+
+    _detailSuggestionMarkup() {
+      if (this._detailDraft?.cultivar_searching) {
+        return `<div class="suggestion-state">Refreshing results…</div>`;
+      }
+      return (this._detailDraft?.suggestions || [])
+        .map(
+          (item, index) => `
+            <button data-action="choose-detail-cultivar" data-index="${index}" data-prevent-mousedown type="button">
+              <strong>${S.escapeHtml(item.name || item.strain || "Unknown cultivar")}</strong>
+              <span>${S.escapeHtml(item.breeder || this._detailDraft?.breeder || "SeedFinder")}</span>
             </button>`
         )
         .join("");
@@ -597,8 +633,51 @@
       `;
     }
 
+    _renderNoteModal() {
+      if (!this._noteEditor) return "";
+      return `
+        <div class="overlay">
+          <button class="overlay-backdrop" data-action="close-note-edit" type="button" aria-label="Close note dialog"></button>
+          <section class="modal compact" data-modal-card>
+            <header>
+              <div><span class="eyebrow">Grow log</span><h2>Edit note</h2></div>
+              <button class="icon-button" data-action="close-note-edit" type="button" title="Close">${S.icon("mdi:close")}</button>
+            </header>
+            <div class="form-grid">
+              <label class="wide"><span>Note</span><textarea data-note-edit-text rows="5">${S.escapeHtml(this._noteEditor.text || "")}</textarea></label>
+            </div>
+            <footer>
+              <button class="ghost" data-action="close-note-edit" type="button">Cancel</button>
+              <button class="primary" data-action="save-note-edit" type="button">Save note</button>
+            </footer>
+          </section>
+        </div>
+      `;
+    }
+
+    _renderDeleteNoteConfirm() {
+      if (!this._noteDeleteConfirm) return "";
+      return `
+        <div class="overlay">
+          <button class="overlay-backdrop" data-action="close-note-delete" type="button" aria-label="Close delete note dialog"></button>
+          <section class="modal compact" data-modal-card>
+            <header>
+              <div><span class="eyebrow">Grow log</span><h2>Delete note?</h2></div>
+              <button class="icon-button" data-action="close-note-delete" type="button" title="Close">${S.icon("mdi:close")}</button>
+            </header>
+            <p class="confirm-copy">This removes the note from this run log.</p>
+            <footer>
+              <button class="ghost" data-action="close-note-delete" type="button">Cancel</button>
+              <button class="danger" data-action="delete-note" type="button">Delete</button>
+            </footer>
+          </section>
+        </div>
+      `;
+    }
+
     _renderEditModal() {
       if (!this._detailDraft) return "";
+      const targetDays = this._detailDraft.target_days || this._derivedTargetDays(this._detailDraft.selected_cultivar);
       return `
         <div class="overlay">
           <button class="overlay-backdrop" data-action="close-edit" type="button" aria-label="Close edit dialog"></button>
@@ -610,9 +689,15 @@
             <div class="form-grid">
               <label><span>Name</span><input data-detail-field="friendly_name" value="${S.escapeHtml(this._detailDraft.friendly_name)}" /></label>
               <label><span>Planted date</span><input data-detail-field="planted_date" value="${S.escapeHtml(this._detailDraft.planted_date || "")}" type="date" /></label>
+              <label><span>Breeder</span><input data-detail-field="breeder" value="${S.escapeHtml(this._detailDraft.breeder || "")}" placeholder="Breeder" autocomplete="off" /></label>
+              <label class="wide search-field"><span>Cultivar / strain</span>
+                <input data-detail-field="cultivar_name" data-detail-cultivar-input value="${S.escapeHtml(this._detailDraft.cultivar_name || "")}" placeholder="Start typing to search SeedFinder" autocomplete="off" />
+                <div class="suggestions" data-detail-suggestions>${this._detailSuggestionMarkup()}</div>
+              </label>
               <label><span>Dry yield (g)</span><input data-detail-field="dry_yield_grams" value="${S.escapeHtml(this._detailDraft.dry_yield_grams ?? "")}" type="number" min="0" step="0.1" /></label>
               <label class="wide"><span>Summary</span><textarea data-detail-field="notes_summary">${S.escapeHtml(this._detailDraft.notes_summary || "")}</textarea></label>
             </div>
+            <p class="hint">Estimated total run duration: <strong>${S.escapeHtml(targetDays || "Will be derived from SeedFinder when available")}</strong></p>
             <footer>
               <button class="ghost" data-action="close-edit" type="button">Cancel</button>
               <button class="primary" data-action="save-run" type="button">Save</button>
@@ -763,6 +848,8 @@
         
         ${this._renderWizard()}
         ${this._renderBindingModal()}
+        ${this._renderNoteModal()}
+        ${this._renderDeleteNoteConfirm()}
         ${this._renderEditModal()}
         ${this._renderHistoryInspector()}
         ${this._renderPhaseConfirmModal()}
@@ -810,6 +897,8 @@
         this.render();
       } else if (action === "choose-cultivar") {
         this._chooseCultivar(Number(target.dataset.index));
+      } else if (action === "choose-detail-cultivar") {
+        this._chooseDetailCultivar(Number(target.dataset.index));
       } else if (action === "create-run") {
         this._createRun();
       } else if (action === "open-binding") {
@@ -833,6 +922,20 @@
         this._confirmPhaseChange();
       } else if (action === "add-note") {
         this._addNote(target.dataset.runId);
+      } else if (action === "edit-note") {
+        this._openNoteEditor(target.dataset.noteId);
+      } else if (action === "close-note-edit") {
+        this._noteEditor = null;
+        this.render();
+      } else if (action === "save-note-edit") {
+        this._saveNoteEdit();
+      } else if (action === "confirm-delete-note") {
+        this._openNoteDeleteConfirm(target.dataset.noteId);
+      } else if (action === "close-note-delete") {
+        this._noteDeleteConfirm = null;
+        this.render();
+      } else if (action === "delete-note") {
+        this._deleteNote();
       } else if (action === "edit-run") {
         this._openEditRun(target.dataset.runId);
       } else if (action === "close-edit") {
@@ -870,8 +973,15 @@
         }
       } else if (target.matches("[data-note-draft]")) {
         this._noteDraft = target.value;
+      } else if (target.matches("[data-note-edit-text]") && this._noteEditor) {
+        this._noteEditor = { ...this._noteEditor, text: target.value };
       } else if (target.matches("[data-detail-field]")) {
         this._detailDraft = { ...this._detailDraft, [target.dataset.detailField]: target.value };
+        if (target.dataset.detailField === "breeder" || target.dataset.detailField === "cultivar_name") {
+          this._detailDraft.selected_cultivar = null;
+          this._detailDraft.target_days = "";
+          this._scheduleDetailCultivarSearch();
+        }
       }
     }
 
@@ -892,13 +1002,20 @@
     }
 
     _handleKeydown(event) {
-      if (!event.target.matches("[data-cultivar-input]")) return;
-      if ((event.key === "Enter" || event.key === "Tab") && this._suggestions.length) {
+      if (!event.target.matches("[data-cultivar-input], [data-detail-cultivar-input]")) return;
+      const detailInput = event.target.matches("[data-detail-cultivar-input]");
+      const suggestions = detailInput ? this._detailDraft?.suggestions || [] : this._suggestions;
+      if ((event.key === "Enter" || event.key === "Tab") && suggestions.length) {
         event.preventDefault();
-        this._chooseCultivar(0);
+        detailInput ? this._chooseDetailCultivar(0) : this._chooseCultivar(0);
       } else if (event.key === "Escape") {
-        this._suggestions = [];
-        this._renderSuggestionsOnly();
+        if (detailInput) {
+          this._detailDraft = { ...this._detailDraft, suggestions: [] };
+          this._renderDetailSuggestionsOnly();
+        } else {
+          this._suggestions = [];
+          this._renderSuggestionsOnly();
+        }
       }
     }
 
@@ -959,7 +1076,23 @@
       }
       const searchKey = `${breeder.toLowerCase()}::${query.toLowerCase()}`;
       if (searchKey === this._lastSearchKey) return;
+      this._suggestions = [{ name: "Refreshing results…", breeder: "SeedFinder" }];
+      this._renderSuggestionsOnly();
       this._searchTimer = window.setTimeout(() => this._searchCultivarSuggestions(), 260);
+    }
+
+    _scheduleDetailCultivarSearch() {
+      window.clearTimeout(this._searchTimer);
+      const query = this._detailDraft?.cultivar_name?.trim?.() || "";
+      const breeder = this._detailDraft?.breeder?.trim?.() || "";
+      if (query.length < 2 || breeder.length < 2) {
+        this._detailDraft = { ...this._detailDraft, suggestions: [], cultivar_searching: false };
+        this._renderDetailSuggestionsOnly();
+        return;
+      }
+      this._detailDraft = { ...this._detailDraft, cultivar_searching: true };
+      this._renderDetailSuggestionsOnly();
+      this._searchTimer = window.setTimeout(() => this._searchDetailCultivarSuggestions(), 180);
     }
 
     async _searchCultivarSuggestions() {
@@ -994,6 +1127,11 @@
       if (box) box.innerHTML = this._suggestionMarkup();
     }
 
+    _renderDetailSuggestionsOnly() {
+      const box = this.shadowRoot.querySelector("[data-detail-suggestions]");
+      if (box) box.innerHTML = this._detailSuggestionMarkup();
+    }
+
     _chooseCultivar(index) {
       const item = this._suggestions[index];
       if (!item) return;
@@ -1005,6 +1143,41 @@
         selected_cultivar: item,
       };
       this._suggestions = [];
+      this.render();
+    }
+
+    async _searchDetailCultivarSuggestions() {
+      const breeder = this._detailDraft?.breeder?.trim?.() || "";
+      const query = this._detailDraft?.cultivar_name?.trim?.() || "";
+      const searchKey = `${breeder.toLowerCase()}::${query.toLowerCase()}`;
+      if (this._suggestionCache.has(searchKey)) {
+        this._detailDraft = { ...this._detailDraft, suggestions: this._suggestionCache.get(searchKey) || [], cultivar_searching: false };
+        this._renderDetailSuggestionsOnly();
+        return;
+      }
+      try {
+        const payload = await this._hass.callWS({ type: "plantrun/search_cultivar", breeder, query });
+        const suggestions = Array.isArray(payload?.results) ? payload.results : [];
+        this._suggestionCache.set(searchKey, suggestions);
+        this._detailDraft = { ...this._detailDraft, suggestions, cultivar_searching: false };
+      } catch (_err) {
+        this._detailDraft = { ...this._detailDraft, suggestions: [], cultivar_searching: false };
+      }
+      this._renderDetailSuggestionsOnly();
+    }
+
+    _chooseDetailCultivar(index) {
+      const item = this._detailDraft?.suggestions?.[index];
+      if (!item) return;
+      this._detailDraft = {
+        ...this._detailDraft,
+        breeder: item.breeder || this._detailDraft.breeder,
+        cultivar_name: item.name || item.strain || this._detailDraft.cultivar_name,
+        target_days: this._derivedTargetDays(item),
+        selected_cultivar: item,
+        suggestions: [],
+        cultivar_searching: false,
+      };
       this.render();
     }
 
@@ -1114,6 +1287,39 @@
       await this._refreshRuns();
     }
 
+    _openNoteEditor(noteId) {
+      const run = this._selectedRun();
+      const note = run?.notes?.find((item) => item.id === noteId);
+      if (!run || !note) return;
+      this._noteEditor = { run_id: run.id, note_id: note.id, text: note.text || "" };
+      this.render();
+    }
+
+    _openNoteDeleteConfirm(noteId) {
+      const run = this._selectedRun();
+      const note = run?.notes?.find((item) => item.id === noteId);
+      if (!run || !note) return;
+      this._noteDeleteConfirm = { run_id: run.id, note_id: note.id };
+      this.render();
+    }
+
+    async _saveNoteEdit() {
+      const draft = this._noteEditor;
+      const text = draft?.text?.trim?.() || "";
+      if (!this._hass || !draft?.run_id || !draft?.note_id || !text) return;
+      await this._hass.callService(DOMAIN, "update_note", { run_id: draft.run_id, note_id: draft.note_id, text });
+      this._noteEditor = null;
+      await this._refreshRuns();
+    }
+
+    async _deleteNote() {
+      const draft = this._noteDeleteConfirm;
+      if (!this._hass || !draft?.run_id || !draft?.note_id) return;
+      await this._hass.callService(DOMAIN, "delete_note", { run_id: draft.run_id, note_id: draft.note_id });
+      this._noteDeleteConfirm = null;
+      await this._refreshRuns();
+    }
+
     _openEditRun(runId) {
       const run = this._runs.find((item) => item.id === runId);
       if (!run) return;
@@ -1121,6 +1327,12 @@
         run_id: run.id,
         friendly_name: run.friendly_name || "",
         planted_date: run.planted_date || "",
+        breeder: run.cultivar?.breeder === "Unknown (Manual Entry)" ? "" : run.cultivar?.breeder || "",
+        cultivar_name: run.cultivar?.name || "",
+        target_days: this._targetDaysForRun(run),
+        selected_cultivar: null,
+        suggestions: [],
+        cultivar_searching: false,
         dry_yield_grams: run.dry_yield_grams ?? "",
         notes_summary: run.notes_summary || "",
       };
@@ -1137,6 +1349,14 @@
         notes_summary: draft.notes_summary || null,
         dry_yield_grams: draft.dry_yield_grams === "" ? null : Number(draft.dry_yield_grams),
       });
+      if (draft.cultivar_name?.trim()) {
+        await this._hass.callService(DOMAIN, "set_cultivar", {
+          run_id: draft.run_id,
+          cultivar_name: draft.cultivar_name.trim(),
+          breeder: draft.breeder?.trim?.() || "",
+          strain: draft.selected_cultivar?.name || draft.cultivar_name.trim(),
+        });
+      }
       this._detailDraft = null;
       await this._refreshRuns();
     }
@@ -1344,7 +1564,8 @@
         .sensor-meta span:last-child { display:inline-flex; align-items:center; gap:5px; }
         .spark { height:54px; display:flex; align-items:end; gap:4px; margin-top:12px; }
         .spark span { flex:1; min-width:4px; border-radius:999px 999px 4px 4px; background:linear-gradient(180deg, var(--success-color,#31c76b), rgba(49,199,107,.22)); }
-        .phase-list, .note-list, .binding-editor { display:grid; gap:12px; }
+        .phase-list, .binding-editor { display:grid; gap:12px; }
+        .note-list { display:grid; gap:14px; margin-top:10px; }
         .phase-stepper { display:grid; gap:10px; margin-top:6px; }
         .phase-step { width:100%; display:grid; grid-template-columns:38px minmax(0,1fr); gap:12px; align-items:center; padding:12px 14px; border-radius:18px; border:1px solid color-mix(in srgb, var(--divider-color,#52605a) 45%, transparent); background:color-mix(in srgb, var(--primary-text-color,#fff) 5%, transparent); color:inherit; text-align:left; }
         .app.theme-light .phase-step, .app.theme-light .note { border-color:rgba(126, 150, 127, .24); box-shadow:0 6px 16px rgba(40, 69, 44, .05); }
@@ -1353,8 +1574,11 @@
         .phase-step.done span, .phase-step.current span { background:color-mix(in srgb, var(--success-color,#31c76b) 22%, transparent); color:var(--success-color,#31c76b); }
         .phase-step.current { border-color:color-mix(in srgb, var(--success-color,#31c76b) 45%, transparent); box-shadow:0 0 0 1px color-mix(in srgb, var(--success-color,#31c76b) 24%, transparent); }
         .phase-step small { display:block; margin-top:3px; color:var(--secondary-text-color,#98a29a); }
-        .note { padding:15px 16px; border-radius:18px; background:color-mix(in srgb, var(--primary-text-color,#fff) 5%, transparent); }
-        .note p { margin:0 0 8px; }
+        .note { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:14px; align-items:start; padding:18px 18px 16px; border-radius:22px; background:color-mix(in srgb, var(--primary-text-color,#fff) 5%, transparent); }
+        .note-copy { display:grid; gap:10px; }
+        .note p { margin:0; line-height:1.55; white-space:pre-wrap; }
+        .note small { display:block; }
+        .note-actions { display:flex; gap:8px; }
         .notes-block { grid-column:1 / -1; margin-top:4px; }
         .empty-panel, .empty-detail, .empty-inline { display:grid; place-items:center; align-content:center; gap:12px; min-height:220px; text-align:center; color:var(--secondary-text-color,#98a29a); padding:22px; }
         .empty-inline { min-height:130px; border:1px dashed color-mix(in srgb, var(--divider-color,#52605a) 60%, transparent); border-radius:18px; }
@@ -1394,9 +1618,11 @@
         .field-hint.warning { color:#f4b25e; }
         label.wide, .search-field { grid-column:1 / -1; }
         .suggestions { display:grid; gap:6px; }
+        .suggestion-state { padding:10px 12px; border-radius:14px; background:color-mix(in srgb, var(--success-color,#31c76b) 10%, transparent); color:var(--secondary-text-color,#98a29a); font-size:13px; font-weight:700; }
         .suggestions button { border:0; border-radius:14px; padding:10px 12px; background:color-mix(in srgb, var(--success-color,#31c76b) 12%, transparent); color:inherit; text-align:left; display:grid; gap:2px; transition:transform .14s ease, background .14s ease; }
         .suggestions button:hover { transform:translateY(-1px); background:color-mix(in srgb, var(--success-color,#31c76b) 18%, transparent); }
         .binding-edit-row { display:grid; grid-template-columns:160px minmax(0,1fr) 38px; gap:10px; align-items:center; }
+        .confirm-copy { margin:16px 0 0; color:var(--secondary-text-color,#98a29a); line-height:1.5; }
         .history-modal { display:grid; gap:14px; }
         .history-summary { display:grid; gap:8px; }
         .phase-confirm-modal { display:grid; gap:16px; }
