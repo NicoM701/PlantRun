@@ -298,20 +298,68 @@ def _score_image_candidate(url: str, cultivar_name: str, context: str) -> tuple[
     normalized_url = url.lower()
     normalized_name = _norm(cultivar_name)
     name_tokens = [token for token in normalized_name.split() if len(token) > 2]
+    lowered_context = context.lower()
 
     score = 20
     for token in name_tokens:
         if token in normalized_url:
             score += 25
-
-    lowered_context = context.lower()
-    for token in name_tokens:
         if token in lowered_context:
             score += 15
 
-    has_strain_hint = any(token in normalized_url for token in ("strain", "cultivar", "genetics", "variety"))
-    if has_strain_hint:
-        score += 15
+    if name_tokens and all(token in lowered_context for token in name_tokens[: min(len(name_tokens), 3)]):
+        score += 25
+
+    positive_hints = (
+        "strain",
+        "cultivar",
+        "genetics",
+        "variety",
+        "gallery",
+        "photo",
+        "image",
+        "featured",
+        "hero",
+        "entry-content",
+        "post-content",
+        "content",
+        "article",
+        "main",
+    )
+    negative_hints = (
+        "logo",
+        "icon",
+        "avatar",
+        "flag",
+        "sprite",
+        "header",
+        "navbar",
+        "nav",
+        "menu",
+        "footer",
+        "breadcrumb",
+        "social",
+        "share",
+        "advert",
+        "ads",
+        "language",
+        "chrome",
+    )
+
+    for hint in positive_hints:
+        if hint in normalized_url:
+            score += 8
+        if hint in lowered_context:
+            score += 6
+
+    for hint in negative_hints:
+        if hint in normalized_url:
+            score -= 14
+        if hint in lowered_context:
+            score -= 12
+
+    if any(token in normalized_url for token in ("upload", "uploads", "media", "strains")):
+        score += 12
 
     is_generic = _is_generic_image_hint(normalized_url) or _is_generic_image_hint(lowered_context)
     if is_generic:
@@ -340,6 +388,42 @@ def _normalize_image_url(raw_url: str | None) -> str | None:
     if raw_url.startswith("/"):
         return f"https://seedfinder.eu{raw_url}"
     return None
+
+
+def _iter_image_ancestors(image: object, max_depth: int = 4) -> list[object]:
+    ancestors: list[object] = []
+    current = getattr(image, "parent", None)
+    depth = 0
+    while current is not None and depth < max_depth:
+        ancestors.append(current)
+        current = getattr(current, "parent", None)
+        depth += 1
+    return ancestors
+
+
+def _build_image_context(image: object) -> str:
+    context_parts = [
+        _normalize_image_context_value(getattr(image, "get", lambda *_args, **_kwargs: None)("alt")),
+        _normalize_image_context_value(getattr(image, "get", lambda *_args, **_kwargs: None)("title")),
+        _normalize_image_context_value(getattr(image, "get", lambda *_args, **_kwargs: None)("class")),
+        _normalize_image_context_value(getattr(image, "get", lambda *_args, **_kwargs: None)("id")),
+    ]
+
+    for ancestor in _iter_image_ancestors(image):
+        context_parts.extend(
+            [
+                _normalize_image_context_value(getattr(ancestor, "name", None)),
+                _normalize_image_context_value(getattr(ancestor, "get", lambda *_args, **_kwargs: None)("class")),
+                _normalize_image_context_value(getattr(ancestor, "get", lambda *_args, **_kwargs: None)("id")),
+                _normalize_image_context_value(getattr(ancestor, "get", lambda *_args, **_kwargs: None)("role")),
+                _normalize_image_context_value(getattr(ancestor, "get", lambda *_args, **_kwargs: None)("aria-label")),
+            ]
+        )
+        get_text = getattr(ancestor, "get_text", None)
+        if callable(get_text):
+            context_parts.append(_normalize_image_context_value(get_text(" ", strip=True)))
+
+    return " ".join(part for part in context_parts if part)
 
 
 async def async_fetch_cultivar_image(
@@ -386,16 +470,7 @@ async def async_fetch_cultivar_image(
         if not normalized or normalized in seen:
             continue
         seen.add(normalized)
-        context = " ".join(
-            part
-            for part in (
-                _normalize_image_context_value(image.get("alt")),
-                _normalize_image_context_value(image.get("title")),
-                _normalize_image_context_value(image.get("class")),
-                _normalize_image_context_value(image.get("id")),
-            )
-            if part
-        )
+        context = _build_image_context(image)
         score, generic = _score_image_candidate(normalized, cultivar_name, context)
         candidates.append((score, generic, normalized))
 
