@@ -63,14 +63,14 @@ class DashboardPanelInteractionRegressionTests(unittest.TestCase):
             ],
         )
 
-    def test_binding_tiles_expose_explicit_edit_action_and_filtered_picker_hints(self):
+    def test_binding_tiles_expose_explicit_edit_action_and_filtered_picker_states(self):
         assert_has_snippets(
             self,
             self.source,
             [
                 'data-action="edit-binding"',
-                'Only compatible Home Assistant sensors are shown for this metric.',
                 'No compatible Home Assistant sensors found',
+                'This sensor no longer matches the selected metric.',
                 'this._openBinding(target.dataset.runId, target.dataset.bindingId);',
             ],
         )
