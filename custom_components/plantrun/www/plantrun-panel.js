@@ -550,7 +550,7 @@
       return `
         <div class="form-grid">
           <label><span>Breeder</span><input data-wizard-field="breeder" value="${S.escapeHtml(this._wizard.breeder)}" placeholder="Breeder" autocomplete="off" /></label>
-          <label class="search-field"><span>Cultivar / strain</span>
+          <label class="search-field"><span>Strain</span>
             <input data-wizard-field="cultivar_name" data-cultivar-input value="${S.escapeHtml(this._wizard.cultivar_name)}" placeholder="Start typing to search SeedFinder" autocomplete="off" />
             <div class="suggestions" data-suggestions>${this._suggestionMarkup()}</div>
           </label>
@@ -695,7 +695,7 @@
               <label><span>Name</span><input data-detail-field="friendly_name" value="${S.escapeHtml(this._detailDraft.friendly_name)}" /></label>
               <label><span>Planted date</span><input data-detail-field="planted_date" value="${S.escapeHtml(this._detailDraft.planted_date || "")}" type="date" /></label>
               <label><span>Breeder</span><input data-detail-field="breeder" value="${S.escapeHtml(this._detailDraft.breeder || "")}" placeholder="Breeder" autocomplete="off" /></label>
-              <label class="wide search-field"><span>Cultivar / strain</span>
+              <label class="wide search-field"><span>Strain</span>
                 <input data-detail-field="cultivar_name" data-detail-cultivar-input value="${S.escapeHtml(this._detailDraft.cultivar_name || "")}" placeholder="Start typing to search SeedFinder" autocomplete="off" />
                 <div class="suggestions" data-detail-suggestions>${this._detailSuggestionMarkup()}</div>
               </label>
