@@ -82,12 +82,36 @@ class DashboardJsContractsTests(unittest.TestCase):
 
     def test_panel_sensor_tap_attempts_native_history_deeplink_before_modal_fallback(self):
         source = PANEL_JS.read_text(encoding="utf-8")
-        self.assertIn("Tap a sensor to inspect its run window.", source)
+        self.assertIn("Sensor history stays in Home Assistant.", source)
+        self.assertIn("Recorder-first by design", source)
+        self.assertIn("No duplicate time-series data is stored by PlantRun.", source)
         self.assertIn("_renderHistoryInspector()", source)
         self.assertIn('type: "plantrun/get_run_binding_history_context"', source)
         self.assertIn("const EXPERIMENTAL_NATIVE_HISTORY_DEEPLINK = true;", source)
         self.assertIn("window.history.pushState(null, \"\", `/history?${params.toString()}`);", source)
         self.assertIn('data-action="open-native-history"', source)
+
+    def test_panel_guided_setup_validates_basics_and_explains_optional_steps(self):
+        source = PANEL_JS.read_text(encoding="utf-8")
+        self.assertIn('class="wizard-progress"', source)
+        self.assertIn("Give this run a name before continuing.", source)
+        self.assertIn("Guided setup", source)
+        self.assertIn("Optional. Pick a SeedFinder result", source)
+        self.assertIn("without copying their data", source)
+
+    def test_panel_layout_preferences_include_theme_and_density(self):
+        source = PANEL_JS.read_text(encoding="utf-8")
+        self.assertIn('density: "plantrun.ui.density"', source)
+        self.assertIn('data-action="toggle-density"', source)
+        self.assertIn("density-${S.escapeHtml(this._density)}", source)
+
+    def test_panel_finish_flow_captures_yield_and_archives_the_run(self):
+        source = PANEL_JS.read_text(encoding="utf-8")
+        self.assertIn('data-action="open-end-run"', source)
+        self.assertIn('data-end-run-yield', source)
+        self.assertIn('data-action="confirm-end-run"', source)
+        self.assertIn('this._hass.callService(DOMAIN, "end_run"', source)
+        self.assertIn('this._filter = "ended";', source)
 
     def test_panel_phase_control_is_canonical_timeline_with_confirmation(self):
         source = PANEL_JS.read_text(encoding="utf-8")
@@ -96,6 +120,8 @@ class DashboardJsContractsTests(unittest.TestCase):
         self.assertIn('data-action="select-phase"', source)
         self.assertIn("_renderPhaseConfirmModal()", source)
         self.assertIn('data-action="confirm-phase-change"', source)
+        self.assertIn('data-action="add-custom-phase"', source)
+        self.assertIn('data-custom-phase', source)
         self.assertNotIn("window.confirm(", source)
         self.assertNotIn("minus the cursed browser popup", source)
 

@@ -29,13 +29,20 @@ PlantRun ships with two UI entry points:
 
 Current UI capabilities include:
 - run cards with live metric chips and stage-aware artwork
+- responsive light/dark themes with comfortable and compact density modes
 - detail editing for metadata, notes, bindings, cultivar, breeder, and images
-- a 3-step run creation wizard
-- theme/language/layout preferences
+- a validated 3-step onboarding wizard that keeps cultivar and sensor setup optional
+- theme and layout preferences
 - live cultivar suggestions backed by SeedFinder
+- custom phases alongside the common Seedling, Vegetative, Flowering, and Harvested stages
+- a guided finish flow that records dry yield and archives the completed run
 - note editing/deletion with in-panel confirmation
 - phase changes via in-panel confirmation modal
 - Home Assistant history deeplinks from bound sensor tiles
+
+Sensor tiles are recorder-first: PlantRun stores the entity link and run time window,
+then opens Home Assistant's native History panel for the actual chart. It does not
+duplicate Home Assistant time-series data for the redesigned UI.
 
 ### Sensor and summary layer
 - per-run status, phase, cultivar, energy, and energy cost sensors

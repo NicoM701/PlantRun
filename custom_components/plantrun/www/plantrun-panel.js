@@ -24,6 +24,7 @@
   const STORAGE = {
     theme: "plantrun.ui.theme",
     sound: "plantrun.ui.sound",
+    density: "plantrun.ui.density",
   };
   const THEME_QUERY = "(prefers-color-scheme: light)";
   // Experimental Home Assistant native history deeplink hack.
@@ -90,6 +91,7 @@
       this._error = "";
       this._wizardOpen = false;
       this._wizardStep = 1;
+      this._wizardError = "";
       this._wizard = this._blankWizard();
       this._suggestions = [];
       this._suggestionCache = new Map();
@@ -102,9 +104,12 @@
       this._noteDeleteConfirm = null;
       this._historyInspector = null;
       this._phaseConfirm = null;
+      this._endRunConfirm = null;
       this._phaseDraft = "Vegetative";
+      this._customPhaseDraft = "";
       this._pressState = {};
       this._theme = localStorage.getItem(STORAGE.theme) || (window.matchMedia?.(THEME_QUERY).matches ? "light" : "dark");
+      this._density = localStorage.getItem(STORAGE.density) === "compact" ? "compact" : "comfortable";
       this._sound = localStorage.getItem(STORAGE.sound) === "on";
       this._audio = null;
       this._refreshing = false;
@@ -222,7 +227,8 @@
     }
 
     _selectedRun() {
-      return this._runs.find((run) => run.id === this._selectedRunId) || this._runs[0] || null;
+      const visibleRuns = this._filteredRuns();
+      return visibleRuns.find((run) => run.id === this._selectedRunId) || visibleRuns[0] || null;
     }
 
     _sensorEntities() {
@@ -290,7 +296,7 @@
     }
 
     _progress(run) {
-      const days = S.daysBetween(run?.planted_date || run?.start_time);
+      const days = S.daysBetween(run?.planted_date || run?.start_time, run?.end_time || new Date());
       const target = this._targetDaysForRun(run);
       return Math.min(100, Math.round((days / Math.max(target, 1)) * 100));
     }
@@ -370,11 +376,11 @@
           </div>
         `;
       }
-      return runs
+      return `<div class="run-list-head"><div><span class="eyebrow">${this._filter === "ended" ? "Archive" : "Runs"}</span><strong>${runs.length} ${runs.length === 1 ? "run" : "runs"}</strong></div><button class="icon-button" data-action="open-wizard" type="button" title="New run">${S.icon("mdi:plus")}</button></div>` + runs
         .map((run) => {
           const selected = run.id === this._selectedRunId;
           const progress = this._progress(run);
-          const days = S.daysBetween(run.planted_date || run.start_time);
+          const days = S.daysBetween(run.planted_date || run.start_time, run.end_time || new Date());
           return `
             <button class="run-row ${selected ? "selected" : ""}" data-action="select-run" data-run-id="${S.escapeHtml(run.id)}" type="button">
               <span class="stage-dot ${S.stageKey(run)}"></span>
@@ -391,18 +397,7 @@
 
     _renderSensorTile(run, binding) {
       const entityId = binding.sensor_id;
-      const history = this._bindingHistory(run, binding);
       const latest = this._entityState(entityId);
-      const points = history.slice(-14);
-      const max = Math.max(...points.map((point) => Number(point.value)).filter(Number.isFinite), 1);
-      const bars = points
-        .map((point) => {
-          const value = Number(point.value);
-          const height = Number.isFinite(value) ? Math.max(10, Math.round((value / max) * 48)) : 10;
-          return `<span style="height:${height}px"></span>`;
-        })
-        .join("");
-      const historyLabel = history.length ? `${history.length} stored sample${history.length === 1 ? "" : "s"}` : "No stored samples yet";
       return `
         <article class="sensor-tile" data-sensor-tile data-run-id="${S.escapeHtml(run.id)}" data-entity-id="${S.escapeHtml(entityId)}" data-binding-id="${S.escapeHtml(binding.id || "")}">
           <div class="sensor-head">
@@ -413,8 +408,7 @@
           <strong>${S.escapeHtml(this._metricLabel(binding.metric_type))}</strong>
           <span class="sensor-state" data-live-entity="${S.escapeHtml(entityId)}">${S.escapeHtml(latest)}</span>
           <small>${S.escapeHtml(this._entityName(entityId))}</small>
-          <div class="spark">${bars || "<span></span><span></span><span></span>"}</div>
-          <div class="sensor-meta"><span>${S.escapeHtml(historyLabel)}</span><span>${S.icon("mdi:gesture-tap-button")} Run window</span></div>
+          <div class="recorder-link"><span>${S.icon("mdi:chart-timeline-variant-shimmer")} Home Assistant Recorder</span><strong>Open run chart ${S.icon("mdi:arrow-top-right")}</strong></div>
         </article>
       `;
     }
@@ -430,7 +424,7 @@
           </section>
         `;
       }
-      const days = S.daysBetween(run.planted_date || run.start_time);
+      const days = S.daysBetween(run.planted_date || run.start_time, run.end_time || new Date());
       const target = this._targetDaysForRun(run);
       const bindings = Array.isArray(run.bindings) ? run.bindings : [];
       const phases = Array.isArray(run.phases) ? run.phases : [];
@@ -447,6 +441,7 @@
               <button class="ghost" data-action="refresh" type="button">${S.icon("mdi:refresh")} Refresh</button>
               <button class="ghost" data-action="edit-run" data-run-id="${S.escapeHtml(run.id)}" type="button">${S.icon("mdi:pencil")} Edit</button>
               <button class="primary" data-action="open-binding" data-run-id="${S.escapeHtml(run.id)}" type="button">${S.icon("mdi:link-variant-plus")} Bind sensor</button>
+              ${run.status === "ended" ? "" : `<button class="ghost finish-action" data-action="open-end-run" data-run-id="${S.escapeHtml(run.id)}" type="button">${S.icon("mdi:check-circle-outline")} Finish run</button>`}
             </div>
             <div class="stage-glyph">${S.icon(S.stageKey(run) === "flower" ? "mdi:flower" : S.stageKey(run) === "veg" ? "mdi:leaf" : "mdi:sprout")}</div>
           </div>
@@ -464,7 +459,7 @@
                 <div><span class="eyebrow">Sensors</span><h2>Live bindings</h2></div>
                 <button class="icon-button" data-action="open-binding" data-run-id="${S.escapeHtml(run.id)}" type="button" title="Add binding">${S.icon("mdi:plus")}</button>
               </div>
-              <p class="hint">Tap a sensor to inspect its run window. Long press opens the Home Assistant entity.</p>
+              <p class="hint">Tap a metric to open its Home Assistant Recorder chart for exactly this run. Sensor history stays in Home Assistant.</p>
               <div class="sensor-grid">
                 ${bindings.length ? bindings.map((binding) => this._renderSensorTile(run, binding)).join("") : `<div class="empty-inline">No sensor bindings yet.</div>`}
               </div>
@@ -484,7 +479,11 @@
                   return `<button class="phase-step ${stateClass}" data-action="select-phase" data-run-id="${S.escapeHtml(run.id)}" data-phase="${S.escapeHtml(stage)}" type="button"><span>${index + 1}</span><div><strong>${S.escapeHtml(stage)}</strong><small>${S.escapeHtml(phase?.start_time ? S.formatDate(phase.start_time) : index < currentIndex ? "Completed" : index === currentIndex ? "Current phase" : "Not started")}</small></div></button>`;
                 }).join("")}
               </div>
-              <p class="hint">Tap a phase to move the run forward. PlantRun keeps one canonical timeline.</p>
+              <div class="custom-phase-control">
+                <label><span>Custom phase</span><input data-custom-phase value="${S.escapeHtml(this._customPhaseDraft)}" placeholder="e.g. Drying, Flush or Week 4" autocomplete="off" /></label>
+                <button class="ghost" data-action="add-custom-phase" data-run-id="${S.escapeHtml(run.id)}" type="button">${S.icon("mdi:plus")} Add phase</button>
+              </div>
+              <p class="hint">Use a quick stage above or add your own phase. Every change is appended to the run timeline.</p>
             </section>
 
             <section class="panel-block notes-block">
@@ -520,15 +519,19 @@
       return `
         <div class="overlay">
           <button class="overlay-backdrop" data-action="close-wizard" type="button" aria-label="Close new run dialog"></button>
-          <section class="modal" data-modal-card>
+          <section class="modal wizard-modal" data-modal-card>
             <header>
-              <div><span class="eyebrow">Step ${this._wizardStep} of 3</span><h2>New run</h2></div>
+              <div><span class="eyebrow">Guided setup</span><h2>Create a new run</h2></div>
               <button class="icon-button" data-action="close-wizard" type="button" title="Close">${S.icon("mdi:close")}</button>
             </header>
+            <div class="wizard-progress" aria-label="Setup progress">
+              ${[[1, "Basics"], [2, "Cultivar"], [3, "Sensors"]].map(([step, label]) => `<div class="${step === this._wizardStep ? "current" : step < this._wizardStep ? "done" : ""}"><span>${step < this._wizardStep ? S.icon("mdi:check") : step}</span><small>${label}</small></div>`).join("")}
+            </div>
             ${this._wizardStep === 1 ? this._renderWizardBasics() : this._wizardStep === 2 ? this._renderWizardCultivar() : this._renderWizardSensors()}
+            ${this._wizardError ? `<p class="form-error" role="alert">${S.icon("mdi:alert-circle-outline")} ${S.escapeHtml(this._wizardError)}</p>` : ""}
             <footer>
-              <button class="ghost" data-action="wizard-back" type="button" ${this._wizardStep === 1 ? "disabled" : ""}>Back</button>
-              <button class="primary" data-action="${this._wizardStep === 3 ? "create-run" : "wizard-next"}" type="button">${this._wizardStep === 3 ? "Create run" : "Next"}</button>
+              <button class="ghost" data-action="wizard-back" type="button" ${this._wizardStep === 1 ? "disabled" : ""}>${S.icon("mdi:arrow-left")} Back</button>
+              <button class="primary" data-action="${this._wizardStep === 3 ? "create-run" : "wizard-next"}" type="button">${this._wizardStep === 3 ? `${S.icon("mdi:sprout")} Create run` : `Continue ${S.icon("mdi:arrow-right")}`}</button>
             </footer>
           </section>
         </div>
@@ -537,8 +540,9 @@
 
     _renderWizardBasics() {
       return `
+        <div class="step-intro"><span class="step-icon">${S.icon("mdi:sprout-outline")}</span><div><strong>Start with the essentials</strong><p>Name the run so you can recognize it later. Today is preselected, but past starts work too.</p></div></div>
         <div class="form-grid">
-          <label><span>Run name</span><input data-wizard-field="friendly_name" value="${S.escapeHtml(this._wizard.friendly_name)}" placeholder="Tent A · Spring run" autocomplete="off" /></label>
+          <label><span>Run name <em>Required</em></span><input data-wizard-field="friendly_name" value="${S.escapeHtml(this._wizard.friendly_name)}" placeholder="Amnesia · Summer 2026" autocomplete="off" /></label>
           <label><span>Planted date</span><input data-wizard-field="planted_date" value="${S.escapeHtml(this._wizard.planted_date)}" type="date" /></label>
         </div>
         <p class="hint">Keep step 1 dead simple. Name it, set the plant date, move on.</p>
@@ -548,6 +552,7 @@
     _renderWizardCultivar() {
       const targetDays = this._wizard.target_days || this._derivedTargetDays();
       return `
+        <div class="step-intro"><span class="step-icon">${S.icon("mdi:seed-outline")}</span><div><strong>Add cultivar details</strong><p>Optional. Pick a SeedFinder result to prefill the estimated duration, or enter your own cultivar.</p></div></div>
         <div class="form-grid">
           <label><span>Breeder</span><input data-wizard-field="breeder" value="${S.escapeHtml(this._wizard.breeder)}" placeholder="Breeder" autocomplete="off" /></label>
           <label class="search-field"><span>Strain</span>
@@ -573,6 +578,7 @@
         )
         .join("");
       return `
+        <div class="step-intro"><span class="step-icon">${S.icon("mdi:access-point")}</span><div><strong>Connect live sensors</strong><p>Optional. PlantRun links to Home Assistant entities and Recorder history without copying their data.</p></div></div>
         <div class="binding-editor">
           ${rows}
           <button class="ghost" data-action="add-wizard-binding" type="button">${S.icon("mdi:plus")} Add another sensor</button>
@@ -722,7 +728,7 @@
       const endedPhase = phases.find((phase) => String(phase?.name || "").toLowerCase().includes("harvest"));
       return {
         start: started,
-        end: endedPhase?.start_time || new Date().toISOString(),
+        end: run?.end_time || endedPhase?.start_time || new Date().toISOString(),
       };
     }
 
@@ -749,20 +755,9 @@
       const run = this._runs.find((item) => item.id === panel.run_id);
       const binding = run?.bindings?.find((item) => item.id === panel.binding_id || item.sensor_id === panel.entity_id);
       const context = panel.context || this._fallbackHistoryContext(run, binding, panel.entity_id);
-      const history = this._bindingHistory(run, binding).slice(-24);
       const summary = context.orphaned
-        ? "This binding is orphaned right now because the linked Home Assistant sensor no longer exists."
-        : history.length
-          ? `Showing ${history.length} stored PlantRun sample${history.length === 1 ? "" : "s"} inside this run window.`
-          : "No stored PlantRun samples yet for this linked sensor in the current run window.";
-      const points = history
-        .map((point) => {
-          const value = Number(point.value);
-          const label = Number.isFinite(value) ? `${value}` : "—";
-          const timestamp = point.timestamp || point.recorded_at || point.time || "";
-          return `<div class="history-row"><span>${S.escapeHtml(label)}</span><small>${S.escapeHtml(S.formatDate(timestamp))}</small></div>`;
-        })
-        .join("");
+        ? "The linked sensor is no longer available in Home Assistant. Its Recorder history may still exist."
+        : "PlantRun keeps only this run window and entity link. The chart and every sensor sample stay in Home Assistant Recorder.";
       return `
         <div class="overlay">
           <button class="overlay-backdrop" data-action="close-history" type="button" aria-label="Close run window inspector"></button>
@@ -776,11 +771,11 @@
               <p>${S.escapeHtml(summary)}</p>
               <div class="history-window-pill"><span>${S.icon("mdi:calendar-range")} ${S.escapeHtml(S.formatDate(context.run_start))}</span><span>${S.icon("mdi:arrow-right")}</span><span>${S.escapeHtml(S.formatDate(context.run_end))}</span></div>
               <div class="history-status ${context.orphaned ? "orphaned" : "bound"}">${S.escapeHtml(context.orphaned ? "Binding orphaned — sensor missing in Home Assistant" : "Binding healthy — linked Home Assistant sensor resolved")}</div>
-              <p class="hint">PlantRun now tries an experimental Home Assistant history-panel deeplink for this run window. It can preload entity + start/end in the native History panel, but HA more-info still cannot be forced to this exact range.</p>
+              <p class="hint">Open the native History panel to load this entity from planting through harvest. Long-pressing a metric opens the regular entity details.</p>
               ${panel.loading ? `<p class="hint">Loading recorder context…</p>` : ""}
               ${panel.error ? `<p class="hint error-text">${S.escapeHtml(panel.error)}</p>` : ""}
             </div>
-            <div class="history-list">${points || `<div class="empty-inline">No stored samples captured yet.</div>`}</div>
+            <div class="recorder-callout">${S.icon("mdi:database-clock-outline")}<div><strong>Recorder-first by design</strong><span>No duplicate time-series data is stored by PlantRun.</span></div></div>
             <footer>
               <button class="ghost" data-action="open-history-entity" data-entity-id="${S.escapeHtml(panel.entity_id)}" type="button">${S.icon("mdi:open-in-app")} Open entity details</button>
               <button class="ghost" data-action="open-native-history" data-entity-id="${S.escapeHtml(panel.entity_id)}" type="button">${S.icon("mdi:chart-timeline-variant")} Open native history</button>
@@ -828,19 +823,47 @@
       `;
     }
 
+    _renderEndRunModal() {
+      const pending = this._endRunConfirm;
+      if (!pending) return "";
+      return `
+        <div class="overlay" role="dialog" aria-modal="true" aria-label="Finish run">
+          <button class="overlay-backdrop" data-action="close-end-run" type="button" aria-label="Close finish run dialog"></button>
+          <section class="modal compact end-run-modal" data-modal-card>
+            <header>
+              <div><span class="eyebrow">Harvest & archive</span><h2>Finish ${S.escapeHtml(pending.run_name)}?</h2></div>
+              <button class="icon-button" data-action="close-end-run" type="button" title="Close">${S.icon("mdi:close")}</button>
+            </header>
+            <div class="step-intro"><span class="step-icon">${S.icon("mdi:scale-balance")}</span><div><strong>Close the run window</strong><p>The end time is saved now. Linked sensor charts will use planting through this moment.</p></div></div>
+            <div class="form-grid single-column">
+              <label><span>Dry harvest yield (g)</span><input data-end-run-yield value="${S.escapeHtml(pending.dry_yield_grams ?? "")}" type="number" min="0" step="0.1" placeholder="Optional" /></label>
+            </div>
+            <footer>
+              <button class="ghost" data-action="close-end-run" type="button">Cancel</button>
+              <button class="primary" data-action="confirm-end-run" type="button">${S.icon("mdi:archive-arrow-down-outline")} Finish & archive</button>
+            </footer>
+          </section>
+        </div>
+      `;
+    }
+
     render() {
       const themeMode = this._resolvedTheme();
+      const activeCount = this._runs.filter((run) => run.status !== "ended").length;
+      const endedCount = this._runs.length - activeCount;
+      const filterCounts = { active: activeCount, ended: endedCount, all: this._runs.length };
       this.shadowRoot.innerHTML = `
         <style>${this._styles()}</style>
-        <div class="app theme-${S.escapeHtml(themeMode)}">
+        <div class="app theme-${S.escapeHtml(themeMode)} density-${S.escapeHtml(this._density)}">
         <div class="shell">
           <header class="topbar">
-            <div class="brand"><span class="brand-mark" aria-hidden="true">${this._brandMark()}</span><div><strong>PlantRun</strong><span>Home Assistant grow cockpit</span></div></div>
+            <div class="brand"><span class="brand-mark" aria-hidden="true">${this._brandMark()}</span><div><strong>PlantRun</strong><span>Runs, phases & Recorder insights</span></div></div>
             <nav>
-              ${["active", "ended", "all"].map((filter) => `<button class="${this._filter === filter ? "active" : ""}" data-action="filter" data-filter="${filter}" type="button">${filter}</button>`).join("")}
+              ${["active", "ended", "all"].map((filter) => `<button class="${this._filter === filter ? "active" : ""}" data-action="filter" data-filter="${filter}" type="button"><span>${filter === "ended" ? "archive" : filter}</span><small>${filterCounts[filter]}</small></button>`).join("")}
             </nav>
             <div class="top-actions">
-              <button class="icon-button animated" data-action="toggle-theme" type="button" title="Theme">${S.icon(themeMode === "light" ? "mdi:weather-night" : "mdi:white-balance-sunny")}</button>
+              <button class="icon-button animated" data-action="toggle-density" type="button" title="${this._density === "compact" ? "Comfortable layout" : "Compact layout"}">${S.icon(this._density === "compact" ? "mdi:view-dashboard-outline" : "mdi:view-compact-outline")}</button>
+              <button class="icon-button animated" data-action="toggle-theme" type="button" title="Switch to ${themeMode === "light" ? "dark" : "light"} mode">${S.icon(themeMode === "light" ? "mdi:weather-night" : "mdi:white-balance-sunny")}</button>
               <button class="icon-button animated" data-action="toggle-sound" type="button" title="Sound">${S.icon(this._sound ? "mdi:volume-high" : "mdi:volume-off")}</button>
               <button class="primary" data-action="open-wizard" type="button">${S.icon("mdi:plus")} New run</button>
             </div>
@@ -858,6 +881,7 @@
         ${this._renderEditModal()}
         ${this._renderHistoryInspector()}
         ${this._renderPhaseConfirmModal()}
+        ${this._renderEndRunModal()}
         </div>
       `;
       this._hydrateHaSelectors();
@@ -871,6 +895,10 @@
       this._clickSound();
       if (action === "filter") {
         this._filter = target.dataset.filter;
+        const visibleRuns = this._filteredRuns();
+        if (!visibleRuns.some((run) => run.id === this._selectedRunId)) {
+          this._selectedRunId = visibleRuns[0]?.id || "";
+        }
         this.render();
       } else if (action === "select-run") {
         this._selectedRunId = target.dataset.runId;
@@ -881,6 +909,7 @@
       } else if (action === "open-wizard") {
         this._wizardOpen = true;
         this._wizardStep = 1;
+        this._wizardError = "";
         this._wizard = this._blankWizard();
         this._suggestions = [];
         this.render();
@@ -889,9 +918,17 @@
         this._wizardOpen = false;
         this.render();
       } else if (action === "wizard-next") {
+        if (this._wizardStep === 1 && !this._wizard.friendly_name.trim()) {
+          this._wizardError = "Give this run a name before continuing.";
+          this.render();
+          this._focusWizardPrimaryField();
+          return;
+        }
+        this._wizardError = "";
         this._wizardStep = Math.min(3, this._wizardStep + 1);
         this.render();
       } else if (action === "wizard-back") {
+        this._wizardError = "";
         this._wizardStep = Math.max(1, this._wizardStep - 1);
         this.render();
       } else if (action === "add-wizard-binding") {
@@ -920,11 +957,23 @@
       } else if (action === "select-phase") {
         this._phaseDraft = target.dataset.phase;
         this._addPhase(target.dataset.runId);
+      } else if (action === "add-custom-phase") {
+        this._phaseDraft = this._customPhaseDraft.trim();
+        this._addPhase(target.dataset.runId);
       } else if (action === "close-phase-confirm") {
         this._phaseConfirm = null;
         this.render();
       } else if (action === "confirm-phase-change") {
         this._confirmPhaseChange();
+      } else if (action === "open-end-run") {
+        const run = this._runs.find((item) => item.id === target.dataset.runId);
+        if (run) this._endRunConfirm = { run_id: run.id, run_name: run.friendly_name || "this run", dry_yield_grams: run.dry_yield_grams ?? "" };
+        this.render();
+      } else if (action === "close-end-run") {
+        this._endRunConfirm = null;
+        this.render();
+      } else if (action === "confirm-end-run") {
+        this._finishRun();
       } else if (action === "add-note") {
         this._openNewNoteEditor(target.dataset.runId);
       } else if (action === "edit-note") {
@@ -955,6 +1004,10 @@
         this._openEntity(target.dataset.entityId);
       } else if (action === "open-native-history") {
         if (!this._openNativeHistory(this._historyInspector?.context)) this._openEntity(target.dataset.entityId);
+      } else if (action === "toggle-density") {
+        this._density = this._density === "compact" ? "comfortable" : "compact";
+        localStorage.setItem(STORAGE.density, this._density);
+        this.render();
       } else if (action === "toggle-theme") {
         this._theme = this._resolvedTheme() === "dark" ? "light" : "dark";
         localStorage.setItem(STORAGE.theme, this._theme);
@@ -971,11 +1024,19 @@
       if (target.matches("[data-wizard-field]")) {
         const field = target.dataset.wizardField;
         this._wizard = { ...this._wizard, [field]: target.value };
+        if (field === "friendly_name" && target.value.trim()) {
+          this._wizardError = "";
+          this.shadowRoot.querySelector(".form-error")?.remove();
+        }
         if (field === "breeder" || field === "cultivar_name") {
           this._wizard.selected_cultivar = null;
           this._wizard.target_days = "";
           this._scheduleCultivarSearch();
         }
+      } else if (target.matches("[data-end-run-yield]") && this._endRunConfirm) {
+        this._endRunConfirm = { ...this._endRunConfirm, dry_yield_grams: target.value };
+      } else if (target.matches("[data-custom-phase]")) {
+        this._customPhaseDraft = target.value;
       } else if (target.matches("[data-note-edit-text]") && this._noteEditor) {
         this._noteEditor = { ...this._noteEditor, text: target.value };
       } else if (target.matches("[data-detail-field]")) {
@@ -1279,6 +1340,22 @@
       this._phaseConfirm = null;
       this.render();
       await this._hass.callService(DOMAIN, "add_phase", { run_id: pending.run_id, phase_name: pending.next_phase });
+      this._customPhaseDraft = "";
+      await this._refreshRuns();
+    }
+
+    async _finishRun() {
+      const pending = this._endRunConfirm;
+      if (!this._hass || !pending?.run_id) return;
+      this._endRunConfirm = null;
+      this.render();
+      const yieldValue = pending.dry_yield_grams === "" ? null : Number(pending.dry_yield_grams);
+      if (yieldValue !== null && Number.isFinite(yieldValue)) {
+        await this._hass.callService(DOMAIN, "update_run", { run_id: pending.run_id, dry_yield_grams: yieldValue });
+      }
+      await this._hass.callService(DOMAIN, "end_run", { run_id: pending.run_id });
+      this._filter = "ended";
+      this._selectedRunId = pending.run_id;
       await this._refreshRuns();
     }
 
@@ -1486,25 +1563,25 @@
         button, input, select, textarea { font:inherit; }
         button { cursor:pointer; }
         .app.theme-dark {
-          --primary-background-color:#111415;
-          --card-background-color:#1b1f20;
-          --primary-text-color:#edf2ec;
-          --secondary-text-color:#9ca69d;
-          --divider-color:#51605a;
-          --success-color:#55d66a;
-          --surface-strong:#232928;
-          --surface-soft:#1c2221;
-          --surface-raised:#28302e;
-          --border-strong:#6d7a73;
+          --primary-background-color:#121615;
+          --card-background-color:#1a201e;
+          --primary-text-color:#f1f5f1;
+          --secondary-text-color:#a4aea7;
+          --divider-color:#44504b;
+          --success-color:#6cdb83;
+          --surface-strong:#222a27;
+          --surface-soft:#1c2421;
+          --surface-raised:#27312d;
+          --border-strong:#59665f;
           color-scheme:dark;
         }
         .app.theme-light {
-          --primary-background-color:#e6ede5;
-          --card-background-color:#f8fbf6;
-          --primary-text-color:#18211a;
-          --secondary-text-color:#516250;
-          --divider-color:#aab9aa;
-          --success-color:#2f9c4d;
+          --primary-background-color:#f1f4ef;
+          --card-background-color:#fbfcfa;
+          --primary-text-color:#172019;
+          --secondary-text-color:#5e6b61;
+          --divider-color:#c6cec6;
+          --success-color:#299447;
           --surface-strong:#ffffff;
           --surface-soft:#eef3eb;
           --surface-raised:#f3f7f1;
@@ -1513,14 +1590,14 @@
           --hero-muted:#274430;
           color-scheme:light;
         }
-        .shell { min-height:100vh; padding:18px; background:
+        .shell { min-height:100vh; padding:20px clamp(12px,2vw,28px) 32px; background:
           radial-gradient(circle at 18% 0%, color-mix(in srgb, var(--success-color,#2fc46b) 18%, transparent), transparent 32%),
           linear-gradient(180deg, color-mix(in srgb, var(--card-background-color,#171b1c) 92%, #123021), var(--primary-background-color,#111416)); }
         .app.theme-light .shell { background:
           radial-gradient(circle at 12% 0%, rgba(80, 170, 95, .18), transparent 34%),
           radial-gradient(circle at 100% 0%, rgba(255,255,255,.7), transparent 28%),
-          linear-gradient(180deg, #f5f9f3 0%, var(--primary-background-color,#e6ede5) 56%, #dde8dc 100%); }
-        .topbar { display:grid; grid-template-columns:minmax(220px,1fr) auto minmax(220px,1fr); align-items:center; gap:16px; max-width:1480px; margin:0 auto 14px; }
+          linear-gradient(180deg, #fafbf9 0%, var(--primary-background-color,#f1f4ef) 54%, #e9eee8 100%); }
+        .topbar { display:grid; grid-template-columns:minmax(220px,1fr) auto minmax(220px,1fr); align-items:center; gap:16px; max-width:1360px; margin:0 auto 16px; }
         .brand, .top-actions, nav, .hero-actions, .block-head, .inline-form, .sensor-head { display:flex; align-items:center; gap:10px; }
         .brand { min-width:0; }
         .brand-mark, .plant-mark { display:grid; place-items:center; width:42px; height:42px; border-radius:14px; background:color-mix(in srgb, var(--success-color,#31c76b) 18%, var(--card-background-color,#1b2020)); color:var(--success-color,#31c76b); box-shadow:inset 0 1px rgba(255,255,255,.16); overflow:hidden; }
@@ -1534,13 +1611,16 @@
         .brand strong { display:block; font-size:19px; }
         .brand span:last-child, .hint, small, .run-row-main span, .eyebrow { color:var(--secondary-text-color,#98a29a); }
         nav { justify-content:center; padding:4px; border-radius:999px; background:color-mix(in srgb, var(--card-background-color,#1f2424) 82%, transparent); border:1px solid color-mix(in srgb, var(--divider-color,#4b5551) 55%, transparent); }
-        nav button { border:0; border-radius:999px; padding:8px 16px; background:transparent; color:var(--secondary-text-color,#98a29a); text-transform:capitalize; }
+        nav button { border:0; border-radius:999px; padding:8px 13px; background:transparent; color:var(--secondary-text-color,#98a29a); text-transform:capitalize; display:flex; align-items:center; gap:7px; }
+        nav button small { display:grid; place-items:center; min-width:20px; height:20px; padding:0 6px; border-radius:999px; background:color-mix(in srgb, currentColor 10%, transparent); color:inherit; font-size:10px; font-weight:800; }
         nav button.active { color:var(--primary-text-color,#fff); background:color-mix(in srgb, var(--primary-text-color,#fff) 10%, transparent); }
         .top-actions { justify-content:flex-end; }
-        main { max-width:1480px; margin:0 auto; display:grid; grid-template-columns:330px minmax(0,1fr); gap:14px; }
+        main { max-width:1360px; margin:0 auto; display:grid; grid-template-columns:286px minmax(0,1fr); gap:16px; }
         .sidebar, .detail, .panel-block, .modal { border:1px solid color-mix(in srgb, var(--divider-color,#4b5551) 55%, transparent); background:color-mix(in srgb, var(--card-background-color,#1c2121) 88%, transparent); box-shadow:0 18px 50px rgba(0,0,0,.18); backdrop-filter:blur(18px); }
         .app.theme-light .sidebar, .app.theme-light .detail, .app.theme-light .panel-block, .app.theme-light .modal { background:rgba(255,255,255,.92); border-color:color-mix(in srgb, var(--border-strong,#97a997) 72%, white); }
-        .sidebar { min-height:calc(100vh - 100px); border-radius:26px; padding:10px; display:flex; flex-direction:column; gap:8px; }
+        .sidebar { min-height:calc(100vh - 106px); border-radius:24px; padding:10px; display:flex; flex-direction:column; gap:8px; }
+        .run-list-head { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:8px 8px 10px; border-bottom:1px solid color-mix(in srgb, var(--divider-color,#52605a) 38%, transparent); margin-bottom:2px; }
+        .run-list-head strong, .run-list-head span { display:block; }
         .run-row { width:100%; border:0; display:grid; grid-template-columns:auto minmax(0,1fr) auto; align-items:center; gap:12px; text-align:left; padding:12px; border-radius:18px; background:transparent; color:inherit; transition:transform .18s ease, background .18s ease; }
         .run-row:hover { transform:translateY(-1px); background:color-mix(in srgb, var(--primary-text-color,#fff) 7%, transparent); }
         .run-row.selected { background:color-mix(in srgb, var(--success-color,#31c76b) 16%, transparent); }
@@ -1551,8 +1631,8 @@
         .ring { --progress:0; display:grid; place-items:center; width:48px; height:48px; border-radius:50%; font-size:11px; font-weight:700; background:conic-gradient(var(--success-color,#31c76b) calc(var(--progress) * 1%), color-mix(in srgb, var(--divider-color,#52605a) 50%, transparent) 0); position:relative; }
         .ring:after { content:""; position:absolute; inset:5px; border-radius:inherit; background:var(--card-background-color,#1c2121); z-index:-0; }
         .ring { isolation:isolate; }
-        .detail { min-height:calc(100vh - 100px); border-radius:30px; padding:14px; overflow:hidden; }
-        .hero { position:relative; min-height:245px; border-radius:24px; padding:24px; display:flex; justify-content:space-between; gap:20px; overflow:hidden; background:linear-gradient(135deg, color-mix(in srgb, var(--success-color,#31c76b) 20%, #101615), color-mix(in srgb, var(--card-background-color,#202524) 90%, #223928)); }
+        .detail { min-height:calc(100vh - 106px); border-radius:26px; padding:12px; overflow:hidden; }
+        .hero { position:relative; min-height:188px; border-radius:20px; padding:22px; display:flex; justify-content:space-between; gap:20px; overflow:hidden; background:linear-gradient(135deg, color-mix(in srgb, var(--success-color,#31c76b) 20%, #101615), color-mix(in srgb, var(--card-background-color,#202524) 90%, #223928)); }
         .hero.flower { background:linear-gradient(135deg, rgba(95,73,34,.72), color-mix(in srgb, var(--card-background-color,#202524) 92%, #2b2416)); }
         .hero.has-image { background-image:linear-gradient(135deg, rgba(9,18,11,.72), rgba(12,25,15,.42) 52%, rgba(8,15,10,.78)), var(--hero-image); background-size:cover, cover; background-position:center, center; background-repeat:no-repeat, no-repeat; }
         .hero.has-image.flower { background-image:linear-gradient(135deg, rgba(48,34,12,.68), rgba(67,52,23,.36) 52%, rgba(34,23,9,.74)), var(--hero-image); }
@@ -1560,29 +1640,32 @@
         .app.theme-light .hero.flower { background:linear-gradient(135deg, #f1e3c8 0%, #faf4e9 52%, #ecdfc1 100%); }
         .app.theme-light .hero.has-image { background-image:linear-gradient(135deg, rgba(241,248,242,.72), rgba(230,241,232,.46) 48%, rgba(217,232,219,.8)), var(--hero-image); }
         .app.theme-light .hero.has-image.flower { background-image:linear-gradient(135deg, rgba(248,242,233,.74), rgba(242,232,214,.48) 48%, rgba(233,220,193,.82)), var(--hero-image); }
-        .hero h1 { margin:8px 0; font-size:clamp(32px,4vw,64px); line-height:.95; letter-spacing:0; max-width:780px; }
+        .hero h1 { margin:8px 0; font-size:clamp(32px,3.2vw,52px); line-height:1; letter-spacing:-.035em; max-width:780px; }
         .hero p { margin:0; color:color-mix(in srgb, var(--primary-text-color,#fff) 72%, transparent); font-size:16px; }
         .app.theme-light .hero p, .app.theme-light .hero .eyebrow { color:var(--hero-muted,#274430); }
         .hero-actions { align-self:flex-start; flex-wrap:wrap; justify-content:flex-end; z-index:1; }
-        .stage-glyph { position:absolute; right:18px; bottom:-34px; color:rgba(255,255,255,.09); --mdc-icon-size:210px; transform:rotate(-8deg); pointer-events:none; }
+        .stage-glyph { position:absolute; right:18px; bottom:-34px; color:rgba(255,255,255,.09); --mdc-icon-size:176px; transform:rotate(-8deg); pointer-events:none; }
         .app.theme-light .stage-glyph { color:rgba(41, 86, 51, .14); }
         .stat-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; margin:12px 0; }
         .stat-grid div { padding:15px 16px; border-radius:18px; background:color-mix(in srgb, var(--primary-text-color,#fff) 6%, transparent); }
         .app.theme-light .stat-grid div { background:rgba(255,255,255,.78); border:1px solid rgba(126, 150, 127, .18); }
         .stat-grid span { display:block; color:var(--secondary-text-color,#98a29a); font-size:12px; margin-bottom:4px; }
         .stat-grid strong { font-size:20px; }
-        .content-grid { display:grid; grid-template-columns:1.15fr .85fr; gap:16px; align-items:start; margin-top:14px; }
+        .content-grid { display:grid; grid-template-columns:1.35fr .65fr; gap:12px; align-items:start; margin-top:12px; }
         .panel-block { border-radius:22px; padding:18px; }
         .panel-block h2, .modal h2 { margin:2px 0 0; font-size:18px; }
         .eyebrow { text-transform:uppercase; letter-spacing:.12em; font-size:11px; font-weight:800; }
-        .sensor-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(185px,1fr)); gap:10px; margin-top:10px; }
+        .sensor-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(205px,1fr)); gap:10px; margin-top:12px; }
         .sensor-tile { border-radius:20px; padding:14px; background:linear-gradient(180deg, color-mix(in srgb, var(--primary-text-color,#fff) 7%, transparent), color-mix(in srgb, var(--primary-text-color,#fff) 4%, transparent)); border:1px solid color-mix(in srgb, var(--divider-color,#52605a) 38%, transparent); transition:transform .18s ease, border-color .18s ease, box-shadow .18s ease; user-select:none; touch-action:manipulation; box-shadow:inset 0 1px rgba(255,255,255,.06); }
         .app.theme-light .sensor-tile { background:linear-gradient(180deg, #ffffff 0%, var(--surface-raised,#f3f7f1) 100%); border-color:rgba(126, 150, 127, .26); box-shadow:0 10px 24px rgba(40, 69, 44, .08), inset 0 1px rgba(255,255,255,.95); }
         .sensor-tile:hover, .sensor-tile.pulse { transform:translateY(-2px); border-color:color-mix(in srgb, var(--success-color,#31c76b) 52%, transparent); box-shadow:0 14px 28px rgba(0,0,0,.16), inset 0 1px rgba(255,255,255,.08); }
         .app.theme-light .sensor-tile:hover, .app.theme-light .sensor-tile.pulse { box-shadow:0 16px 30px rgba(40, 69, 44, .13), inset 0 1px rgba(255,255,255,.95); }
         .metric-badge { display:grid; place-items:center; width:34px; height:34px; border-radius:12px; background:color-mix(in srgb, var(--success-color,#31c76b) 16%, transparent); color:var(--success-color,#31c76b); }
         .sensor-tile strong, .sensor-tile small, .sensor-state { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-        .sensor-state { margin-top:8px; font-size:24px; font-weight:800; }
+        .sensor-state { margin-top:8px; font-size:26px; font-weight:800; letter-spacing:-.03em; }
+        .recorder-link { display:grid; gap:6px; margin-top:16px; padding-top:12px; border-top:1px solid color-mix(in srgb, var(--divider-color,#52605a) 38%, transparent); color:var(--secondary-text-color,#98a29a); font-size:11px; }
+        .recorder-link span, .recorder-link strong { display:flex; align-items:center; gap:6px; }
+        .recorder-link strong { color:var(--success-color,#31c76b); font-size:12px; }
         .sensor-meta { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:10px; color:var(--secondary-text-color,#98a29a); font-size:12px; }
         .sensor-meta span:last-child { display:inline-flex; align-items:center; gap:5px; }
         .spark { height:54px; display:flex; align-items:end; gap:4px; margin-top:12px; }
@@ -1597,12 +1680,17 @@
         .phase-step.done span, .phase-step.current span { background:color-mix(in srgb, var(--success-color,#31c76b) 22%, transparent); color:var(--success-color,#31c76b); }
         .phase-step.current { border-color:color-mix(in srgb, var(--success-color,#31c76b) 45%, transparent); box-shadow:0 0 0 1px color-mix(in srgb, var(--success-color,#31c76b) 24%, transparent); }
         .phase-step small { display:block; margin-top:3px; color:var(--secondary-text-color,#98a29a); }
+        .custom-phase-control { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:10px; align-items:end; margin-top:14px; padding-top:14px; border-top:1px solid color-mix(in srgb, var(--divider-color,#52605a) 38%, transparent); }
         .note { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:14px; align-items:start; padding:18px 18px 16px; border-radius:22px; background:color-mix(in srgb, var(--primary-text-color,#fff) 5%, transparent); }
         .note-copy { display:grid; gap:10px; }
         .note p { margin:0; line-height:1.55; white-space:pre-wrap; }
         .note small { display:block; }
         .note-actions { display:flex; gap:8px; }
         .notes-block { grid-column:1 / -1; margin-top:4px; }
+        .density-compact .hero { min-height:154px; }
+        .density-compact .panel-block { padding:14px; }
+        .density-compact .sensor-tile { padding:12px; }
+        .density-compact .stat-grid div { padding:11px 13px; }
         .empty-panel, .empty-detail, .empty-inline { display:grid; place-items:center; align-content:center; gap:12px; min-height:220px; text-align:center; color:var(--secondary-text-color,#98a29a); padding:22px; }
         .empty-inline { min-height:130px; border:1px dashed color-mix(in srgb, var(--divider-color,#52605a) 60%, transparent); border-radius:18px; }
         button.primary, button.ghost, .icon-button { border:1px solid color-mix(in srgb, var(--divider-color,#52605a) 55%, transparent); min-height:38px; border-radius:14px; display:inline-flex; align-items:center; justify-content:center; gap:8px; color:inherit; transition:transform .16s ease, background .16s ease, border-color .16s ease, box-shadow .16s ease; }
@@ -1619,6 +1707,7 @@
         button:hover { transform:translateY(-1px); }
         button:disabled { opacity:.45; cursor:not-allowed; transform:none; }
         .danger { color:var(--error-color,#ef5350); }
+        .finish-action { color:var(--success-color,#31c76b); }
         .animated ha-icon { transition:transform .28s cubic-bezier(.2,.8,.2,1); }
         .animated:hover ha-icon { transform:rotate(-18deg) scale(1.08); }
         input, select, textarea { width:100%; border:1px solid color-mix(in srgb, var(--divider-color,#52605a) 55%, transparent); border-radius:14px; min-height:42px; padding:10px 12px; background:var(--surface-strong, color-mix(in srgb, var(--primary-text-color,#fff) 7%, transparent)); color:var(--primary-text-color,#fff); outline:none; }
@@ -1629,12 +1718,15 @@
         .overlay { position:absolute; inset:0; z-index:20; display:grid; place-items:center; padding:22px; }
         .overlay-backdrop { position:absolute; inset:0; border:0; background:rgba(0,0,0,.34); backdrop-filter:blur(8px); }
         .modal { width:min(760px,100%); max-height:min(820px,calc(100vh - 44px)); overflow:auto; border-radius:26px; padding:18px; }
+        .wizard-modal { width:min(700px,100%); }
         .modal.compact { width:min(560px,100%); }
         .modal, .detail, .sidebar, .panel-block { position:relative; z-index:1; }
         .modal header, .modal footer { display:flex; align-items:center; justify-content:space-between; gap:12px; }
         .modal footer { margin-top:16px; justify-content:flex-end; }
         .form-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin-top:16px; }
+        .form-grid.single-column { grid-template-columns:1fr; }
         label { display:grid; gap:7px; color:var(--secondary-text-color,#98a29a); font-size:13px; font-weight:700; }
+        label em { margin-left:6px; color:var(--success-color,#31c76b); font-size:10px; font-style:normal; text-transform:uppercase; letter-spacing:.08em; }
         label input, label select, label textarea, label .ha-entity-selector { color:var(--primary-text-color,#fff); font-weight:500; }
         .app.theme-light label input, .app.theme-light label select, .app.theme-light label textarea, .app.theme-light label .ha-entity-selector { color:var(--primary-text-color,#18211a); }
         .field-hint { margin:6px 2px 0; color:var(--secondary-text-color,#98a29a); font-size:12px; font-weight:600; }
@@ -1645,6 +1737,20 @@
         .suggestions button { border:0; border-radius:14px; padding:10px 12px; background:color-mix(in srgb, var(--success-color,#31c76b) 12%, transparent); color:inherit; text-align:left; display:grid; gap:2px; transition:transform .14s ease, background .14s ease; }
         .suggestions button:hover { transform:translateY(-1px); background:color-mix(in srgb, var(--success-color,#31c76b) 18%, transparent); }
         .binding-edit-row { display:grid; grid-template-columns:160px minmax(0,1fr) 38px; gap:10px; align-items:center; }
+        .wizard-progress { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin:18px 0; }
+        .wizard-progress div { position:relative; display:flex; align-items:center; gap:8px; color:var(--secondary-text-color,#98a29a); }
+        .wizard-progress div:not(:last-child):after { content:""; height:1px; flex:1; background:color-mix(in srgb, var(--divider-color,#52605a) 55%, transparent); }
+        .wizard-progress span { display:grid; place-items:center; width:28px; height:28px; flex:0 0 auto; border-radius:50%; background:var(--surface-soft,#1c2221); border:1px solid color-mix(in srgb, var(--divider-color,#52605a) 55%, transparent); font-size:11px; font-weight:800; }
+        .wizard-progress .current, .wizard-progress .done { color:var(--primary-text-color,#fff); }
+        .wizard-progress .current span, .wizard-progress .done span { background:var(--success-color,#31c76b); color:#07110b; border-color:transparent; }
+        .step-intro { display:flex; align-items:flex-start; gap:13px; padding:14px; border-radius:18px; background:color-mix(in srgb, var(--success-color,#31c76b) 9%, transparent); }
+        .step-intro p { margin:4px 0 0; color:var(--secondary-text-color,#98a29a); line-height:1.45; font-size:13px; }
+        .step-icon { display:grid; place-items:center; width:38px; height:38px; flex:0 0 auto; border-radius:13px; background:color-mix(in srgb, var(--success-color,#31c76b) 18%, transparent); color:var(--success-color,#31c76b); }
+        .form-error { display:flex; align-items:center; gap:8px; margin:12px 0 0; padding:10px 12px; border-radius:12px; background:color-mix(in srgb, var(--error-color,#ef5350) 12%, transparent); color:var(--error-color,#ef5350); font-size:13px; font-weight:700; }
+        .recorder-callout { display:flex; align-items:center; gap:12px; padding:14px; border-radius:16px; background:color-mix(in srgb, var(--success-color,#31c76b) 9%, transparent); color:var(--success-color,#31c76b); }
+        .recorder-callout > ha-icon { --mdc-icon-size:30px; }
+        .recorder-callout strong, .recorder-callout span { display:block; }
+        .recorder-callout span { margin-top:3px; color:var(--secondary-text-color,#98a29a); font-size:12px; }
         .confirm-copy { margin:16px 0 0; color:var(--secondary-text-color,#98a29a); line-height:1.5; }
         .history-modal { display:grid; gap:14px; }
         .history-summary { display:grid; gap:8px; }
@@ -1672,7 +1778,18 @@
           .top-actions { justify-content:flex-start; flex-wrap:wrap; }
           .sidebar, .detail { min-height:auto; }
           .hero { min-height:220px; flex-direction:column; }
-          .form-grid, .binding-edit-row { grid-template-columns:1fr; }
+          .form-grid, .binding-edit-row, .custom-phase-control { grid-template-columns:1fr; }
+        }
+        @media (max-width: 620px) {
+          .topbar { gap:12px; }
+          .brand span:last-child, .top-actions [data-action="toggle-sound"] { display:none; }
+          nav { overflow:auto; justify-content:flex-start; }
+          .hero { min-height:210px; padding:18px; }
+          .stat-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+          .sensor-grid { grid-template-columns:1fr; }
+          .wizard-progress small { display:none; }
+          .wizard-progress div { gap:4px; }
+          .modal { border-radius:22px; padding:16px; }
         }
       `;
     }
