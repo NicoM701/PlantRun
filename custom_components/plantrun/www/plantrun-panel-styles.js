@@ -31,6 +31,7 @@ export const panelStyles = String.raw`
           --hero-muted:#274430;
           color-scheme:light;
         }
+        .app { color:var(--primary-text-color,#edf2ec); }
         .shell { min-height:100vh; padding:20px clamp(12px,2vw,28px) 32px; background:
           radial-gradient(circle at 18% 0%, color-mix(in srgb, var(--success-color,#2fc46b) 18%, transparent), transparent 32%),
           linear-gradient(180deg, color-mix(in srgb, var(--card-background-color,#171b1c) 92%, #123021), var(--primary-background-color,#111416)); }
@@ -79,8 +80,8 @@ export const panelStyles = String.raw`
         .hero.has-image.flower { background-image:linear-gradient(135deg, rgba(48,34,12,.68), rgba(67,52,23,.36) 52%, rgba(34,23,9,.74)), var(--hero-image); }
         .app.theme-light .hero { background:linear-gradient(135deg, #d9efdc 0%, #edf7ee 48%, #e3efe2 100%); color:var(--hero-text,#102114); border:1px solid rgba(116, 149, 118, .28); box-shadow:inset 0 1px rgba(255,255,255,.9); }
         .app.theme-light .hero.flower { background:linear-gradient(135deg, #f1e3c8 0%, #faf4e9 52%, #ecdfc1 100%); }
-        .app.theme-light .hero.has-image { background-image:linear-gradient(135deg, rgba(241,248,242,.72), rgba(230,241,232,.46) 48%, rgba(217,232,219,.8)), var(--hero-image); }
-        .app.theme-light .hero.has-image.flower { background-image:linear-gradient(135deg, rgba(248,242,233,.74), rgba(242,232,214,.48) 48%, rgba(233,220,193,.82)), var(--hero-image); }
+        .app.theme-light .hero.has-image { background-image:linear-gradient(135deg, rgba(241,248,242,.94), rgba(230,241,232,.88) 48%, rgba(217,232,219,.95)), var(--hero-image); }
+        .app.theme-light .hero.has-image.flower { background-image:linear-gradient(135deg, rgba(248,242,233,.95), rgba(242,232,214,.9) 48%, rgba(233,220,193,.96)), var(--hero-image); }
         .hero h1 { margin:8px 0; font-size:clamp(32px,3.2vw,52px); line-height:1; letter-spacing:-.035em; max-width:780px; }
         .hero p { margin:0; color:color-mix(in srgb, var(--primary-text-color,#fff) 72%, transparent); font-size:16px; }
         .app.theme-light .hero p, .app.theme-light .hero .eyebrow { color:var(--hero-muted,#274430); }
@@ -232,4 +233,3 @@ export const panelStyles = String.raw`
           .wizard-progress div { gap:4px; }
           .modal { border-radius:22px; padding:16px; }
         }`;
-

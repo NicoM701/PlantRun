@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.1
+
+- Fixed light-mode text inheritance when Home Assistant itself uses a dark theme.
+- Reduced distracting low-quality cultivar imagery behind the light hero surface.
+
 ## 0.3.0
 
 - Rebuilt the sidebar frontend as native ES modules with explicit API, domain,
