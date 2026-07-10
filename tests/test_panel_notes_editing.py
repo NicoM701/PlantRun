@@ -1,14 +1,11 @@
-from pathlib import Path
 import unittest
 
-
-ROOT = Path(__file__).resolve().parents[1]
-PANEL_PATH = ROOT / "custom_components" / "plantrun" / "www" / "plantrun-panel.js"
+from tests.dashboard_js_test_utils import load_panel_source
 
 
 class PanelNotesEditingTests(unittest.TestCase):
     def test_notes_support_create_edit_delete_and_datetime_display(self):
-        source = PANEL_PATH.read_text(encoding="utf-8")
+        source = load_panel_source()
 
         self.assertIn("formatDateTime", source)
         self.assertIn('data-action="add-note"', source)
@@ -20,9 +17,9 @@ class PanelNotesEditingTests(unittest.TestCase):
         self.assertIn('S.formatDateTime(note.timestamp)', source)
         self.assertIn('_openNewNoteEditor(runId)', source)
         self.assertIn('<h2>${isNew ? "New note" : "Edit note"}</h2>', source)
-        self.assertIn('this._hass.callService(DOMAIN, "add_note"', source)
-        self.assertIn('this._hass.callService(DOMAIN, "update_note"', source)
-        self.assertIn('this._hass.callService(DOMAIN, "delete_note"', source)
+        self.assertIn('this._api.callService("add_note"', source)
+        self.assertIn('this._api.callService("update_note"', source)
+        self.assertIn('this._api.callService("delete_note"', source)
         self.assertNotIn('data-note-draft', source)
 
 

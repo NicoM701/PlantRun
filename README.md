@@ -44,6 +44,11 @@ Sensor tiles are recorder-first: PlantRun stores the entity link and run time wi
 then opens Home Assistant's native History panel for the actual chart. It does not
 duplicate Home Assistant time-series data for the redesigned UI.
 
+The sidebar is shipped as dependency-free native ES modules. API transport,
+cultivation-domain calculations, views, dialogs, styles, and the custom-element
+controller are separate modules, so the integration remains easy to extend without
+a frontend build toolchain.
+
 ### Sensor and summary layer
 - per-run status, phase, cultivar, energy, and energy cost sensors
 - proxy sensors for bound Home Assistant entities

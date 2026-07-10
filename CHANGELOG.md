@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.3.0
+
+- Rebuilt the sidebar frontend as native ES modules with explicit API, domain,
+  view, dialog, style, and controller boundaries.
+- Removed direct Home Assistant websocket and service transport from the panel
+  controller in favor of a focused `PlantRunApi` adapter.
+- Centralized phase, target-day, progress, and run-history-window calculations.
+- Extracted Home Assistant panel registration from integration setup.
+- Added a module-set cache fingerprint so changes in imported frontend files are
+  picked up after integration reloads.
+- Preserved sound feedback, light/dark mode, density controls, stored runs, and
+  all public Home Assistant services.
+
 ## 0.2.0
 
 - Redesigned the PlantRun sidebar around a smaller, responsive run workspace.

@@ -5,10 +5,43 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 CARD_JS = ROOT / "custom_components" / "plantrun" / "www" / "plantrun-card.js"
 EDITOR_JS = ROOT / "custom_components" / "plantrun" / "www" / "plantrun-card-editor.js"
-PANEL_JS = ROOT / "custom_components" / "plantrun" / "www" / "plantrun-panel.js"
+PANEL_ENTRY_JS = ROOT / "custom_components" / "plantrun" / "www" / "plantrun-panel.js"
+PANEL_API_JS = ROOT / "custom_components" / "plantrun" / "www" / "plantrun-panel-api.js"
+PANEL_DIALOGS_JS = ROOT / "custom_components" / "plantrun" / "www" / "plantrun-panel-dialogs.js"
+PANEL_DOMAIN_JS = ROOT / "custom_components" / "plantrun" / "www" / "plantrun-panel-domain.js"
+PANEL_STYLES_JS = ROOT / "custom_components" / "plantrun" / "www" / "plantrun-panel-styles.js"
+PANEL_VIEWS_JS = ROOT / "custom_components" / "plantrun" / "www" / "plantrun-panel-views.js"
+
+
+class _PanelBundle:
+    def read_text(self, *, encoding: str) -> str:
+        return "\n".join(
+            path.read_text(encoding=encoding)
+            for path in (
+                PANEL_ENTRY_JS,
+                PANEL_API_JS,
+                PANEL_DIALOGS_JS,
+                PANEL_DOMAIN_JS,
+                PANEL_STYLES_JS,
+                PANEL_VIEWS_JS,
+            )
+        )
+
+
+PANEL_JS = _PanelBundle()
 
 
 class DashboardJsContractsTests(unittest.TestCase):
+    def test_panel_uses_explicit_api_domain_and_style_modules(self):
+        entry_source = PANEL_ENTRY_JS.read_text(encoding="utf-8")
+        self.assertIn('from "./plantrun-panel-api.js"', entry_source)
+        self.assertIn('from "./plantrun-panel-dialogs.js"', entry_source)
+        self.assertIn('from "./plantrun-panel-domain.js"', entry_source)
+        self.assertIn('from "./plantrun-panel-styles.js"', entry_source)
+        self.assertIn('from "./plantrun-panel-views.js"', entry_source)
+        self.assertNotIn("this._hass.callWS", entry_source)
+        self.assertNotIn("this._hass.callService", entry_source)
+
     def test_card_treats_common_placeholder_run_ids_as_unset(self):
         source = CARD_JS.read_text(encoding="utf-8")
         self.assertIn('"<run_id>"', source)
@@ -110,12 +143,14 @@ class DashboardJsContractsTests(unittest.TestCase):
         self.assertIn('data-action="open-end-run"', source)
         self.assertIn('data-end-run-yield', source)
         self.assertIn('data-action="confirm-end-run"', source)
-        self.assertIn('this._hass.callService(DOMAIN, "end_run"', source)
+        self.assertIn('this._api.callService("end_run"', source)
         self.assertIn('this._filter = "ended";', source)
 
     def test_panel_phase_control_is_canonical_timeline_with_confirmation(self):
         source = PANEL_JS.read_text(encoding="utf-8")
-        self.assertIn('const CANONICAL_STAGES = ["Seedling", "Vegetative", "Flowering", "Harvested"]', source)
+        self.assertIn("export const CANONICAL_STAGES", source)
+        for stage in ("Seedling", "Vegetative", "Flowering", "Harvested"):
+            self.assertIn(f'"{stage}"', source)
         self.assertIn('<h2>Phase</h2>', source)
         self.assertIn('data-action="select-phase"', source)
         self.assertIn("_renderPhaseConfirmModal()", source)

@@ -1,5 +1,6 @@
 import asyncio
 import base64
+import hashlib
 import importlib.util
 import json
 import shutil
@@ -527,10 +528,17 @@ class StabilityLifecycleTests(unittest.TestCase):
         manifest_version = json.loads((PLANTRUN_DIR / "manifest.json").read_text(encoding="utf-8"))[
             "version"
         ]
-        panel_mtime = int((PLANTRUN_DIR / "www" / "plantrun-panel.js").stat().st_mtime)
-        expected_url = f"/plantrun_frontend/plantrun-panel.js?v={manifest_version}-{panel_mtime}"
+        module_paths = tuple(sorted((PLANTRUN_DIR / "www").glob("plantrun-panel*.js")))
+        expected_fingerprint = hashlib.sha256(
+            "|".join(
+                f"{path.name}:{path.stat().st_mtime_ns}:{path.stat().st_size}"
+                for path in module_paths
+            ).encode()
+        ).hexdigest()[:12]
+        expected_url = f"/plantrun_frontend/plantrun-panel.js?v={manifest_version}-{expected_fingerprint}"
 
-        self.assertNotIn('import {', panel_script)
+        self.assertIn('import { PlantRunApi }', panel_script)
+        self.assertIn('import { panelStyles }', panel_script)
         self.assertIn('customElements.get("ha-panel-lovelace")', panel_script)
         self.assertEqual(self.integration.PANEL_MODULE_URL, expected_url)
         self.assertEqual(self.integration.PANEL_JS_URL, expected_url)

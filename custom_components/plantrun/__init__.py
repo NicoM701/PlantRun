@@ -1,7 +1,6 @@
 """The PlantRun integration."""
 import base64
 import binascii
-import json
 import logging
 import re
 from datetime import datetime, timezone
@@ -11,8 +10,7 @@ from typing import Any
 
 import voluptuous as vol
 
-from homeassistant.components import frontend, websocket_api
-from homeassistant.components.http import StaticPathConfig
+from homeassistant.components import websocket_api
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, ServiceCall
@@ -37,6 +35,12 @@ from .const import (
 from .coordinator import PlantRunCoordinator
 from .history_context import build_binding_history_context
 from .models import Binding, CultivarSnapshot, Note, Phase, RunData
+from .panel import (
+    PANEL_JS_URL,
+    PANEL_MODULE_URL,
+    async_register_panel,
+    async_unregister_panel,
+)
 from . import providers_seedfinder as _providers_seedfinder
 from .retention import async_capture_daily_rollup, get_summary_with_rollup_fallback
 from .run_resolution import resolve_run_or_raise
@@ -53,9 +57,6 @@ async_search_cultivar_by_query = getattr(
 
 _LOGGER = logging.getLogger(__name__)
 
-PANEL_URL_PATH = "plantrun-dashboard"
-PANEL_TITLE = "PlantRun"
-PANEL_ICON = "mdi:sprout"
 CANONICAL_PHASES = {
     "seedling": "Seedling",
     "vegetative": "Vegetative",
@@ -63,13 +64,6 @@ CANONICAL_PHASES = {
     "harvest": "Harvested",
     "harvested": "Harvested",
 }
-_MANIFEST_VERSION = json.loads((Path(__file__).parent / "manifest.json").read_text(encoding="utf-8"))[
-    "version"
-]
-_PANEL_SCRIPT_PATH = Path(__file__).parent / "www" / "plantrun-panel.js"
-_PANEL_SCRIPT_CACHE_KEY = f"{_MANIFEST_VERSION}-{int(_PANEL_SCRIPT_PATH.stat().st_mtime)}"
-PANEL_MODULE_URL = f"/plantrun_frontend/plantrun-panel.js?v={_PANEL_SCRIPT_CACHE_KEY}"
-PANEL_JS_URL = PANEL_MODULE_URL
 UPLOADS_SUBDIR = "plantrun_uploads"
 _OBSOLETE_LEGACY_ENTITY_IDS = {
     "sensor.plantrun_active_cultivar",
@@ -281,47 +275,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up PlantRun from a config entry."""
     hass.data.setdefault(DOMAIN, {})
 
-    if not hass.data[DOMAIN].get("_static_registered"):
-        # Register frontend static path (HA API changed from sync to async registration).
-        if hasattr(hass.http, "async_register_static_paths"):
-            await hass.http.async_register_static_paths(
-                [
-                    StaticPathConfig(
-                        "/plantrun_frontend",
-                        hass.config.path("custom_components/plantrun/www"),
-                        cache_headers=False,
-                    )
-                ]
-            )
-        else:
-            # Backward-compat for older HA cores.
-            hass.http.register_static_path(
-                "/plantrun_frontend",
-                hass.config.path("custom_components/plantrun/www"),
-                cache_headers=False,
-            )
-        hass.data[DOMAIN]["_static_registered"] = True
-
-    if not hass.data[DOMAIN].get("_panel_registered"):
-        frontend.async_register_built_in_panel(
-            hass,
-            "custom",
-            sidebar_title=PANEL_TITLE,
-            sidebar_icon=PANEL_ICON,
-            frontend_url_path=PANEL_URL_PATH,
-            config={
-                "_panel_custom": {
-                    "name": "plantrun-dashboard-panel",
-                    "embed_iframe": False,
-                    "trust_external": False,
-                    # Keep both for cross-version HA compatibility.
-                    "module_url": PANEL_MODULE_URL,
-                    "js_url": PANEL_JS_URL,
-                }
-            },
-            require_admin=False,
-        )
-        hass.data[DOMAIN]["_panel_registered"] = True
+    await async_register_panel(hass)
 
     if not hass.data[DOMAIN].get("_ws_registered"):
         websocket_api.async_register_command(hass, websocket_get_runs)
@@ -931,9 +885,8 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             isinstance(value, dict) and "storage" in value
             for value in hass.data.get(DOMAIN, {}).values()
         )
-        if not has_other_entries and hass.data.get(DOMAIN, {}).get("_panel_registered"):
-            frontend.async_remove_panel(hass, PANEL_URL_PATH)
-            hass.data[DOMAIN]["_panel_registered"] = False
+        if not has_other_entries:
+            async_unregister_panel(hass)
 
     return unload_ok
 

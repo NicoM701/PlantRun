@@ -23,6 +23,20 @@ What is already in place here:
 
 ## Key architecture surfaces
 
+### Sidebar frontend module boundaries (v0.3+)
+
+- `plantrun-panel.js`: custom-element lifecycle, UI state, interactions, and orchestration
+- `plantrun-panel-api.js`: all Home Assistant websocket and service transport
+- `plantrun-panel-domain.js`: pure run/phase/progress/history-window calculations
+- `plantrun-panel-views.js`: primary run list and run workspace views
+- `plantrun-panel-dialogs.js`: onboarding, edit, history, phase, note, and finish dialogs
+- `plantrun-panel-styles.js`: responsive theme and component styles
+
+Keep direct `hass.callWS` and `hass.callService` calls out of the controller. New
+backend commands belong in `PlantRunApi`, and reusable run calculations belong in
+the domain module. `panel.py` owns sidebar/static-module registration and cache
+identity on the Python side.
+
 ### Frontend
 
 #### `custom_components/plantrun/www/plantrun-panel.js`
