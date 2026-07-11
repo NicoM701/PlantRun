@@ -1,4 +1,4 @@
-import { CANONICAL_STAGES } from "./plantrun-panel-domain.js";
+import { CANONICAL_STAGES } from "./plantrun-panel-domain.js?v=0.4.1";
 
 const stageIcon = (stage) => {
   const value = String(stage || "").toLowerCase();

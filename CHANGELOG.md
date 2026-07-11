@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.1
+
+- Added explicit release cache keys to every imported panel module so Home
+  Assistant cannot combine a new entry module with stale child modules.
+
 ## 0.4.0
 
 - Rebuilt the PlantRun experience around a calm garden overview and a dedicated

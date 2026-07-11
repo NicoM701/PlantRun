@@ -1,6 +1,6 @@
-import { PlantRunApi } from "./plantrun-panel-api.js";
-import { createPanelDialogMethods } from "./plantrun-panel-dialogs.js";
-import { createPanelViewMethods } from "./plantrun-panel-views.js";
+import { PlantRunApi } from "./plantrun-panel-api.js?v=0.4.1";
+import { createPanelDialogMethods } from "./plantrun-panel-dialogs.js?v=0.4.1";
+import { createPanelViewMethods } from "./plantrun-panel-views.js?v=0.4.1";
 import {
   METRICS,
   METRIC_ENTITY_HINTS,
@@ -8,8 +8,8 @@ import {
   progressForRun,
   stageKey,
   targetDaysForRun,
-} from "./plantrun-panel-domain.js";
-import { panelStyles } from "./plantrun-panel-styles.js";
+} from "./plantrun-panel-domain.js?v=0.4.1";
+import { panelStyles } from "./plantrun-panel-styles.js?v=0.4.1";
 
 (() => {
   const TAG = "plantrun-dashboard-panel";

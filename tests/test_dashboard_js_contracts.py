@@ -34,11 +34,8 @@ PANEL_JS = _PanelBundle()
 class DashboardJsContractsTests(unittest.TestCase):
     def test_panel_uses_explicit_api_domain_and_style_modules(self):
         entry_source = PANEL_ENTRY_JS.read_text(encoding="utf-8")
-        self.assertIn('from "./plantrun-panel-api.js"', entry_source)
-        self.assertIn('from "./plantrun-panel-dialogs.js"', entry_source)
-        self.assertIn('from "./plantrun-panel-domain.js"', entry_source)
-        self.assertIn('from "./plantrun-panel-styles.js"', entry_source)
-        self.assertIn('from "./plantrun-panel-views.js"', entry_source)
+        for module in ("api", "dialogs", "domain", "styles", "views"):
+            self.assertIn(f'from "./plantrun-panel-{module}.js?v=0.4.1"', entry_source)
         self.assertNotIn("this._hass.callWS", entry_source)
         self.assertNotIn("this._hass.callService", entry_source)
 
