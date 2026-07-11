@@ -359,11 +359,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         """Handle the add_phase service."""
         run = resolve_target_run(call)
         phase_name = str(call.data["phase_name"]).strip()
-        canonical_phase = CANONICAL_PHASES.get(phase_name.lower())
-        if not canonical_phase:
-            raise ServiceValidationError(
-                "phase_name must be one of Seedling, Vegetative, Flowering, or Harvested."
-            )
+        if not phase_name:
+            raise ServiceValidationError("phase_name must not be empty.")
+        if len(phase_name) > 64:
+            raise ServiceValidationError("phase_name must be 64 characters or fewer.")
+        canonical_phase = CANONICAL_PHASES.get(phase_name.lower(), phase_name)
         now = datetime.now(timezone.utc).isoformat()
 
         current_phase = run.phases[-1].name if run.phases else None

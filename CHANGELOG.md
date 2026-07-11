@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.4.0
+
+- Rebuilt the PlantRun experience around a calm garden overview and a dedicated
+  run workspace instead of the rejected sidebar-and-detail dashboard pattern.
+- Added a prominent responsive lifecycle rail inspired by the supplied phase
+  references, with working canonical and custom phase transitions.
+- Added named plants and editable per-run phase plans to guided setup and run
+  customization without changing the existing storage schema.
+- Reworked live sensor bindings into Recorder-first intelligence cards and notes
+  into a lightweight chronological journal.
+- Added a four-step setup flow, polished light/dark palettes, density and optional
+  sound controls, mobile layouts, keyboard focus states, and reduced-motion support.
+- Preserved existing runs, services, SeedFinder enrichment, bindings, completion,
+  yield, and exact Home Assistant history-window navigation.
+
 ## 0.3.1
 
 - Fixed light-mode text inheritance when Home Assistant itself uses a dark theme.

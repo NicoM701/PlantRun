@@ -13,17 +13,24 @@ export function createPanelDialogMethods(S) {
               <button class="icon-button" data-action="close-wizard" type="button" title="Close">${S.icon("mdi:close")}</button>
             </header>
             <div class="wizard-progress" aria-label="Setup progress">
-              ${[[1, "Basics"], [2, "Cultivar"], [3, "Sensors"]].map(([step, label]) => `<div class="${step === this._wizardStep ? "current" : step < this._wizardStep ? "done" : ""}"><span>${step < this._wizardStep ? S.icon("mdi:check") : step}</span><small>${label}</small></div>`).join("")}
+              ${[[1, "Run"], [2, "Plants"], [3, "Cultivar"], [4, "Sensors"]].map(([step, label]) => `<div class="${step === this._wizardStep ? "current" : step < this._wizardStep ? "done" : ""}"><span>${step < this._wizardStep ? S.icon("mdi:check") : step}</span><small>${label}</small></div>`).join("")}
             </div>
-            ${this._wizardStep === 1 ? this._renderWizardBasics() : this._wizardStep === 2 ? this._renderWizardCultivar() : this._renderWizardSensors()}
+            ${this._wizardStep === 1 ? this._renderWizardBasics() : this._wizardStep === 2 ? this._renderWizardPlants() : this._wizardStep === 3 ? this._renderWizardCultivar() : this._renderWizardSensors()}
             ${this._wizardError ? `<p class="form-error" role="alert">${S.icon("mdi:alert-circle-outline")} ${S.escapeHtml(this._wizardError)}</p>` : ""}
             <footer>
               <button class="ghost" data-action="wizard-back" type="button" ${this._wizardStep === 1 ? "disabled" : ""}>${S.icon("mdi:arrow-left")} Back</button>
-              <button class="primary" data-action="${this._wizardStep === 3 ? "create-run" : "wizard-next"}" type="button">${this._wizardStep === 3 ? `${S.icon("mdi:sprout")} Create run` : `Continue ${S.icon("mdi:arrow-right")}`}</button>
+              <button class="primary" data-action="${this._wizardStep === 4 ? "create-run" : "wizard-next"}" type="button">${this._wizardStep === 4 ? `${S.icon("mdi:sprout")} Create run` : `Continue ${S.icon("mdi:arrow-right")}`}</button>
             </footer>
           </section>
         </div>
       `;
+    },
+
+    _renderWizardPlants() {
+      const plantRows = this._wizard.plants.map((plant, index) => `<div class="inline-field"><input data-wizard-plant="${index}" value="${S.escapeHtml(plant)}" placeholder="Plant ${index + 1} name (optional)" autocomplete="off" /><button class="icon-button danger" data-action="remove-wizard-plant" data-index="${index}" type="button" title="Remove plant">${S.icon("mdi:minus")}</button></div>`).join("");
+      const phases = this._wizard.phase_plan.map((phase, index) => `<span class="editable-chip">${S.icon("mdi:circle-small")} ${S.escapeHtml(phase)}<button data-action="remove-wizard-phase" data-index="${index}" type="button" title="Remove phase">${S.icon("mdi:close")}</button></span>`).join("");
+      return `<div class="step-intro"><span class="step-icon">${S.icon("mdi:flower-tulip-outline")}</span><div><strong>Shape this run</strong><p>Name one or several plants and choose the lifecycle that fits your method. Both stay editable later.</p></div></div>
+        <div class="setup-columns"><section><span class="field-title">Plants</span><div class="stacked-fields">${plantRows}</div><button class="ghost" data-action="add-wizard-plant" type="button">${S.icon("mdi:plus")} Add plant</button></section><section><span class="field-title">Phase plan</span><div class="editable-chips">${phases}</div><div class="inline-field"><input data-wizard-new-phase placeholder="Add Drying, Curing…" autocomplete="off" /><button class="ghost" data-action="add-wizard-phase" type="button">Add</button></div></section></div>`;
     },
 
     _renderWizardBasics() {
@@ -194,6 +201,8 @@ export function createPanelDialogMethods(S) {
                 <div class="suggestions" data-detail-suggestions>${this._detailSuggestionMarkup()}</div>
               </label>
               <label><span>Dry yield (g)</span><input data-detail-field="dry_yield_grams" value="${S.escapeHtml(this._detailDraft.dry_yield_grams ?? "")}" type="number" min="0" step="0.1" /></label>
+              <label class="wide"><span>Plants <em>Comma separated</em></span><input data-detail-field="plants_text" value="${S.escapeHtml(this._detailDraft.plants_text || "")}" placeholder="Khaled, Bobbi, Jackie" /></label>
+              <label class="wide"><span>Phase plan <em>Comma separated</em></span><input data-detail-field="phase_plan_text" value="${S.escapeHtml(this._detailDraft.phase_plan_text || "")}" placeholder="Seedling, Vegetative, Flowering, Drying, Curing, Harvested" /></label>
               <label class="wide"><span>Summary</span><textarea data-detail-field="notes_summary">${S.escapeHtml(this._detailDraft.notes_summary || "")}</textarea></label>
             </div>
             <p class="hint">Estimated total run duration: <strong>${S.escapeHtml(targetDays || "Will be derived from SeedFinder when available")}</strong></p>
@@ -330,4 +339,3 @@ export function createPanelDialogMethods(S) {
     }
   };
 }
-

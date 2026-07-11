@@ -720,6 +720,27 @@ class StabilityLifecycleTests(unittest.TestCase):
         self.assertEqual(len(storage.runs), 1)
         self.assertEqual(storage.runs[0].phases[0].name, "Seedling")
 
+    def test_add_phase_service_accepts_a_custom_phase(self):
+        hass = self._build_hass()
+        entry = sys.modules["homeassistant.config_entries"].ConfigEntry("entry-custom-phase")
+        asyncio.run(self.integration.async_setup_entry(hass, entry))
+
+        storage = FakeStorage.instances[-1]
+        run = self.models.RunData(
+            id="run-custom-phase",
+            friendly_name="Tent Custom",
+            start_time="2026-03-10T00:00:00+00:00",
+            phases=[self.models.Phase(name="Vegetative", start_time="2026-03-10T00:00:00+00:00")],
+        )
+        storage.runs.append(run)
+        storage.active_run_id = run.id
+        handler = hass.services.get_handler(self.integration.DOMAIN, "add_phase")
+
+        asyncio.run(handler(sys.modules["homeassistant.core"].ServiceCall({"run_id": run.id, "phase_name": "Drying"})))
+
+        self.assertEqual(run.phases[-1].name, "Drying")
+        self.assertEqual(run.status, "active")
+
     def test_set_cultivar_service_uses_shared_session(self):
         hass = self._build_hass()
         entry = sys.modules["homeassistant.config_entries"].ConfigEntry("entry-service")

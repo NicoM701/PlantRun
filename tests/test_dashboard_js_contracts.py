@@ -188,6 +188,27 @@ class DashboardJsContractsTests(unittest.TestCase):
         self.assertIn(".hero.has-image", source)
         self.assertIn("var(--hero-image)", source)
 
+    def test_clean_sheet_ui_uses_overview_workspace_and_custom_run_shape(self):
+        source = PANEL_JS.read_text(encoding="utf-8")
+        self.assertIn('_screen = "overview"', source)
+        self.assertIn('_renderOverview()', source)
+        self.assertIn('class="run-gallery"', source)
+        self.assertIn('class="workspace-screen"', source)
+        self.assertIn('class="phase-rail"', source)
+        self.assertNotIn('<aside class="sidebar">', source)
+        self.assertIn('plants: [""]', source)
+        self.assertIn('phase_plan: ["Seedling", "Vegetative", "Flowering", "Harvested"]', source)
+        self.assertIn('data-action="add-wizard-plant"', source)
+        self.assertIn('data-action="add-wizard-phase"', source)
+        self.assertIn('plants_text:', source)
+        self.assertIn('phase_plan_text:', source)
+
+    def test_clean_sheet_ui_respects_mobile_and_reduced_motion(self):
+        styles = PANEL_STYLES_JS.read_text(encoding="utf-8")
+        self.assertIn("@media(max-width:660px)", styles)
+        self.assertIn("@media(prefers-reduced-motion:reduce)", styles)
+        self.assertIn("button:focus-visible", styles)
+
 
 if __name__ == "__main__":
     unittest.main()

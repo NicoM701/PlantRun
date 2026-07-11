@@ -69,6 +69,7 @@ import { panelStyles } from "./plantrun-panel-styles.js";
       this._activeRunId = "";
       this._selectedRunId = "";
       this._filter = "active";
+      this._screen = "overview";
       this._loading = true;
       this._error = "";
       this._wizardOpen = false;
@@ -150,6 +151,8 @@ import { panelStyles } from "./plantrun-panel-styles.js";
         breeder: "",
         cultivar_name: "",
         selected_cultivar: null,
+        plants: [""],
+        phase_plan: ["Seedling", "Vegetative", "Flowering", "Harvested"],
         bindings: [{ metric_type: "temperature", sensor_id: "" }],
       };
     }
@@ -343,18 +346,12 @@ import { panelStyles } from "./plantrun-panel-styles.js";
 
     render() {
       const themeMode = this._resolvedTheme();
-      const activeCount = this._runs.filter((run) => run.status !== "ended").length;
-      const endedCount = this._runs.length - activeCount;
-      const filterCounts = { active: activeCount, ended: endedCount, all: this._runs.length };
       this.shadowRoot.innerHTML = `
         <style>${this._styles()}</style>
         <div class="app theme-${S.escapeHtml(themeMode)} density-${S.escapeHtml(this._density)}">
         <div class="shell">
           <header class="topbar">
-            <div class="brand"><span class="brand-mark" aria-hidden="true">${this._brandMark()}</span><div><strong>PlantRun</strong><span>Runs, phases & Recorder insights</span></div></div>
-            <nav>
-              ${["active", "ended", "all"].map((filter) => `<button class="${this._filter === filter ? "active" : ""}" data-action="filter" data-filter="${filter}" type="button"><span>${filter === "ended" ? "archive" : filter}</span><small>${filterCounts[filter]}</small></button>`).join("")}
-            </nav>
+            <button class="brand" data-action="show-overview" type="button"><span class="brand-mark" aria-hidden="true">${this._brandMark()}</span><div><strong>PlantRun</strong><span>Grow with context</span></div></button>
             <div class="top-actions">
               <button class="icon-button animated" data-action="toggle-density" type="button" title="${this._density === "compact" ? "Comfortable layout" : "Compact layout"}">${S.icon(this._density === "compact" ? "mdi:view-dashboard-outline" : "mdi:view-compact-outline")}</button>
               <button class="icon-button animated" data-action="toggle-theme" type="button" title="Switch to ${themeMode === "light" ? "dark" : "light"} mode">${S.icon(themeMode === "light" ? "mdi:weather-night" : "mdi:white-balance-sunny")}</button>
@@ -362,10 +359,7 @@ import { panelStyles } from "./plantrun-panel-styles.js";
               <button class="primary" data-action="open-wizard" type="button">${S.icon("mdi:plus")} New run</button>
             </div>
           </header>
-          <main>
-            <aside class="sidebar">${this._renderRunList()}</aside>
-            ${this._renderDetail()}
-          </main>
+          <main>${this._screen === "workspace" ? this._renderDetail() : this._renderOverview()}</main>
         </div>
         
         ${this._renderWizard()}
@@ -393,10 +387,15 @@ import { panelStyles } from "./plantrun-panel-styles.js";
         if (!visibleRuns.some((run) => run.id === this._selectedRunId)) {
           this._selectedRunId = visibleRuns[0]?.id || "";
         }
+        this._screen = "overview";
         this.render();
       } else if (action === "select-run") {
         this._selectedRunId = target.dataset.runId;
+        this._screen = "workspace";
         this._detailDraft = null;
+        this.render();
+      } else if (action === "show-overview") {
+        this._screen = "overview";
         this.render();
       } else if (action === "refresh") {
         this._refreshRuns();
@@ -419,7 +418,7 @@ import { panelStyles } from "./plantrun-panel-styles.js";
           return;
         }
         this._wizardError = "";
-        this._wizardStep = Math.min(3, this._wizardStep + 1);
+        this._wizardStep = Math.min(4, this._wizardStep + 1);
         this.render();
       } else if (action === "wizard-back") {
         this._wizardError = "";
@@ -462,6 +461,23 @@ import { panelStyles } from "./plantrun-panel-styles.js";
       } else if (action === "open-end-run") {
         const run = this._runs.find((item) => item.id === target.dataset.runId);
         if (run) this._endRunConfirm = { run_id: run.id, run_name: run.friendly_name || "this run", dry_yield_grams: run.dry_yield_grams ?? "" };
+        this.render();
+      } else if (action === "add-wizard-plant") {
+        this._wizard.plants = [...this._wizard.plants, ""];
+        this.render();
+      } else if (action === "remove-wizard-plant") {
+        this._wizard.plants = this._wizard.plants.filter((_plant, index) => index !== Number(target.dataset.index));
+        if (!this._wizard.plants.length) this._wizard.plants = [""];
+        this.render();
+      } else if (action === "add-wizard-phase") {
+        const input = this.shadowRoot.querySelector("[data-wizard-new-phase]");
+        const phase = input?.value?.trim?.();
+        if (phase && !this._wizard.phase_plan.some((item) => item.toLowerCase() === phase.toLowerCase())) {
+          this._wizard.phase_plan = [...this._wizard.phase_plan, phase];
+          this.render();
+        }
+      } else if (action === "remove-wizard-phase") {
+        if (this._wizard.phase_plan.length > 1) this._wizard.phase_plan = this._wizard.phase_plan.filter((_phase, index) => index !== Number(target.dataset.index));
         this.render();
       } else if (action === "close-end-run") {
         this._endRunConfirm = null;
@@ -527,6 +543,10 @@ import { panelStyles } from "./plantrun-panel-styles.js";
           this._wizard.target_days = "";
           this._scheduleCultivarSearch();
         }
+      } else if (target.matches("[data-wizard-plant]")) {
+        const plants = [...this._wizard.plants];
+        plants[Number(target.dataset.wizardPlant)] = target.value;
+        this._wizard.plants = plants;
       } else if (target.matches("[data-end-run-yield]") && this._endRunConfirm) {
         this._endRunConfirm = { ...this._endRunConfirm, dry_yield_grams: target.value };
       } else if (target.matches("[data-custom-phase]")) {
@@ -747,15 +767,19 @@ import { panelStyles } from "./plantrun-panel-styles.js";
       const run = this._resolveNewlyCreatedRun(name, knownRunIds);
       if (!run) return;
       this._selectedRunId = run.id;
+      this._screen = "workspace";
       const targetDays = Number(this._wizard.target_days);
+      const baseConfig = {
+        plants: this._wizard.plants.map((plant) => plant.trim()).filter(Boolean),
+        phase_plan: this._wizard.phase_plan.map((phase) => phase.trim()).filter(Boolean),
+      };
       if (Number.isFinite(targetDays) && targetDays > 0) {
-        await this._api.callService("update_run", {
-          run_id: run.id,
-          base_config: {
-            target_days: targetDays,
-          },
-        });
+        baseConfig.target_days = targetDays;
       }
+      await this._api.callService("update_run", {
+        run_id: run.id,
+        base_config: baseConfig,
+      });
       if (this._wizard.cultivar_name.trim()) {
         await this._api.callService("set_cultivar", {
           run_id: run.id,
@@ -907,6 +931,8 @@ import { panelStyles } from "./plantrun-panel-styles.js";
         cultivar_searching: false,
         dry_yield_grams: run.dry_yield_grams ?? "",
         notes_summary: run.notes_summary || "",
+        plants_text: Array.isArray(run.base_config?.plants) ? run.base_config.plants.join(", ") : "",
+        phase_plan_text: this._phasePlan(run).join(", "),
       };
       this.render();
     }
@@ -922,14 +948,12 @@ import { panelStyles } from "./plantrun-panel-styles.js";
           planted_date: draft.planted_date || null,
           notes_summary: draft.notes_summary || null,
           dry_yield_grams: draft.dry_yield_grams === "" ? null : Number(draft.dry_yield_grams),
-          ...(Number.isFinite(targetDays) && targetDays > 0
-            ? {
-                base_config: {
-                  ...(this._runs.find((item) => item.id === draft.run_id)?.base_config || {}),
-                  target_days: targetDays,
-                },
-              }
-            : {}),
+          base_config: {
+            ...(this._runs.find((item) => item.id === draft.run_id)?.base_config || {}),
+            ...(Number.isFinite(targetDays) && targetDays > 0 ? { target_days: targetDays, } : {}),
+            plants: String(draft.plants_text || "").split(",").map((item) => item.trim()).filter(Boolean),
+            phase_plan: String(draft.phase_plan_text || "").split(",").map((item) => item.trim()).filter(Boolean),
+          },
         });
         if (draft.cultivar_name?.trim()) {
           await this._api.callService("set_cultivar", {

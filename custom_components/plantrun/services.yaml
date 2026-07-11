@@ -61,7 +61,7 @@ add_phase:
             - first_active
     phase_name:
       name: Phase Name
-      description: The name of the phase (e.g. Seedling, Veg, Flower).
+      description: The canonical or custom phase name (for example Seedling, Vegetative, Flowering, Drying, or Curing).
       required: true
       example: "Seedling"
       selector:

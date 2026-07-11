@@ -28,13 +28,14 @@ PlantRun ships with two UI entry points:
 - **Lovelace card** via `custom:plantrun-card`
 
 Current UI capabilities include:
-- run cards with live metric chips and stage-aware artwork
+- a calm multi-run garden overview and dedicated run workspaces
+- stage-aware run cards, named plants, and prominent lifecycle rails
 - responsive light/dark themes with comfortable and compact density modes
 - detail editing for metadata, notes, bindings, cultivar, breeder, and images
-- a validated 3-step onboarding wizard that keeps cultivar and sensor setup optional
+- a validated 4-step onboarding wizard with editable plants and phase plans
 - theme and layout preferences
 - live cultivar suggestions backed by SeedFinder
-- custom phases alongside the common Seedling, Vegetative, Flowering, and Harvested stages
+- working custom phases alongside the common Seedling, Vegetative, Flowering, and Harvested stages
 - a guided finish flow that records dry yield and archives the completed run
 - note editing/deletion with in-panel confirmation
 - phase changes via in-panel confirmation modal
