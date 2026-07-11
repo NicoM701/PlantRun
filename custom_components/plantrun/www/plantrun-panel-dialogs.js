@@ -1,4 +1,4 @@
-import { METRICS, historyWindowForRun } from "./plantrun-panel-domain.js?v=0.4.1";
+import { METRICS, historyWindowForRun } from "./plantrun-panel-domain.js?v=0.4.2";
 
 export function createPanelDialogMethods(S) {
   return {

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.2
+
+- Improved dark-theme contrast for the highlighted overview statistic and made
+  run-card progress percentages readable inside their rings.
+
 ## 0.4.1
 
 - Added explicit release cache keys to every imported panel module so Home
