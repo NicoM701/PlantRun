@@ -1,4 +1,4 @@
-import { CANONICAL_STAGES } from "./plantrun-panel-domain.js?v=0.5.0";
+import { CANONICAL_STAGES } from "./plantrun-panel-domain.js?v=0.6.0";
 
 const stageIcon = (stage) => {
   const value = String(stage || "").toLowerCase();
@@ -41,6 +41,14 @@ export function createPanelViewMethods(S) {
 
     _plants(run) {
       return this._plantObjects(run).map((plant) => plant.name);
+    },
+
+    _stageAsset(run) {
+      const stage = String(run?.phases?.at?.(-1)?.name || "seedling").toLowerCase();
+      const file = stage.includes("flower") || stage.includes("harvest") || stage.includes("dry")
+        ? "plant-flowering-v1.png"
+        : stage.includes("veg") ? "plant-vegetative-v1.png" : "plant-seedling-v1.png";
+      return `/plantrun_frontend/assets/${file}`;
     },
 
     _wateringState(run, plant) {
@@ -98,7 +106,7 @@ export function createPanelViewMethods(S) {
         const plants = this._plantObjects(run);
         const signal = this._runSignals(run);
         return `<button class="run-card ${S.stageKey(run)}${run.image_url ? " has-image" : ""}" ${this._heroMediaStyle(run)} data-action="select-run" data-run-id="${S.escapeHtml(run.id)}" type="button">
-          <span class="run-image"><span class="run-art" aria-hidden="true">${S.icon(stageIcon(current))}</span><span class="phase-pill">${S.icon(stageIcon(current))} ${S.escapeHtml(current)}</span><span class="ring" style="--progress:${progress}">${progress}%</span></span>
+          <span class="run-image">${run.image_url ? "" : `<img class="stage-plant-card" src="${S.escapeHtml(this._stageAsset(run))}" alt="" />`}<span class="run-art" aria-hidden="true">${S.icon(stageIcon(current))}</span><span class="phase-pill">${S.icon(stageIcon(current))} ${S.escapeHtml(current)}</span><span class="ring" style="--progress:${progress}">${progress}%</span></span>
           <span class="run-card-copy"><span class="status-line ${signal.key}"><i></i>${S.escapeHtml(signal.label)}</span><strong>${S.escapeHtml(run.friendly_name || "Unnamed run")}</strong><span>${S.escapeHtml(run.cultivar?.name || "Cultivar not set")}</span><small>Day ${days} · ${plants.length || "No"} ${plants.length === 1 ? "plant" : "plants"}</small></span>
           <span class="run-card-foot"><span>${S.escapeHtml(signal.detail)}</span>${S.icon("mdi:arrow-right")}</span>
         </button>`;
@@ -111,7 +119,7 @@ export function createPanelViewMethods(S) {
       if (!entries.length) return "";
       return `<section class="plant-section"><div class="section-heading compact-heading"><div><span class="eyebrow">Plants</span><h2>Care at a glance</h2></div><span class="section-caption">Watering is a journal entry, not a guessed health score.</span></div><div class="plant-grid">${entries.map(({ run, plant }) => {
         const state = this._wateringState(run, plant);
-        return `<article class="plant-card ${state.key}"><button class="plant-open" data-action="select-run" data-run-id="${S.escapeHtml(run.id)}" type="button"><span class="plant-avatar" ${this._heroMediaStyle(run)}>${run.image_url ? "" : S.icon("mdi:flower-tulip-outline")}</span><span class="plant-copy"><small>${S.escapeHtml(run.friendly_name)}</small><strong>${S.escapeHtml(plant.name)}</strong><span>${S.escapeHtml(state.detail)}</span></span></button><button class="water-action" data-action="water-plant" data-run-id="${S.escapeHtml(run.id)}" data-plant-id="${S.escapeHtml(plant.id)}" type="button" title="Log watering for ${S.escapeHtml(plant.name)}">${S.icon("mdi:watering-can-outline")} <span>Watered</span></button></article>`;
+        return `<article class="plant-card ${state.key}"><button class="plant-open" data-action="select-run" data-run-id="${S.escapeHtml(run.id)}" type="button"><span class="plant-avatar" ${this._heroMediaStyle(run)}>${run.image_url ? "" : `<img src="${S.escapeHtml(this._stageAsset(run))}" alt="" />`}</span><span class="plant-copy"><small>${S.escapeHtml(run.friendly_name)}</small><strong>${S.escapeHtml(plant.name)}</strong><span>${S.escapeHtml(state.detail)}</span></span></button><button class="water-action" data-action="water-plant" data-run-id="${S.escapeHtml(run.id)}" data-plant-id="${S.escapeHtml(plant.id)}" type="button" title="Log watering for ${S.escapeHtml(plant.name)}">${S.icon("mdi:watering-can-outline")} <span>Watered</span></button></article>`;
       }).join("")}</div></section>`;
     },
 
@@ -150,7 +158,27 @@ export function createPanelViewMethods(S) {
     },
 
     _renderCompletedSummary(run, days, plants) {
-      return `<section class="completion-card"><span class="completion-mark">${S.icon("mdi:check-decagram-outline")}</span><div><span class="eyebrow">Run complete</span><h2>${days} days, fully documented.</h2><p>${S.escapeHtml(run.notes_summary || "This run is archived read-only. Use Correct archive only when stored details need a correction.")}</p><div class="completion-facts"><span><small>Plants</small><strong>${plants.length}</strong></span><span><small>Dry yield</small><strong>${run.dry_yield_grams == null ? "—" : `${run.dry_yield_grams} g`}</strong></span><span><small>Notes</small><strong>${run.notes?.length || 0}</strong></span></div></div><button class="ghost" data-action="edit-run" data-run-id="${S.escapeHtml(run.id)}" type="button">${S.icon("mdi:pencil-outline")} Correct archive</button></section>`;
+      return `<section class="completion-card"><span class="completion-mark">${S.icon("mdi:check-decagram-outline")}</span><div><span class="eyebrow">Harvest overview</span><h2>${days} days, fully documented.</h2><p>${S.escapeHtml(run.notes_summary || "This run is archived read-only. Use Correct archive only when stored details need a correction.")}</p><div class="completion-facts"><span><small>Plants</small><strong>${plants.length}</strong></span><span><small>Dry yield</small><strong>${run.dry_yield_grams == null ? "—" : `${run.dry_yield_grams} g`}</strong></span><span><small>Started</small><strong>${S.escapeHtml(S.formatDate(run.planted_date || run.start_time))}</strong></span><span><small>Harvested</small><strong>${S.escapeHtml(S.formatDate(run.end_time))}</strong></span><span><small>Notes</small><strong>${run.notes?.length || 0}</strong></span></div></div><button class="ghost" data-action="edit-run" data-run-id="${S.escapeHtml(run.id)}" type="button">${S.icon("mdi:pencil-outline")} Correct archive</button></section>`;
+    },
+
+    _renderRunFacts(run, bindings, notes, plants) {
+      const current = run.phases?.at?.(-1)?.name || "Seedling";
+      const days = S.daysBetween(run.planted_date || run.start_time, run.end_time || new Date());
+      const mainFacts = [
+        ["mdi:seed-outline", "Cultivar", run.cultivar?.name || "Not set"],
+        ["mdi:bank-outline", "Breeder", run.cultivar?.breeder || "Not set"],
+        ["mdi:flower-tulip-outline", "Plants", plants.length ? plants.map((plant) => plant.name).join(", ") : "Not named"],
+        ["mdi:calendar-start", "Planted", S.formatDate(run.planted_date || run.start_time)],
+      ];
+      const growFacts = [
+        [stageIcon(current), "Phase", current],
+        ["mdi:progress-clock", "Cycle", `Day ${days} of ${this._targetDaysForRun(run)}`],
+        ["mdi:access-point", "Sensors", `${bindings.length} linked`],
+        ["mdi:notebook-outline", "Journal", `${notes.length} ${notes.length === 1 ? "entry" : "entries"}`],
+        ...bindings.slice(0, 3).map((binding) => [this._metricIcon(binding.metric_type), this._metricLabel(binding.metric_type), this._entityState(binding.sensor_id)]),
+      ];
+      const panel = (title, accent, rows) => `<section class="fact-panel ${accent}"><div class="fact-title"><span></span><h2>${title}</h2></div><div class="fact-list">${rows.map(([icon, label, value]) => `<div><span class="fact-icon">${S.icon(icon)}</span><span><small>${S.escapeHtml(label)}</small><strong>${S.escapeHtml(value)}</strong></span></div>`).join("")}</div></section>`;
+      return `<div class="fact-grid">${panel("Main data", "main-facts", mainFacts)}${panel("Grow info", "grow-facts", growFacts)}</div>`;
     },
 
     _renderWorkspaceNav(run) {
@@ -160,7 +188,7 @@ export function createPanelViewMethods(S) {
 
     _renderWorkspaceOverview(run, bindings, notes, plants) {
       const current = run.phases?.at?.(-1)?.name || "Seedling";
-      return `<section class="workspace-content"><section class="phase-band"><div class="block-head"><div><span class="eyebrow">Lifecycle</span><h2>${S.escapeHtml(current)}</h2></div><span class="subtle-copy">Every change becomes part of the permanent timeline.</span></div>${this._renderPhaseRail(run)}${run.status === "ended" ? "" : `<div class="custom-phase-control"><label><span>Advance to a custom phase</span><input data-custom-phase value="${S.escapeHtml(this._customPhaseDraft)}" placeholder="Drying, Flush, Week 4…" autocomplete="off" /></label><button class="ghost" data-action="add-custom-phase" data-run-id="${S.escapeHtml(run.id)}" type="button">${S.icon("mdi:arrow-right")} Advance</button></div>`}</section><div class="overview-columns"><section class="quiet-card"><span class="eyebrow">Plants</span><h2>${plants.length ? plants.map((plant) => S.escapeHtml(plant.name)).join(" · ") : "No plants named"}</h2><p>${bindings.length} linked ${bindings.length === 1 ? "sensor" : "sensors"} · ${notes.length} journal ${notes.length === 1 ? "entry" : "entries"}</p></section><section class="quiet-card"><span class="eyebrow">Next step</span><h2>${S.escapeHtml(this._runSignals(run).label)}</h2><p>${S.escapeHtml(this._runSignals(run).detail)}</p></section></div></section>`;
+      return `<section class="workspace-content"><section class="phase-band"><div class="block-head"><div><span class="eyebrow">Lifecycle</span><h2>${S.escapeHtml(current)}</h2></div><span class="subtle-copy">Every change becomes part of the permanent timeline.</span></div>${this._renderPhaseRail(run)}${run.status === "ended" ? "" : `<div class="custom-phase-control"><label><span>Advance to a custom phase</span><input data-custom-phase value="${S.escapeHtml(this._customPhaseDraft)}" placeholder="Drying, Flush, Week 4…" autocomplete="off" /></label><button class="ghost" data-action="add-custom-phase" data-run-id="${S.escapeHtml(run.id)}" type="button">${S.icon("mdi:arrow-right")} Advance</button></div>`}</section>${this._renderRunFacts(run, bindings, notes, plants)}<div class="overview-columns"><section class="quiet-card"><span class="eyebrow">Plants</span><h2>${plants.length ? plants.map((plant) => S.escapeHtml(plant.name)).join(" · ") : "No plants named"}</h2><p>${bindings.length} linked ${bindings.length === 1 ? "sensor" : "sensors"} · ${notes.length} journal ${notes.length === 1 ? "entry" : "entries"}</p></section><section class="quiet-card"><span class="eyebrow">Next step</span><h2>${S.escapeHtml(this._runSignals(run).label)}</h2><p>${S.escapeHtml(this._runSignals(run).detail)}</p></section></div></section>`;
     },
 
     _renderWorkspaceClimate(run, bindings) {
@@ -180,7 +208,7 @@ export function createPanelViewMethods(S) {
       const plants = this._plantObjects(run);
       const current = run.phases?.at?.(-1)?.name || "Seedling";
       const progress = this._progress(run);
-      return `<section class="workspace-screen"><button class="back-link" data-action="show-overview" type="button">${S.icon("mdi:arrow-left")} Garden</button><div class="workspace-hero ${S.stageKey(run)}${run.image_url ? " has-image" : ""}" ${this._heroMediaStyle(run)}><div class="hero-copy"><span class="phase-pill">${S.icon(stageIcon(current))} ${S.escapeHtml(current)}</span><h1>${S.escapeHtml(run.friendly_name || "Unnamed run")}</h1><p>${S.escapeHtml(run.cultivar?.name || "Cultivar not set")}${run.cultivar?.breeder ? ` · ${S.escapeHtml(run.cultivar.breeder)}` : ""}</p><div class="plant-chips">${(plants.length ? plants : [{ name: "Plants not named" }]).map((plant) => `<span>${S.icon("mdi:flower-tulip-outline")} ${S.escapeHtml(plant.name)}</span>`).join("")}</div></div><div class="hero-progress"><span class="progress-orbit" style="--progress:${progress}"><strong>${progress}%</strong><small>Day ${days} of ${this._targetDaysForRun(run)}</small></span></div><div class="hero-actions">${run.status === "ended" ? "" : `<button class="ghost" data-action="edit-run" data-run-id="${S.escapeHtml(run.id)}" type="button">${S.icon("mdi:tune-variant")} Details</button><button class="ghost finish-action" data-action="open-end-run" data-run-id="${S.escapeHtml(run.id)}" type="button">${S.icon("mdi:check-circle-outline")} Finish</button>`}</div></div>${run.status === "ended" ? this._renderCompletedSummary(run, days, plants) : ""}${this._renderWorkspaceNav(run)}${this._workspaceTab === "climate" ? this._renderWorkspaceClimate(run, bindings) : this._workspaceTab === "journal" ? this._renderWorkspaceJournal(run, notes) : this._renderWorkspaceOverview(run, bindings, notes, plants)}</section>`;
+      return `<section class="workspace-screen"><button class="back-link" data-action="show-overview" type="button">${S.icon("mdi:arrow-left")} Garden</button><div class="workspace-hero ${S.stageKey(run)}${run.image_url ? " has-image" : ""}" ${this._heroMediaStyle(run)}>${run.image_url ? "" : `<img class="hero-plant-asset" src="${S.escapeHtml(this._stageAsset(run))}" alt="" />`}<div class="hero-copy"><span class="phase-pill">${S.icon(stageIcon(current))} ${S.escapeHtml(current)}</span><h1>${S.escapeHtml(run.friendly_name || "Unnamed run")}</h1><p>${S.escapeHtml(run.cultivar?.name || "Cultivar not set")}${run.cultivar?.breeder ? ` · ${S.escapeHtml(run.cultivar.breeder)}` : ""}</p><div class="plant-chips">${(plants.length ? plants : [{ name: "Plants not named" }]).map((plant) => `<span>${S.icon("mdi:flower-tulip-outline")} ${S.escapeHtml(plant.name)}</span>`).join("")}</div></div><div class="hero-progress"><span class="progress-orbit" style="--progress:${progress}"><strong>${progress}%</strong><small>Day ${days} of ${this._targetDaysForRun(run)}</small></span></div><div class="hero-actions">${run.status === "ended" ? "" : `<button class="ghost" data-action="edit-run" data-run-id="${S.escapeHtml(run.id)}" type="button">${S.icon("mdi:tune-variant")} Details</button><button class="ghost finish-action" data-action="open-end-run" data-run-id="${S.escapeHtml(run.id)}" type="button">${S.icon("mdi:check-circle-outline")} Finish</button>`}</div></div>${run.status === "ended" ? this._renderCompletedSummary(run, days, plants) : ""}${this._renderWorkspaceNav(run)}${this._workspaceTab === "climate" ? this._renderWorkspaceClimate(run, bindings) : this._workspaceTab === "journal" ? this._renderWorkspaceJournal(run, notes) : this._renderWorkspaceOverview(run, bindings, notes, plants)}</section>`;
     },
 
     _renderPersonalizeModal() {

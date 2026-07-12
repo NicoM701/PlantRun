@@ -1,4 +1,4 @@
-import { METRICS, historyWindowForRun } from "./plantrun-panel-domain.js?v=0.5.0";
+import { METRICS, historyWindowForRun } from "./plantrun-panel-domain.js?v=0.6.0";
 
 export function createPanelDialogMethods(S) {
   return {
@@ -241,6 +241,39 @@ export function createPanelDialogMethods(S) {
       };
     },
 
+    _historyStats(points) {
+      const values = (points || []).map((point) => Number(point.value)).filter(Number.isFinite);
+      if (!values.length) return null;
+      return {
+        min: Math.min(...values),
+        max: Math.max(...values),
+        avg: values.reduce((sum, value) => sum + value, 0) / values.length,
+        latest: values.at(-1),
+      };
+    },
+
+    _historyChartMarkup(panel) {
+      const points = Array.isArray(panel?.points) ? panel.points : [];
+      if (panel?.loading) return `<div class="chart-empty loading">${S.icon("mdi:loading")}<strong>Reading Home Assistant Recorder…</strong><span>Nothing is copied into PlantRun.</span></div>`;
+      if (!points.length) return `<div class="chart-empty">${S.icon("mdi:chart-line-variant")}<strong>No numeric Recorder samples in this window</strong><span>The entity may not have recorded numeric states yet.</span></div>`;
+      const width = 720;
+      const height = 230;
+      const padX = 16;
+      const padY = 18;
+      const values = points.map((point) => point.value);
+      const min = Math.min(...values);
+      const max = Math.max(...values);
+      const range = Math.max(max - min, Math.abs(max) * 0.02, 1);
+      const coords = points.map((point, index) => {
+        const x = padX + (index / Math.max(points.length - 1, 1)) * (width - padX * 2);
+        const y = height - padY - ((point.value - min) / range) * (height - padY * 2);
+        return [x, y];
+      });
+      const line = coords.map(([x, y], index) => `${index ? "L" : "M"}${x.toFixed(1)} ${y.toFixed(1)}`).join(" ");
+      const area = `${line} L${coords.at(-1)[0].toFixed(1)} ${height - padY} L${coords[0][0].toFixed(1)} ${height - padY} Z`;
+      return `<div class="recorder-chart"><svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Recorder history chart"><defs><linearGradient id="history-fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="currentColor" stop-opacity=".28"/><stop offset="1" stop-color="currentColor" stop-opacity="0"/></linearGradient></defs>${[.25,.5,.75].map((ratio) => `<line class="chart-gridline" x1="${padX}" x2="${width-padX}" y1="${(height*ratio).toFixed(1)}" y2="${(height*ratio).toFixed(1)}"/>`).join("")}<path class="chart-area" d="${area}"/><path class="chart-line" d="${line}"/><circle class="chart-dot" cx="${coords.at(-1)[0].toFixed(1)}" cy="${coords.at(-1)[1].toFixed(1)}" r="5"/></svg><div class="chart-axis"><span>${S.escapeHtml(S.formatDate(points[0].timestamp))}</span><span>${points.length} samples from Recorder</span><span>${S.escapeHtml(S.formatDate(points.at(-1).timestamp))}</span></div></div>`;
+    },
+
     _renderHistoryInspector() {
       const panel = this._historyInspector;
       if (!panel) return "";
@@ -250,27 +283,25 @@ export function createPanelDialogMethods(S) {
       const summary = context.orphaned
         ? "The linked sensor is no longer available in Home Assistant. Its Recorder history may still exist."
         : "PlantRun keeps only this run window and entity link. The chart and every sensor sample stay in Home Assistant Recorder.";
+      const stats = this._historyStats(panel.points);
+      const unit = this._hass?.states?.[panel.entity_id]?.attributes?.unit_of_measurement || "";
+      const value = (number) => Number.isFinite(number) ? `${Number(number.toFixed(2))}${unit ? ` ${unit}` : ""}` : "—";
       return `
         <div class="overlay">
           <button class="overlay-backdrop" data-action="close-history" type="button" aria-label="Close run window inspector"></button>
-          <section class="modal compact history-modal" data-modal-card>
+          <section class="modal history-modal" data-modal-card role="dialog" aria-modal="true" aria-label="Recorder run chart">
             <header>
-              <div><span class="eyebrow">Run window</span><h2>${S.escapeHtml(this._entityName(panel.entity_id))}</h2></div>
-              <button class="icon-button" data-action="close-history" type="button" title="Close">${S.icon("mdi:close")}</button>
+              <div><span class="eyebrow">Recorder · Run window</span><h2>${S.escapeHtml(this._metricLabel(context.metric_type || binding?.metric_type || "sensor"))}</h2><p>${S.escapeHtml(this._entityName(panel.entity_id))}</p></div>
+              <button class="icon-button" data-action="close-history" type="button" aria-label="Close chart">${S.icon("mdi:close")}</button>
             </header>
-            <div class="history-summary">
-              <strong>${S.escapeHtml(this._metricLabel(context.metric_type || binding?.metric_type || "sensor"))}</strong>
-              <p>${S.escapeHtml(summary)}</p>
-              <div class="history-window-pill"><span>${S.icon("mdi:calendar-range")} ${S.escapeHtml(S.formatDate(context.run_start))}</span><span>${S.icon("mdi:arrow-right")}</span><span>${S.escapeHtml(S.formatDate(context.run_end))}</span></div>
-              <div class="history-status ${context.orphaned ? "orphaned" : "bound"}">${S.escapeHtml(context.orphaned ? "Binding orphaned — sensor missing in Home Assistant" : "Binding healthy — linked Home Assistant sensor resolved")}</div>
-              <p class="hint">Open the native History panel to load this entity from planting through harvest. Long-pressing a metric opens the regular entity details.</p>
-              ${panel.loading ? `<p class="hint">Loading recorder context…</p>` : ""}
-              ${panel.error ? `<p class="hint error-text">${S.escapeHtml(panel.error)}</p>` : ""}
-            </div>
-            <div class="recorder-callout">${S.icon("mdi:database-clock-outline")}<div><strong>Recorder-first by design</strong><span>No duplicate time-series data is stored by PlantRun.</span></div></div>
+            <div class="history-window-pill"><span>${S.icon("mdi:calendar-range")} ${S.escapeHtml(S.formatDate(context.run_start))}</span><span>${S.icon("mdi:arrow-right")}</span><span>${S.escapeHtml(S.formatDate(context.run_end))}</span></div>
+            ${this._historyChartMarkup(panel)}
+            ${stats ? `<div class="chart-stats"><span><small>Latest</small><strong>${S.escapeHtml(value(stats.latest))}</strong></span><span><small>Average</small><strong>${S.escapeHtml(value(stats.avg))}</strong></span><span><small>Low</small><strong>${S.escapeHtml(value(stats.min))}</strong></span><span><small>High</small><strong>${S.escapeHtml(value(stats.max))}</strong></span></div>` : ""}
+            ${panel.error ? `<p class="hint error-text">${S.escapeHtml(panel.error)}</p>` : ""}
+            <div class="recorder-callout">${S.icon("mdi:database-clock-outline")}<div><strong>Live from Home Assistant Recorder</strong><span>${S.escapeHtml(summary)} No samples are persisted by PlantRun.</span></div></div>
             <footer>
               <button class="ghost" data-action="open-history-entity" data-entity-id="${S.escapeHtml(panel.entity_id)}" type="button">${S.icon("mdi:open-in-app")} Open entity details</button>
-              <button class="ghost" data-action="open-native-history" data-entity-id="${S.escapeHtml(panel.entity_id)}" type="button">${S.icon("mdi:chart-timeline-variant")} Open native history</button>
+              <button class="ghost" data-action="open-native-history" data-entity-id="${S.escapeHtml(panel.entity_id)}" type="button">${S.icon("mdi:open-in-new")} Native history</button>
               <button class="primary" data-action="close-history" type="button">Done</button>
             </footer>
           </section>

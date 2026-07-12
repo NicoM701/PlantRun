@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.6.0
+
+- Added an in-panel Recorder chart that reads Home Assistant history on demand without storing samples in PlantRun.
+- Added run-window latest, average, low, and high statistics from transient Recorder data.
+- Added dense Main data and Grow info panels inspired by cultivation logbooks.
+- Added richer harvest summaries with start and harvest dates.
+- Added original transparent seedling, vegetative, and flowering plant assets generated for PlantRun.
+- Integrated stage artwork into run cards, plant cards, and workspaces while preserving user-provided imagery.
+
 ## 0.5.0
 
 - Replaced the dashboard-style frontend with a plant-first garden and focused run workspaces.

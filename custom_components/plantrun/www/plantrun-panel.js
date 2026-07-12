@@ -1,6 +1,6 @@
-import { PlantRunApi } from "./plantrun-panel-api.js?v=0.5.0";
-import { createPanelDialogMethods } from "./plantrun-panel-dialogs.js?v=0.5.0";
-import { createPanelViewMethods } from "./plantrun-panel-views.js?v=0.5.0";
+import { PlantRunApi } from "./plantrun-panel-api.js?v=0.6.0";
+import { createPanelDialogMethods } from "./plantrun-panel-dialogs.js?v=0.6.0";
+import { createPanelViewMethods } from "./plantrun-panel-views.js?v=0.6.0";
 import {
   METRICS,
   METRIC_ENTITY_HINTS,
@@ -8,8 +8,8 @@ import {
   progressForRun,
   stageKey,
   targetDaysForRun,
-} from "./plantrun-panel-domain.js?v=0.5.0";
-import { panelStyles } from "./plantrun-panel-styles.js?v=0.5.0";
+} from "./plantrun-panel-domain.js?v=0.6.0";
+import { panelStyles } from "./plantrun-panel-styles.js?v=0.6.0";
 
 (() => {
   const TAG = "plantrun-dashboard-panel";
@@ -88,6 +88,7 @@ import { panelStyles } from "./plantrun-panel-styles.js?v=0.5.0";
       this._noteEditor = null;
       this._noteDeleteConfirm = null;
       this._historyInspector = null;
+      this._historyNonce = 0;
       this._phaseConfirm = null;
       this._endRunConfirm = null;
       this._phaseDraft = "Vegetative";
@@ -536,6 +537,7 @@ import { panelStyles } from "./plantrun-panel-styles.js?v=0.5.0";
       } else if (action === "save-run") {
         this._saveRun();
       } else if (action === "close-history") {
+        this._historyNonce += 1;
         this._historyInspector = null;
         this.render();
       } else if (action === "open-history-entity") {
@@ -1067,6 +1069,7 @@ import { panelStyles } from "./plantrun-panel-styles.js?v=0.5.0";
     }
 
     async _openRunHistory(runId, entityId) {
+      const requestNonce = ++this._historyNonce;
       this._selectedRunId = runId;
       const run = this._runs.find((item) => item.id === runId);
       const binding = run?.bindings?.find((item) => item.sensor_id === entityId);
@@ -1076,39 +1079,29 @@ import { panelStyles } from "./plantrun-panel-styles.js?v=0.5.0";
       tile?.classList.add("pulse");
       window.setTimeout(() => tile?.classList.remove("pulse"), 520);
 
-      if (!this._hass || !binding?.id) {
-        this._historyInspector = {
-          run_id: runId,
-          entity_id: entityId,
-          binding_id: binding?.id || "",
-          loading: false,
-          error: "",
-          context: fallbackContext,
-        };
-        this.render();
-        return;
-      }
+      this._historyInspector = {
+        run_id: runId,
+        entity_id: entityId,
+        binding_id: binding?.id || "",
+        loading: true,
+        error: "",
+        context: fallbackContext,
+        points: [],
+      };
+      this.render();
+
+      let context = fallbackContext;
       try {
-        const payload = await this._api.getBindingHistoryContext(runId, binding.id);
-        const context = payload?.context || fallbackContext;
-        if (this._openNativeHistory(context)) return;
-        this._historyInspector = {
-          run_id: runId,
-          entity_id: entityId,
-          binding_id: binding.id,
-          loading: false,
-          error: "",
-          context,
-        };
+        if (this._hass && binding?.id) {
+          const payload = await this._api.getBindingHistoryContext(runId, binding.id);
+          context = payload?.context || fallbackContext;
+        }
+        const points = await this._api.getRecorderHistory(entityId, context.run_start, context.run_end);
+        if (requestNonce !== this._historyNonce || !this._historyInspector) return;
+        this._historyInspector = { ...this._historyInspector, loading: false, context, points };
       } catch (err) {
-        this._historyInspector = {
-          run_id: runId,
-          entity_id: entityId,
-          binding_id: binding.id,
-          loading: false,
-          error: err?.message || "Unable to load run-window history context.",
-          context: fallbackContext,
-        };
+        if (requestNonce !== this._historyNonce || !this._historyInspector) return;
+        this._historyInspector = { ...this._historyInspector, loading: false, context, error: err?.message || "Recorder history could not be loaded.", points: [] };
       }
       this.render();
     }

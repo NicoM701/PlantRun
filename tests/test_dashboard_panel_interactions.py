@@ -18,7 +18,8 @@ class DashboardPanelInteractionRegressionTests(unittest.TestCase):
                 "if (!wasLongPress) this._openRunHistory(tile.dataset.runId, tile.dataset.entityId);",
                 "binding_id: binding?.id || \"\"",
                 'type: "plantrun/get_run_binding_history_context"',
-                "if (this._openNativeHistory(context)) return;",
+                "this._api.getRecorderHistory(entityId, context.run_start, context.run_end)",
+                "requestNonce !== this._historyNonce",
                 "delete this._pressState[key];",
             ],
         )

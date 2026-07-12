@@ -35,7 +35,7 @@ class DashboardJsContractsTests(unittest.TestCase):
     def test_panel_uses_explicit_api_domain_and_style_modules(self):
         entry_source = PANEL_ENTRY_JS.read_text(encoding="utf-8")
         for module in ("api", "dialogs", "domain", "styles", "views"):
-            self.assertIn(f'from "./plantrun-panel-{module}.js?v=0.5.0"', entry_source)
+            self.assertIn(f'from "./plantrun-panel-{module}.js?v=0.6.0"', entry_source)
         self.assertNotIn("this._hass.callWS", entry_source)
         self.assertNotIn("this._hass.callService", entry_source)
 
@@ -111,13 +111,15 @@ class DashboardJsContractsTests(unittest.TestCase):
         handle_input = source[source.index("_handleInput(event)") : source.index("_handleChange(event)")]
         self.assertNotIn("this.render()", handle_input)
 
-    def test_panel_sensor_tap_attempts_native_history_deeplink_before_modal_fallback(self):
+    def test_panel_sensor_tap_loads_transient_recorder_chart_before_native_fallback(self):
         source = PANEL_JS.read_text(encoding="utf-8")
         self.assertIn("PlantRun does not draw invented trend lines.", source)
-        self.assertIn("Recorder-first by design", source)
-        self.assertIn("No duplicate time-series data is stored by PlantRun.", source)
+        self.assertIn("Live from Home Assistant Recorder", source)
+        self.assertIn("No samples are persisted by PlantRun.", source)
         self.assertIn("_renderHistoryInspector()", source)
         self.assertIn('type: "plantrun/get_run_binding_history_context"', source)
+        self.assertIn('hass.callApi("GET", `history/period/', source)
+        self.assertIn("_historyChartMarkup(panel)", source)
         self.assertIn("const EXPERIMENTAL_NATIVE_HISTORY_DEEPLINK = true;", source)
         self.assertIn("window.history.pushState(null, \"\", `/history?${params.toString()}`);", source)
         self.assertIn('data-action="open-native-history"', source)
