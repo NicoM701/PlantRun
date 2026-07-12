@@ -28,15 +28,18 @@ PlantRun ships with two UI entry points:
 - **Lovelace card** via `custom:plantrun-card`
 
 Current UI capabilities include:
-- a calm multi-run garden overview and dedicated run workspaces
+- a plant-first garden overview with watering schedules and attention signals
+- quick watering logs that create durable journal entries
+- focused Overview, Climate, and Journal run workspaces
 - stage-aware run cards, named plants, and prominent lifecycle rails
-- responsive light/dark themes with comfortable and compact density modes
+- responsive light/dark themes with customizable grid/list layouts and optional sections
 - detail editing for metadata, notes, bindings, cultivar, breeder, and images
 - a validated 4-step onboarding wizard with editable plants and phase plans
 - theme and layout preferences
 - live cultivar suggestions backed by SeedFinder
 - working custom phases alongside the common Seedling, Vegetative, Flowering, and Harvested stages
 - a guided finish flow that records dry yield and archives the completed run
+- read-only completed-run summaries with an explicit correction path
 - note editing/deletion with in-panel confirmation
 - phase changes via in-panel confirmation modal
 - Home Assistant history deeplinks from bound sensor tiles

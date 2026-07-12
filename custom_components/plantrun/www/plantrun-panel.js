@@ -1,6 +1,6 @@
-import { PlantRunApi } from "./plantrun-panel-api.js?v=0.4.2";
-import { createPanelDialogMethods } from "./plantrun-panel-dialogs.js?v=0.4.2";
-import { createPanelViewMethods } from "./plantrun-panel-views.js?v=0.4.2";
+import { PlantRunApi } from "./plantrun-panel-api.js?v=0.5.0";
+import { createPanelDialogMethods } from "./plantrun-panel-dialogs.js?v=0.5.0";
+import { createPanelViewMethods } from "./plantrun-panel-views.js?v=0.5.0";
 import {
   METRICS,
   METRIC_ENTITY_HINTS,
@@ -8,8 +8,8 @@ import {
   progressForRun,
   stageKey,
   targetDaysForRun,
-} from "./plantrun-panel-domain.js?v=0.4.2";
-import { panelStyles } from "./plantrun-panel-styles.js?v=0.4.2";
+} from "./plantrun-panel-domain.js?v=0.5.0";
+import { panelStyles } from "./plantrun-panel-styles.js?v=0.5.0";
 
 (() => {
   const TAG = "plantrun-dashboard-panel";
@@ -18,6 +18,7 @@ import { panelStyles } from "./plantrun-panel-styles.js?v=0.4.2";
     theme: "plantrun.ui.theme",
     sound: "plantrun.ui.sound",
     density: "plantrun.ui.density",
+    layout: "plantrun.ui.layout.v2",
   };
   const THEME_QUERY = "(prefers-color-scheme: light)";
   // Experimental Home Assistant native history deeplink hack.
@@ -70,6 +71,7 @@ import { panelStyles } from "./plantrun-panel-styles.js?v=0.4.2";
       this._selectedRunId = "";
       this._filter = "active";
       this._screen = "overview";
+      this._workspaceTab = "overview";
       this._loading = true;
       this._error = "";
       this._wizardOpen = false;
@@ -94,6 +96,8 @@ import { panelStyles } from "./plantrun-panel-styles.js?v=0.4.2";
       this._theme = localStorage.getItem(STORAGE.theme) || (window.matchMedia?.(THEME_QUERY).matches ? "light" : "dark");
       this._density = localStorage.getItem(STORAGE.density) === "compact" ? "compact" : "comfortable";
       this._sound = localStorage.getItem(STORAGE.sound) === "on";
+      this._personalizeOpen = false;
+      this._layout = this._loadLayout();
       this._audio = null;
       this._refreshing = false;
       this._didLoad = false;
@@ -277,6 +281,23 @@ import { panelStyles } from "./plantrun-panel-styles.js?v=0.4.2";
       return targetDaysForRun(run);
     }
 
+    _loadLayout() {
+      const fallback = { card_layout: "grid", show_attention: true, show_plants: true };
+      try {
+        return { ...fallback, ...JSON.parse(localStorage.getItem(STORAGE.layout) || "{}") };
+      } catch (_err) {
+        return fallback;
+      }
+    }
+
+    _saveLayout() {
+      localStorage.setItem(STORAGE.layout, JSON.stringify(this._layout));
+    }
+
+    _newPlantId() {
+      return globalThis.crypto?.randomUUID?.() || `plant-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    }
+
     _progress(run) {
       return progressForRun(run);
     }
@@ -353,7 +374,7 @@ import { panelStyles } from "./plantrun-panel-styles.js?v=0.4.2";
           <header class="topbar">
             <button class="brand" data-action="show-overview" type="button"><span class="brand-mark" aria-hidden="true">${this._brandMark()}</span><div><strong>PlantRun</strong><span>Grow with context</span></div></button>
             <div class="top-actions">
-              <button class="icon-button animated" data-action="toggle-density" type="button" title="${this._density === "compact" ? "Comfortable layout" : "Compact layout"}">${S.icon(this._density === "compact" ? "mdi:view-dashboard-outline" : "mdi:view-compact-outline")}</button>
+              <button class="icon-button animated personalize-button" data-action="open-personalize" type="button" title="Personalize view" aria-label="Personalize view">${S.icon("mdi:tune-variant")}</button>
               <button class="icon-button animated" data-action="toggle-theme" type="button" title="Switch to ${themeMode === "light" ? "dark" : "light"} mode">${S.icon(themeMode === "light" ? "mdi:weather-night" : "mdi:white-balance-sunny")}</button>
               <button class="icon-button animated" data-action="toggle-sound" type="button" title="Sound">${S.icon(this._sound ? "mdi:volume-high" : "mdi:volume-off")}</button>
               <button class="primary" data-action="open-wizard" type="button">${S.icon("mdi:plus")} New run</button>
@@ -370,6 +391,7 @@ import { panelStyles } from "./plantrun-panel-styles.js?v=0.4.2";
         ${this._renderHistoryInspector()}
         ${this._renderPhaseConfirmModal()}
         ${this._renderEndRunModal()}
+        ${this._renderPersonalizeModal()}
         </div>
       `;
       this._hydrateHaSelectors();
@@ -392,10 +414,14 @@ import { panelStyles } from "./plantrun-panel-styles.js?v=0.4.2";
       } else if (action === "select-run") {
         this._selectedRunId = target.dataset.runId;
         this._screen = "workspace";
+        this._workspaceTab = "overview";
         this._detailDraft = null;
         this.render();
       } else if (action === "show-overview") {
         this._screen = "overview";
+        this.render();
+      } else if (action === "workspace-tab") {
+        this._workspaceTab = target.dataset.tab || "overview";
         this.render();
       } else if (action === "refresh") {
         this._refreshRuns();
@@ -484,6 +510,8 @@ import { panelStyles } from "./plantrun-panel-styles.js?v=0.4.2";
         this.render();
       } else if (action === "confirm-end-run") {
         this._finishRun();
+      } else if (action === "water-plant") {
+        this._logWatering(target.dataset.runId, target.dataset.plantId);
       } else if (action === "add-note") {
         this._openNewNoteEditor(target.dataset.runId);
       } else if (action === "edit-note") {
@@ -514,9 +542,22 @@ import { panelStyles } from "./plantrun-panel-styles.js?v=0.4.2";
         this._openEntity(target.dataset.entityId);
       } else if (action === "open-native-history") {
         if (!this._openNativeHistory(this._historyInspector?.context)) this._openEntity(target.dataset.entityId);
-      } else if (action === "toggle-density") {
-        this._density = this._density === "compact" ? "comfortable" : "compact";
-        localStorage.setItem(STORAGE.density, this._density);
+      } else if (action === "open-personalize") {
+        this._personalizeOpen = true;
+        this.render();
+      } else if (action === "close-personalize") {
+        this._personalizeOpen = false;
+        this.render();
+      } else if (action === "set-card-layout") {
+        this._layout = { ...this._layout, card_layout: target.dataset.layout === "list" ? "list" : "grid" };
+        this._saveLayout();
+        this.render();
+      } else if (action === "toggle-layout-section") {
+        const section = target.dataset.section;
+        if (section && Object.prototype.hasOwnProperty.call(this._layout, section)) {
+          this._layout = { ...this._layout, [section]: !this._layout[section] };
+          this._saveLayout();
+        }
         this.render();
       } else if (action === "toggle-theme") {
         this._theme = this._resolvedTheme() === "dark" ? "light" : "dark";
@@ -580,6 +621,12 @@ import { panelStyles } from "./plantrun-panel-styles.js?v=0.4.2";
     }
 
     _handleKeydown(event) {
+      const sensorTile = event.target.closest?.("[data-sensor-tile]");
+      if (sensorTile && (event.key === "Enter" || event.key === " ")) {
+        event.preventDefault();
+        this._openRunHistory(sensorTile.dataset.runId, sensorTile.dataset.entityId);
+        return;
+      }
       if (!event.target.matches("[data-cultivar-input], [data-detail-cultivar-input]")) return;
       const detailInput = event.target.matches("[data-detail-cultivar-input]");
       const suggestions = detailInput ? this._detailDraft?.suggestions || [] : this._suggestions;
@@ -770,8 +817,9 @@ import { panelStyles } from "./plantrun-panel-styles.js?v=0.4.2";
       this._screen = "workspace";
       const targetDays = Number(this._wizard.target_days);
       const baseConfig = {
-        plants: this._wizard.plants.map((plant) => plant.trim()).filter(Boolean),
+        plants: this._wizard.plants.map((plant) => plant.trim()).filter(Boolean).map((name) => ({ id: this._newPlantId(), name, last_watered: "" })),
         phase_plan: this._wizard.phase_plan.map((phase) => phase.trim()).filter(Boolean),
+        watering_interval_days: 3,
       };
       if (Number.isFinite(targetDays) && targetDays > 0) {
         baseConfig.target_days = targetDays;
@@ -873,6 +921,22 @@ import { panelStyles } from "./plantrun-panel-styles.js?v=0.4.2";
       await this._refreshRuns();
     }
 
+    async _logWatering(runId, plantId) {
+      const run = this._runs.find((item) => item.id === runId);
+      if (!this._hass || !run || run.status === "ended") return;
+      const plants = this._plantObjects(run);
+      const plant = plants.find((item) => item.id === plantId);
+      if (!plant) return;
+      const today = new Date().toISOString();
+      const updatedPlants = plants.map((item) => item.id === plantId ? { ...item, last_watered: today } : item);
+      await this._api.callService("update_run", {
+        run_id: run.id,
+        base_config: { ...(run.base_config || {}), plants: updatedPlants },
+      });
+      await this._api.callService("add_note", { run_id: run.id, text: `Watered ${plant.name}` });
+      await this._refreshRuns();
+    }
+
     _openNewNoteEditor(runId) {
       if (!runId) return;
       this._noteEditor = { run_id: runId, note_id: "", text: "" };
@@ -931,7 +995,8 @@ import { panelStyles } from "./plantrun-panel-styles.js?v=0.4.2";
         cultivar_searching: false,
         dry_yield_grams: run.dry_yield_grams ?? "",
         notes_summary: run.notes_summary || "",
-        plants_text: Array.isArray(run.base_config?.plants) ? run.base_config.plants.join(", ") : "",
+        plants_text: this._plantObjects(run).map((plant) => plant.name).join(", "),
+        watering_interval_days: Math.max(1, Number(run.base_config?.watering_interval_days || 3)),
         phase_plan_text: this._phasePlan(run).join(", "),
       };
       this.render();
@@ -942,6 +1007,13 @@ import { panelStyles } from "./plantrun-panel-styles.js?v=0.4.2";
       if (!this._hass || !draft) return;
       try {
         const targetDays = Number(draft.target_days || this._derivedTargetDays(draft.selected_cultivar));
+        const existingRun = this._runs.find((item) => item.id === draft.run_id);
+        const existingPlants = this._plantObjects(existingRun);
+        const plantNames = String(draft.plants_text || "").split(",").map((item) => item.trim()).filter(Boolean);
+        const plants = plantNames.map((name) => {
+          const existing = existingPlants.find((plant) => plant.name.toLowerCase() === name.toLowerCase());
+          return existing ? { ...existing, name } : { id: this._newPlantId(), name, last_watered: "" };
+        });
         await this._api.callService("update_run", {
           run_id: draft.run_id,
           friendly_name: draft.friendly_name,
@@ -949,9 +1021,10 @@ import { panelStyles } from "./plantrun-panel-styles.js?v=0.4.2";
           notes_summary: draft.notes_summary || null,
           dry_yield_grams: draft.dry_yield_grams === "" ? null : Number(draft.dry_yield_grams),
           base_config: {
-            ...(this._runs.find((item) => item.id === draft.run_id)?.base_config || {}),
+            ...(existingRun?.base_config || {}),
             ...(Number.isFinite(targetDays) && targetDays > 0 ? { target_days: targetDays, } : {}),
-            plants: String(draft.plants_text || "").split(",").map((item) => item.trim()).filter(Boolean),
+            plants,
+            watering_interval_days: Math.max(1, Number(draft.watering_interval_days || 3)),
             phase_plan: String(draft.phase_plan_text || "").split(",").map((item) => item.trim()).filter(Boolean),
           },
         });

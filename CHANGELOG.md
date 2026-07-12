@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.5.0
+
+- Replaced the dashboard-style frontend with a plant-first garden and focused run workspaces.
+- Added migrations-safe structured plant records with watering logs and configurable intervals.
+- Added useful attention signals for scheduled watering, unavailable sensors, and cycle timing.
+- Added meaningful view personalization with grid/list layouts and optional overview sections.
+- Removed decorative placeholder curves and exposed truthful live/unavailable sensor states.
+- Made completed runs read-only by default with a dedicated harvest summary and correction path.
+- Fixed custom phase rendering and exact run-window history navigation in the Lovelace card.
+- Added keyboard-operable sensor history tiles and improved dialog semantics.
+
 ## 0.4.2
 
 - Improved dark-theme contrast for the highlighted overview statistic and made

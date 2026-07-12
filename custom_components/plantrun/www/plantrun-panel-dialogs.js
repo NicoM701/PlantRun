@@ -1,4 +1,4 @@
-import { METRICS, historyWindowForRun } from "./plantrun-panel-domain.js?v=0.4.2";
+import { METRICS, historyWindowForRun } from "./plantrun-panel-domain.js?v=0.5.0";
 
 export function createPanelDialogMethods(S) {
   return {
@@ -7,7 +7,7 @@ export function createPanelDialogMethods(S) {
       return `
         <div class="overlay">
           <button class="overlay-backdrop" data-action="close-wizard" type="button" aria-label="Close new run dialog"></button>
-          <section class="modal wizard-modal" data-modal-card>
+          <section class="modal wizard-modal" data-modal-card role="dialog" aria-modal="true" aria-label="Create a new run">
             <header>
               <div><span class="eyebrow">Guided setup</span><h2>Create a new run</h2></div>
               <button class="icon-button" data-action="close-wizard" type="button" title="Close">${S.icon("mdi:close")}</button>
@@ -116,7 +116,7 @@ export function createPanelDialogMethods(S) {
       return `
         <div class="overlay">
           <button class="overlay-backdrop" data-action="close-binding" type="button" aria-label="Close binding dialog"></button>
-          <section class="modal compact" data-modal-card>
+          <section class="modal compact" data-modal-card role="dialog" aria-modal="true" aria-label="Edit sensor binding">
             <header>
               <div><span class="eyebrow">Sensor binding</span><h2>${this._bindingDraft.binding_id ? "Edit binding" : "Add binding"}</h2></div>
               <button class="icon-button" data-action="close-binding" type="button" title="Close">${S.icon("mdi:close")}</button>
@@ -144,7 +144,7 @@ export function createPanelDialogMethods(S) {
       return `
         <div class="overlay">
           <button class="overlay-backdrop" data-action="close-note-edit" type="button" aria-label="Close note dialog"></button>
-          <section class="modal compact" data-modal-card>
+          <section class="modal compact" data-modal-card role="dialog" aria-modal="true" aria-label="Edit journal note">
             <header>
               <div><span class="eyebrow">Grow log</span><h2>${isNew ? "New note" : "Edit note"}</h2></div>
               <button class="icon-button" data-action="close-note-edit" type="button" title="Close">${S.icon("mdi:close")}</button>
@@ -166,7 +166,7 @@ export function createPanelDialogMethods(S) {
       return `
         <div class="overlay">
           <button class="overlay-backdrop" data-action="close-note-delete" type="button" aria-label="Close delete note dialog"></button>
-          <section class="modal compact" data-modal-card>
+          <section class="modal compact" data-modal-card role="dialog" aria-modal="true" aria-label="Delete journal note">
             <header>
               <div><span class="eyebrow">Grow log</span><h2>Delete note?</h2></div>
               <button class="icon-button" data-action="close-note-delete" type="button" title="Close">${S.icon("mdi:close")}</button>
@@ -187,7 +187,7 @@ export function createPanelDialogMethods(S) {
       return `
         <div class="overlay">
           <button class="overlay-backdrop" data-action="close-edit" type="button" aria-label="Close edit dialog"></button>
-          <section class="modal compact" data-modal-card>
+          <section class="modal compact" data-modal-card role="dialog" aria-modal="true" aria-label="Edit run details">
             <header>
               <div><span class="eyebrow">Run details</span><h2>Edit run</h2></div>
               <button class="icon-button" data-action="close-edit" type="button" title="Close">${S.icon("mdi:close")}</button>
@@ -201,6 +201,7 @@ export function createPanelDialogMethods(S) {
                 <div class="suggestions" data-detail-suggestions>${this._detailSuggestionMarkup()}</div>
               </label>
               <label><span>Dry yield (g)</span><input data-detail-field="dry_yield_grams" value="${S.escapeHtml(this._detailDraft.dry_yield_grams ?? "")}" type="number" min="0" step="0.1" /></label>
+              <label><span>Watering interval (days)</span><input data-detail-field="watering_interval_days" value="${S.escapeHtml(this._detailDraft.watering_interval_days || 3)}" type="number" min="1" max="30" step="1" /></label>
               <label class="wide"><span>Plants <em>Comma separated</em></span><input data-detail-field="plants_text" value="${S.escapeHtml(this._detailDraft.plants_text || "")}" placeholder="Khaled, Bobbi, Jackie" /></label>
               <label class="wide"><span>Phase plan <em>Comma separated</em></span><input data-detail-field="phase_plan_text" value="${S.escapeHtml(this._detailDraft.phase_plan_text || "")}" placeholder="Seedling, Vegetative, Flowering, Drying, Curing, Harvested" /></label>
               <label class="wide"><span>Summary</span><textarea data-detail-field="notes_summary">${S.escapeHtml(this._detailDraft.notes_summary || "")}</textarea></label>

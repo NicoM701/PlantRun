@@ -36,6 +36,7 @@
       this._run = null;
       this._summary = {};
       this._loading = false;
+      this._loadingRunId = "";
       this._loadedRunId = "";
       this._requestNonce = 0;
       this._lastSensorSignature = "";
@@ -92,9 +93,10 @@
 
     async _fetchRunData() {
       const runId = this._normalizeRunId(this._config.run_id);
-      if (!this._hass || !runId || this._loading) return;
+      if (!this._hass || !runId || (this._loading && this._loadingRunId === runId)) return;
       const requestNonce = ++this._requestNonce;
       this._loading = true;
+      this._loadingRunId = runId;
       this.render();
       try {
         const [runPayload, summary] = await Promise.all([
@@ -113,6 +115,7 @@
       } finally {
         if (requestNonce === this._requestNonce) {
           this._loading = false;
+          this._loadingRunId = "";
           this.render();
         }
       }
@@ -171,7 +174,7 @@
     }
 
     _progress() {
-      const days = S.daysBetween(this._run?.planted_date || this._run?.start_time);
+      const days = S.daysBetween(this._run?.planted_date || this._run?.start_time, this._run?.end_time || new Date());
       return Math.min(100, Math.round((days / Math.max(this._targetDays(), 1)) * 100));
     }
 
@@ -194,13 +197,15 @@
     _handleClick(event) {
       const sensor = event.target.closest("[data-entity-id]");
       if (!sensor) return;
-      this.dispatchEvent(
-        new CustomEvent("hass-more-info", {
-          detail: { entityId: sensor.dataset.entityId },
-          bubbles: true,
-          composed: true,
-        })
-      );
+      const start = this._run?.planted_date || this._run?.start_time;
+      const end = this._run?.end_time || new Date().toISOString();
+      if (start && end) {
+        const params = new URLSearchParams({ entity_id: sensor.dataset.entityId, start_date: start, end_date: end, back: "1" });
+        window.history.pushState(null, "", `/history?${params.toString()}`);
+        window.dispatchEvent(new CustomEvent("location-changed", { detail: { replace: false } }));
+        return;
+      }
+      this.dispatchEvent(new CustomEvent("hass-more-info", { detail: { entityId: sensor.dataset.entityId }, bubbles: true, composed: true }));
     }
 
     _refreshSensorText() {
@@ -212,7 +217,7 @@
     render() {
       const runId = this._normalizeRunId(this._config.run_id);
       const title = this._config.title || this._run?.friendly_name || "PlantRun";
-      const days = S.daysBetween(this._run?.planted_date || this._run?.start_time);
+      const days = S.daysBetween(this._run?.planted_date || this._run?.start_time, this._run?.end_time || new Date());
       this.shadowRoot.innerHTML = `
         <style>
           :host { display:block; font-family:var(--primary-font-family, system-ui, sans-serif); color:var(--primary-text-color,#ecf1ec); }

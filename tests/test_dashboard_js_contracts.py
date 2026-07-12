@@ -35,7 +35,7 @@ class DashboardJsContractsTests(unittest.TestCase):
     def test_panel_uses_explicit_api_domain_and_style_modules(self):
         entry_source = PANEL_ENTRY_JS.read_text(encoding="utf-8")
         for module in ("api", "dialogs", "domain", "styles", "views"):
-            self.assertIn(f'from "./plantrun-panel-{module}.js?v=0.4.2"', entry_source)
+            self.assertIn(f'from "./plantrun-panel-{module}.js?v=0.5.0"', entry_source)
         self.assertNotIn("this._hass.callWS", entry_source)
         self.assertNotIn("this._hass.callService", entry_source)
 
@@ -57,6 +57,7 @@ class DashboardJsContractsTests(unittest.TestCase):
         self.assertIn("if (requestNonce !== this._requestNonce) return;", source)
         self.assertIn("runId !== this._loadedRunId", source)
         self.assertIn("this._loadedRunId = runId;", source)
+        self.assertIn("this._loadingRunId === runId", source)
 
     def test_editor_loads_real_runs_for_selection(self):
         source = EDITOR_JS.read_text(encoding="utf-8")
@@ -112,7 +113,7 @@ class DashboardJsContractsTests(unittest.TestCase):
 
     def test_panel_sensor_tap_attempts_native_history_deeplink_before_modal_fallback(self):
         source = PANEL_JS.read_text(encoding="utf-8")
-        self.assertIn("Sensor history stays in Home Assistant.", source)
+        self.assertIn("PlantRun does not draw invented trend lines.", source)
         self.assertIn("Recorder-first by design", source)
         self.assertIn("No duplicate time-series data is stored by PlantRun.", source)
         self.assertIn("_renderHistoryInspector()", source)
@@ -129,11 +130,23 @@ class DashboardJsContractsTests(unittest.TestCase):
         self.assertIn("Optional. Pick a SeedFinder result", source)
         self.assertIn("without copying their data", source)
 
-    def test_panel_layout_preferences_include_theme_and_density(self):
+    def test_panel_layout_preferences_include_theme_and_real_view_options(self):
         source = PANEL_JS.read_text(encoding="utf-8")
-        self.assertIn('density: "plantrun.ui.density"', source)
-        self.assertIn('data-action="toggle-density"', source)
-        self.assertIn("density-${S.escapeHtml(this._density)}", source)
+        self.assertIn('layout: "plantrun.ui.layout.v2"', source)
+        self.assertIn('data-action="open-personalize"', source)
+        self.assertIn('data-action="toggle-layout-section"', source)
+        self.assertIn('data-action="set-card-layout"', source)
+
+    def test_panel_has_truthful_care_and_sensor_states(self):
+        source = PANEL_JS.read_text(encoding="utf-8")
+        self.assertIn("_wateringState(run, plant)", source)
+        self.assertIn('data-action="water-plant"', source)
+        self.assertIn('available ? "Live" : "Unavailable"', source)
+        self.assertNotIn('class="mini-curve"', source)
+
+    def test_custom_phase_is_added_to_visible_plan(self):
+        source = PANEL_JS.read_text(encoding="utf-8")
+        self.assertIn("plan.push(currentName)", source)
 
     def test_panel_finish_flow_captures_yield_and_archives_the_run(self):
         source = PANEL_JS.read_text(encoding="utf-8")
@@ -148,7 +161,7 @@ class DashboardJsContractsTests(unittest.TestCase):
         self.assertIn("export const CANONICAL_STAGES", source)
         for stage in ("Seedling", "Vegetative", "Flowering", "Harvested"):
             self.assertIn(f'"{stage}"', source)
-        self.assertIn('<h2>Phase</h2>', source)
+        self.assertIn("_renderPhaseRail(run)", source)
         self.assertIn('data-action="select-phase"', source)
         self.assertIn("_renderPhaseConfirmModal()", source)
         self.assertIn('data-action="confirm-phase-change"', source)
@@ -173,7 +186,7 @@ class DashboardJsContractsTests(unittest.TestCase):
     def test_panel_detail_editor_persists_target_days_and_keeps_dialog_open_on_error(self):
         source = PANEL_JS.read_text(encoding="utf-8")
         self.assertIn("const targetDays = Number(draft.target_days || this._derivedTargetDays(draft.selected_cultivar));", source)
-        self.assertIn("...(this._runs.find((item) => item.id === draft.run_id)?.base_config || {}),", source)
+        self.assertIn("...(existingRun?.base_config || {}),", source)
         self.assertIn("target_days: targetDays,", source)
         self.assertIn("this._detailDraft = null;", source)
         self.assertIn("this._error = err?.message || \"Unable to save run changes.\";", source)
@@ -189,7 +202,7 @@ class DashboardJsContractsTests(unittest.TestCase):
         source = PANEL_JS.read_text(encoding="utf-8")
         self.assertIn('_screen = "overview"', source)
         self.assertIn('_renderOverview()', source)
-        self.assertIn('class="run-gallery"', source)
+        self.assertIn('class="run-gallery layout-', source)
         self.assertIn('class="workspace-screen"', source)
         self.assertIn('class="phase-rail"', source)
         self.assertNotIn('<aside class="sidebar">', source)
