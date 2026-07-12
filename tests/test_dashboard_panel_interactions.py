@@ -82,7 +82,7 @@ class DashboardPanelInteractionRegressionTests(unittest.TestCase):
             self.source,
             [
                 ":host { display:block; min-height:100%;",
-                ".overlay { position:absolute; inset:0; z-index:20;",
+                ".overlay { position:fixed; inset:0; z-index:20;",
                 ".overlay-backdrop { position:absolute; inset:0;",
                 "position:relative;",
             ],

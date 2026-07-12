@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.1
+
+- Keep generated stage artwork visible alongside user and SeedFinder imagery.
+- Anchor Recorder charts to the viewport so dialogs stay fully visible after scrolling.
+
 ## 0.6.0
 
 - Added an in-panel Recorder chart that reads Home Assistant history on demand without storing samples in PlantRun.

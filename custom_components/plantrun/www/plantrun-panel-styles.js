@@ -129,7 +129,7 @@ export const panelStyles = () => `
   textarea { min-height:100px; resize:vertical; }
   label { display:grid; gap:7px; color:var(--muted); font-size:12px; font-weight:700; }
   label em { color:var(--green-strong); font-size:9px; font-style:normal; letter-spacing:.08em; text-transform:uppercase; }
-  .overlay { position:absolute; inset:0; z-index:20; display:grid; place-items:center; padding:22px; }
+  .overlay { position:fixed; inset:0; z-index:20; display:grid; place-items:center; padding:22px; }
   .overlay-backdrop { position:absolute; inset:0; border:0; border-radius:0; background:rgba(15,27,20,.43); backdrop-filter:blur(10px); }
   .modal { position:relative; z-index:1; width:min(760px,100%); max-height:calc(100vh - 44px); overflow:auto; padding:24px; border:1px solid var(--line); border-radius:28px; color:var(--ink); background:var(--paper); box-shadow:0 30px 90px rgba(0,0,0,.25); }
   .modal.compact { width:min(600px,100%); }
@@ -217,6 +217,8 @@ export const panelStyles = () => `
   .stage-plant-card { position:absolute; z-index:1; right:0; bottom:-34px; width:88%; height:220px; object-fit:contain; object-position:right bottom; filter:drop-shadow(0 18px 22px rgba(15,37,22,.17)); pointer-events:none; }
   .run-image:has(.stage-plant-card) { background-image:radial-gradient(circle at 72% 28%,rgba(255,255,255,.58),transparent 48%),linear-gradient(145deg,#dcebcf,#f3f5ec); }
   .theme-dark .run-image:has(.stage-plant-card) { background-image:radial-gradient(circle at 72% 25%,rgba(99,177,112,.18),transparent 50%),linear-gradient(145deg,#293b2e,#1d2821); }
+  .run-card.has-image .run-image { background-image:linear-gradient(90deg,rgba(12,30,19,.8),rgba(12,30,19,.18)),var(--hero-image),linear-gradient(145deg,#dcebcf,#f3f5ec); }
+  .stage-plant-card.photo-backed { width:76%; opacity:.88; }
   .run-card-copy { padding:17px 17px 8px; }
   .run-card-copy strong { margin:8px 0 4px; font-size:25px; }
   .run-card-copy>span:not(.status-line),.run-card-copy small { color:var(--muted); }
@@ -233,6 +235,7 @@ export const panelStyles = () => `
   .workspace-hero { min-height:270px; border-radius:var(--radius-xl); }
   .workspace-hero:not(.has-image) { overflow:hidden; background:linear-gradient(120deg,var(--accent-soft),var(--soft)); }
   .hero-plant-asset { position:absolute; z-index:1; right:10%; bottom:-35%; width:430px; height:430px; object-fit:contain; filter:drop-shadow(0 28px 34px rgba(18,45,27,.18)); opacity:.92; pointer-events:none; }
+  .hero-plant-asset.photo-backed { right:14%; bottom:-40%; opacity:.72; }
   .workspace-hero:not(.has-image) .hero-copy,.workspace-hero:not(.has-image) .hero-progress,.workspace-hero:not(.has-image) .hero-actions { z-index:3; }
   .workspace-hero.has-image .finish-action { color:#e8f8eb!important; border-color:rgba(232,248,235,.32); background:rgba(8,28,16,.38); }
   .completion-card { display:grid; grid-template-columns:58px minmax(0,1fr) auto; gap:18px; align-items:start; margin-top:14px; padding:22px; border:1px solid var(--line); border-radius:24px; background:var(--paper); box-shadow:var(--shadow); }

@@ -35,7 +35,7 @@ class DashboardJsContractsTests(unittest.TestCase):
     def test_panel_uses_explicit_api_domain_and_style_modules(self):
         entry_source = PANEL_ENTRY_JS.read_text(encoding="utf-8")
         for module in ("api", "dialogs", "domain", "styles", "views"):
-            self.assertIn(f'from "./plantrun-panel-{module}.js?v=0.6.0"', entry_source)
+            self.assertIn(f'from "./plantrun-panel-{module}.js?v=0.6.1"', entry_source)
         self.assertNotIn("this._hass.callWS", entry_source)
         self.assertNotIn("this._hass.callService", entry_source)
 
