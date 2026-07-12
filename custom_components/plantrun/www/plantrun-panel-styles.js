@@ -231,6 +231,7 @@ export const panelStyles = () => `
   .layout-list .run-image { min-height:142px; }
   .layout-list .run-card-foot { align-self:center; margin-right:17px; border-top:0; }
   .workspace-hero { min-height:270px; border-radius:var(--radius-xl); }
+  .workspace-hero.has-image .finish-action { color:#e8f8eb!important; border-color:rgba(232,248,235,.32); background:rgba(8,28,16,.38); }
   .completion-card { display:grid; grid-template-columns:58px minmax(0,1fr) auto; gap:18px; align-items:start; margin-top:14px; padding:22px; border:1px solid var(--line); border-radius:24px; background:var(--paper); box-shadow:var(--shadow); }
   .completion-mark { display:grid; place-items:center; width:58px; height:58px; border-radius:18px; color:var(--green-strong); background:var(--accent-soft); }
   .completion-card h2 { margin-bottom:7px; font-size:27px; }
