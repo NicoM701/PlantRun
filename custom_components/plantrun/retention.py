@@ -3,15 +3,17 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from .models import RunData
-from .store import PlantRunStorage
 from .summary import (
     build_run_summary,
     normalize_energy_currency,
     normalize_energy_price_per_kwh,
 )
+
+if TYPE_CHECKING:
+    from .store import PlantRunStorage
 
 
 def snapshot_day(ts: datetime | None = None) -> str:

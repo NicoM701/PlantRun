@@ -1,0 +1,774 @@
+<!doctype html>
+<!-- Three structural variants for the remaining PlantRun review flows, switchable via ?variant=. Disposable prototype, never production code. -->
+<html lang="de" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PlantRun Review-Prototyp</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #111510;
+      --rail: #151a14;
+      --surface: #191f18;
+      --surface-2: #20271f;
+      --surface-3: #283126;
+      --text: #eef1e9;
+      --muted: #98a093;
+      --line: rgba(230,238,224,.12);
+      --line-strong: rgba(230,238,224,.23);
+      --green: #83a96d;
+      --green-bright: #a9d58e;
+      --green-ink: #11180e;
+      --amber: #d1aa48;
+      --red: #cb6f65;
+      --blue: #7fa6bf;
+      --radius-xl: 24px;
+      --radius-lg: 18px;
+      --radius-md: 12px;
+      --radius-sm: 8px;
+      font-family: Aptos, "Segoe UI", system-ui, sans-serif;
+    }
+    html[data-theme="light"] {
+      color-scheme: light;
+      --bg: #eef3eb;
+      --rail: #f5f8f2;
+      --surface: #fbfcf9;
+      --surface-2: #e5ece1;
+      --surface-3: #d8e3d3;
+      --text: #172017;
+      --muted: #687164;
+      --line: rgba(28,48,29,.12);
+      --line-strong: rgba(28,48,29,.22);
+      --green: #668b53;
+      --green-bright: #477239;
+      --green-ink: #f8fff4;
+      --amber: #a47b16;
+      --red: #a14f48;
+      --blue: #557f98;
+    }
+    * { box-sizing: border-box; }
+    html, body { min-width: 320px; margin: 0; background: var(--bg); color: var(--text); }
+    body, button, input, select, textarea { font: inherit; }
+    button, a, select { cursor: pointer; }
+    button, input, select, textarea { color: inherit; }
+    button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, summary:focus-visible { outline: 3px solid rgba(131,169,109,.45); outline-offset: 2px; }
+    h1, h2, h3, p { margin-top: 0; }
+    .icon { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+    .icon.small { width: 16px; height: 16px; }
+    .prototype { min-height: 100vh; background: var(--bg); }
+    .shell { display: grid; grid-template-columns: 76px minmax(0,1fr); min-height: 100vh; }
+    .rail { position: sticky; top: 0; z-index: 15; display: flex; height: 100vh; flex-direction: column; align-items: center; gap: 8px; padding: 15px 10px; border-right: 1px solid var(--line); background: var(--rail); }
+    .brand { display: grid; width: 44px; height: 44px; margin-bottom: 20px; place-items: center; border: 1px solid var(--line-strong); border-radius: var(--radius-md); color: var(--green-bright); }
+    .rail-button { display: grid; width: 44px; height: 44px; place-items: center; border: 0; border-left: 2px solid transparent; border-radius: var(--radius-md); background: transparent; color: var(--muted); }
+    .rail-button:hover, .rail-button.active { border-left-color: var(--green); background: var(--surface-2); color: var(--text); }
+    .rail-button.bottom { margin-top: auto; }
+    .main { width: min(1460px,100%); margin: 0 auto; padding: 20px clamp(22px,3.5vw,56px) 120px; }
+    .topbar { display: flex; align-items: center; justify-content: space-between; gap: 20px; min-height: 44px; margin-bottom: 28px; }
+    .crumbs { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 11px; }
+    .crumbs button { padding: 0; border: 0; background: transparent; color: inherit; }
+    .top-actions { display: flex; align-items: center; gap: 7px; }
+    .language { display: flex; overflow: hidden; border: 1px solid var(--line-strong); border-radius: var(--radius-md); }
+    .language button { min-width: 42px; height: 34px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--muted); font-size: 11px; font-weight: 700; }
+    .language button.active { background: var(--surface-3); color: var(--text); }
+    .flag { display: inline-block; width: 17px; height: 11px; margin-right: 5px; border: 1px solid rgba(0,0,0,.25); vertical-align: -1px; }
+    .icon-button { display: grid; width: 36px; height: 36px; place-items: center; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface); }
+    .page-head { display: flex; align-items: end; justify-content: space-between; gap: 24px; margin-bottom: 24px; padding-bottom: 18px; border-bottom: 1px solid var(--line); }
+    .page-head h1 { margin-bottom: 5px; font-size: clamp(27px,3.2vw,43px); font-weight: 590; letter-spacing: -.04em; }
+    .page-head p { max-width: 720px; margin-bottom: 0; color: var(--muted); line-height: 1.5; }
+    .eyebrow { margin-bottom: 7px; color: var(--green-bright); font-size: 9px; font-weight: 750; letter-spacing: .13em; text-transform: uppercase; }
+    .prototype-note { color: var(--muted); font-size: 9px; }
+    .button { display: inline-flex; min-height: 39px; align-items: center; justify-content: center; gap: 7px; padding: 0 14px; border: 1px solid transparent; border-radius: var(--radius-md); background: var(--surface-2); font-weight: 680; }
+    .button.primary { background: var(--green); color: var(--green-ink); }
+    .button.outline { border-color: var(--line-strong); background: transparent; }
+    .button.danger { border-color: rgba(203,111,101,.45); background: rgba(203,111,101,.1); color: #e9a29a; }
+    .button:disabled { opacity: .45; cursor: not-allowed; }
+    .button.small { min-height: 33px; padding: 0 10px; font-size: 10px; }
+    .link-button { padding: 0; border: 0; background: transparent; color: var(--green-bright); font-size: 10px; }
+    .panel { overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius-xl); background: var(--surface); }
+    .panel-pad { padding: 22px; }
+    .panel-head { display: flex; align-items: start; justify-content: space-between; gap: 18px; margin-bottom: 17px; }
+    .panel-head h2 { margin-bottom: 4px; font-size: 18px; font-weight: 620; }
+    .panel-head p { margin-bottom: 0; color: var(--muted); font-size: 10px; line-height: 1.45; }
+    .section-label { margin: 0 0 9px; color: var(--muted); font-size: 8px; letter-spacing: .09em; text-transform: uppercase; }
+    .rule-list { border-top: 1px solid var(--line); }
+    .rule-row { display: grid; grid-template-columns: minmax(150px,1fr) minmax(180px,1.4fr) auto; gap: 16px; align-items: center; min-height: 58px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+    .rule-row strong, .rule-row small { display: block; }
+    .rule-row strong { font-size: 12px; }
+    .rule-row small { margin-top: 4px; color: var(--muted); font-size: 9px; line-height: 1.4; }
+    .value { font-variant-numeric: tabular-nums; font-weight: 700; }
+    .tag { display: inline-flex; min-height: 25px; align-items: center; gap: 6px; padding: 0 8px; border: 1px solid var(--line-strong); border-radius: 999px; color: var(--muted); font-size: 8px; font-weight: 700; white-space: nowrap; }
+    .tag.good { border-color: rgba(131,169,109,.4); color: var(--green-bright); }
+    .tag.warn { border-color: rgba(209,170,72,.4); color: var(--amber); }
+    .tag.bad { border-color: rgba(203,111,101,.4); color: var(--red); }
+    .tag::before { width: 6px; height: 6px; border-radius: 50%; background: currentColor; content: ""; }
+    .field { display: grid; gap: 6px; }
+    .field label { color: var(--muted); font-size: 9px; }
+    .field input, .field select, .field textarea { width: 100%; min-height: 41px; padding: 9px 11px; border: 1px solid var(--line-strong); border-radius: var(--radius-md); background: var(--surface-2); }
+    .field textarea { min-height: 120px; resize: vertical; }
+    .field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .field.full { grid-column: 1 / -1; }
+    .tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line); }
+    .tab { min-height: 39px; padding: 0 13px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--muted); font-size: 10px; }
+    .tab.active { border-bottom-color: var(--green); color: var(--text); }
+    .plant-id { display: flex; align-items: center; gap: 11px; }
+    .plant-id img { width: 48px; height: 48px; border-radius: var(--radius-md); object-fit: cover; }
+    .plant-id strong, .plant-id small { display: block; }
+    .plant-id small { margin-top: 3px; color: var(--muted); font-size: 9px; }
+    .metric-bar { display: grid; grid-template-columns: repeat(18,1fr); gap: 3px; }
+    .metric-bar i { height: 6px; background: var(--surface-3); }
+    .metric-bar i.on { background: var(--green); }
+    .metric-bar.warn i.on { background: var(--amber); }
+    .mini-chart { width: 100%; height: 120px; }
+    .mini-chart .grid { stroke: var(--line); stroke-width: 1; }
+    .mini-chart .line { fill: none; stroke: var(--green); stroke-width: 2.2; vector-effect: non-scaling-stroke; }
+    .mini-chart .area { fill: rgba(131,169,109,.1); }
+    .mini-chart .target { fill: rgba(131,169,109,.12); }
+    .action-strip { display: flex; flex-wrap: wrap; gap: 7px; }
+    .choice { min-height: 38px; padding: 0 12px; border: 1px solid var(--line); border-radius: var(--radius-md); background: transparent; color: var(--muted); }
+    .choice.active { border-color: var(--green); background: rgba(131,169,109,.12); color: var(--text); }
+    .capture-context { display: grid; grid-template-columns: repeat(3,1fr); margin: 15px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+    .capture-context span { padding: 11px 8px; }
+    .capture-context span + span { border-left: 1px solid var(--line); }
+    .capture-context small, .capture-context strong { display: block; }
+    .capture-context small { color: var(--muted); font-size: 8px; }
+    .capture-context strong { margin-top: 4px; font-size: 10px; }
+
+    .review-map { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; }
+    .map-item { display: grid; min-height: 178px; align-content: space-between; gap: 20px; padding: 20px; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--surface); text-align: left; }
+    .map-item:hover { border-color: var(--line-strong); background: var(--surface-2); }
+    .map-number { color: var(--green-bright); font-size: 10px; }
+    .map-item h2 { margin-bottom: 7px; font-size: 19px; font-weight: 590; }
+    .map-item p { margin-bottom: 0; color: var(--muted); font-size: 10px; line-height: 1.5; }
+    .map-footer { display: flex; align-items: center; justify-content: space-between; color: var(--muted); font-size: 8px; }
+
+    .journal-page .page-head { margin-bottom: 20px; }
+    .journal-page .page-head h1 { font-size: clamp(28px,2.7vw,36px); }
+    .journal-page h2 { letter-spacing: -.015em; }
+    .journal-a { display: grid; grid-template-columns: minmax(0,1fr) 360px; gap: 20px; align-items: start; }
+    .composer-rail { position: sticky; top: 18px; }
+    .compact-composer { overflow: hidden; border: 1px solid var(--line-strong); border-radius: var(--radius-lg); background: var(--surface); }
+    .compact-composer-head { display: flex; min-height: 48px; align-items: center; justify-content: space-between; gap: 12px; padding: 0 16px; border-bottom: 1px solid var(--line); }
+    .compact-composer-head strong { font-size: 13px; }
+    .compact-composer-head small { color: var(--muted); font-size: 10px; }
+    .composer-close { display: grid; width: 30px; height: 30px; place-items: center; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--muted); font-size: 20px; }
+    .composer-close:hover { background: var(--surface-2); color: var(--text); }
+    .composer-toolbar { display: grid; grid-template-columns: minmax(0,1fr) minmax(118px,.72fr) 178px; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+    .composer-control { min-width: 0; }
+    .composer-control span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; }
+    .composer-control select, .composer-control input { width: 100%; min-height: 36px; padding: 0 10px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface-2); font-size: 11px; }
+    .composer-control input { font-variant-numeric: tabular-nums; }
+    .composer-text { display: block; width: 100%; min-height: 118px; padding: 15px 16px; border: 0; background: transparent; color: var(--text); font-size: 14px; line-height: 1.55; resize: vertical; }
+    .composer-text::placeholder { color: var(--muted); }
+    .composer-text:focus { outline: 0; }
+    .context-summary { border-top: 1px solid var(--line); }
+    .context-summary summary { display: flex; min-height: 38px; align-items: center; justify-content: space-between; gap: 12px; padding: 0 16px; color: var(--muted); cursor: pointer; font-size: 10px; list-style: none; }
+    .context-summary summary::-webkit-details-marker { display: none; }
+    .context-summary summary span { display: inline-flex; align-items: center; gap: 7px; color: var(--text); }
+    .context-summary summary .icon { width: 14px; height: 14px; color: var(--green-bright); }
+    .context-summary-values { display: grid; grid-template-columns: repeat(4,1fr); padding: 0 16px 12px; }
+    .context-summary-values span { padding-left: 10px; border-left: 1px solid var(--line); }
+    .context-summary-values span:first-child { padding-left: 0; border-left: 0; }
+    .context-summary-values small, .context-summary-values strong { display: block; }
+    .context-summary-values small { color: var(--muted); font-size: 8px; }
+    .context-summary-values strong { margin-top: 3px; font-size: 10px; }
+    .composer-actions { display: flex; min-height: 54px; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 12px 8px 16px; border-top: 1px solid var(--line); }
+    .composer-actions small { color: var(--muted); font-size: 9px; }
+    .composer-actions .button { min-height: 36px; }
+    .composer-rail .composer-toolbar { grid-template-columns: 1fr 1fr; }
+    .composer-rail .composer-control.time-control { grid-column: 1 / -1; }
+    .composer-rail .composer-text { min-height: 142px; }
+    .journal-log { overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--surface); }
+    .journal-history-head { display: flex; min-height: 70px; align-items: center; justify-content: space-between; gap: 18px; padding: 14px 18px; border-bottom: 1px solid var(--line); }
+    .journal-history-head h2 { margin-bottom: 3px; font-size: 18px; font-weight: 650; }
+    .journal-history-head p { margin-bottom: 0; color: var(--muted); font-size: 10px; }
+    .journal-log-actions { display: flex; align-items: center; gap: 8px; }
+    .journal-filterbar { display: flex; gap: 7px; }
+    .journal-filter span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; }
+    .journal-filter select { min-width: 126px; min-height: 34px; padding: 0 28px 0 9px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface-2); font-size: 10px; }
+    .activity-list { padding: 0 18px 6px; }
+    .activity-day { display: flex; align-items: center; gap: 10px; margin: 0; padding: 16px 0 7px; color: var(--muted); font-size: 9px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+    .activity-day::after { flex: 1; height: 1px; background: var(--line); content: ""; }
+    .activity-row { display: grid; grid-template-columns: 32px minmax(0,1fr) auto; gap: 12px; align-items: start; padding: 14px 0; border-bottom: 1px solid var(--line); }
+    .activity-mark { display: grid; width: 30px; height: 30px; place-items: center; border-radius: 50%; background: var(--surface-2); color: var(--green-bright); }
+    .activity-mark .icon { width: 15px; height: 15px; }
+    .activity-mark.inspect, .activity-mark.observation { color: var(--blue); }
+    .activity-mark.plan, .activity-mark.stageChange { color: var(--amber); }
+    .activity-main { min-width: 0; }
+    .activity-kicker { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 4px; color: var(--muted); font-size: 10px; }
+    .activity-kicker strong { color: var(--text); font-size: 11px; }
+    .activity-main p { margin-bottom: 7px; font-size: 13px; line-height: 1.45; }
+    .activity-context { color: var(--muted); font-size: 9px; }
+    .activity-context span { display: inline-flex; align-items: center; gap: 5px; }
+    .activity-context .icon { width: 12px; height: 12px; }
+    .activity-end { display: grid; justify-items: end; gap: 8px; }
+    .activity-row time { padding-top: 1px; color: var(--muted); font-size: 10px; font-variant-numeric: tabular-nums; }
+    .journal-b { display: grid; gap: 16px; }
+    .composer-inline .composer-text { min-height: 82px; }
+    .daybook-body { padding: 0 18px 6px; }
+    .daybook-day { display: grid; grid-template-columns: 104px minmax(0,1fr); border-bottom: 1px solid var(--line); }
+    .daybook-date { padding: 17px 14px 17px 0; }
+    .daybook-date strong, .daybook-date small { display: block; }
+    .daybook-date strong { font-size: 12px; }
+    .daybook-date small { margin-top: 4px; color: var(--muted); font-size: 9px; }
+    .daybook-entries { border-left: 1px solid var(--line); }
+    .daybook-entries .activity-row { padding-left: 18px; }
+    .daybook-entries .activity-row:last-child { border-bottom: 0; }
+    .journal-c { width: min(1040px,100%); margin: 0 auto; }
+    .journal-drawer-scrim { position: fixed; z-index: 90; inset: 0; background: rgba(4,7,5,.58); backdrop-filter: blur(2px); }
+    .journal-drawer { position: absolute; top: 0; right: 0; width: min(430px,100%); height: 100%; padding: 18px; overflow-y: auto; border-left: 1px solid var(--line-strong); background: var(--bg); box-shadow: -18px 0 50px rgba(0,0,0,.34); }
+    .journal-drawer .compact-composer { border-radius: var(--radius-lg); }
+    .journal-drawer .composer-toolbar { grid-template-columns: 1fr 1fr; }
+    .journal-drawer .composer-control.time-control { grid-column: 1 / -1; }
+    .journal-drawer .composer-text { min-height: 170px; }
+
+    .archive-table, .compare-table { width: 100%; margin-top: 18px; border-collapse: collapse; }
+    .archive-table th, .archive-table td, .compare-table th, .compare-table td { padding: 12px 10px; border-bottom: 1px solid var(--line); text-align: left; font-size: 10px; vertical-align: top; }
+    .archive-table th, .compare-table th { color: var(--muted); font-size: 8px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
+
+    .phase-axis { display: grid; margin: 20px 0 28px; overflow-x: auto; padding: 6px 2px 2px; }
+    .phase-node { position: relative; min-width: 132px; padding: 18px 12px 10px 0; border: 0; border-top: 2px solid var(--line-strong); border-radius: 0; background: transparent; color: var(--text); text-align: left; }
+    .phase-node::before { position: absolute; top: -6px; left: 0; width: 10px; height: 10px; border: 1px solid var(--line-strong); border-radius: 50%; background: var(--surface); content: ""; }
+    .phase-node:hover { color: var(--green-bright); }
+    .phase-node.done, .phase-node.current { border-color: var(--green); }
+    .phase-node.done::before, .phase-node.current::before { border-color: var(--green); background: var(--green); }
+    .phase-node.selected { background: transparent; color: var(--green-bright); }
+    .phase-node.selected::before { border-color: var(--green-bright); box-shadow: 0 0 0 4px rgba(131,169,109,.14); }
+    .phase-node.selected strong, .phase-node.selected small { color: var(--green-bright); }
+    .phase-node strong, .phase-node small { display: block; }
+    .phase-node small { margin-top: 4px; color: var(--muted); font-size: 8px; }
+    .phase-layout { display: grid; grid-template-columns: minmax(0,1fr) 340px; gap: 18px; }
+    .phase-item { display: grid; grid-template-columns: 38px minmax(0,1fr) auto; gap: 10px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); }
+    .phase-item.drag-over { background: rgba(131,169,109,.1); }
+    .phase-item.selected .phase-select { color: var(--green-bright); }
+    .drag { display: grid; width: 32px; height: 32px; place-items: center; border: 1px solid transparent; border-radius: var(--radius-sm); background: transparent; color: var(--muted); font-size: 13px; cursor: grab; }
+    .drag:hover, .drag:focus-visible { border-color: var(--line-strong); background: var(--surface-2); color: var(--text); }
+    .drag:active { cursor: grabbing; }
+    .phase-select { padding: 4px 0; border: 0; background: transparent; color: var(--text); text-align: left; }
+    .phase-item strong, .phase-item small { display: block; }
+    .phase-item small { margin-top: 4px; color: var(--muted); font-size: 8px; }
+    .phase-target { margin: 18px 0 16px; padding: 14px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+    .phase-target small, .phase-target strong { display: block; }
+    .phase-target small { color: var(--muted); font-size: 8px; }
+    .phase-target strong { margin-top: 5px; color: var(--green-bright); font-size: 18px; }
+
+    .sensor-layout { display: grid; grid-template-columns: minmax(0,1fr) 380px; gap: 18px; }
+    .source-preview { position: sticky; top: 20px; align-self: start; }
+    .source-value { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin: 18px 0 8px; }
+    .source-value strong { font-size: 36px; font-weight: 580; }
+    .source-value small { color: var(--muted); }
+    .entity-code { color: var(--blue); font-family: Consolas, monospace; font-size: 9px; }
+    .sensor-binding-row { grid-template-columns: minmax(170px,1fr) minmax(260px,1.5fr) 112px; }
+    .sensor-binding-row .entity-code { display: block; overflow-wrap: anywhere; }
+    .binding-map { display: grid; grid-template-columns: 1fr 44px 1fr; align-items: center; gap: 8px; padding: 13px 0; border-bottom: 1px solid var(--line); }
+    .binding-arrow { color: var(--muted); text-align: center; }
+
+    .strain-layout { display: grid; grid-template-columns: minmax(330px,.85fr) minmax(0,1.15fr); gap: 18px; }
+    .search-line { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 8px; }
+    .result-list { margin-top: 13px; border-top: 1px solid var(--line); }
+    .strain-result { display: grid; grid-template-columns: 70px minmax(0,1fr) auto; gap: 12px; align-items: center; width: 100%; margin-top: 5px; padding: 9px; border: 1px solid transparent; border-radius: var(--radius-md); background: transparent; text-align: left; }
+    .strain-result.active { background: var(--surface-2); }
+    .strain-result img { width: 70px; height: 58px; border-radius: var(--radius-sm); object-fit: cover; }
+    .strain-result strong, .strain-result small { display: block; }
+    .strain-result small { margin-top: 3px; color: var(--muted); font-size: 8px; }
+    .strain-detail-photo { width: 100%; height: 260px; object-fit: cover; }
+    .provider-copy { padding: 18px 20px 0; }
+    .provider-warning { padding: 12px; border-left: 3px solid var(--amber); border-radius: var(--radius-md); background: rgba(209,170,72,.08); color: var(--muted); font-size: 10px; line-height: 1.5; }
+    .strain-search-page { width: min(1100px,100%); margin: 0 auto; }
+    .strain-query-shell { display: grid; grid-template-columns: minmax(0,1fr) 220px; gap: 8px; padding: 9px; border: 1px solid var(--line-strong); border-radius: var(--radius-lg); background: var(--surface); box-shadow: 0 12px 34px rgba(0,0,0,.12); }
+    .strain-query-main { display: grid; grid-template-columns: 24px minmax(0,1fr); gap: 8px; align-items: center; min-height: 46px; padding: 0 8px; }
+    .strain-query-main .icon { color: var(--muted); }
+    .strain-query-main input, .strain-query-shell select { width: 100%; min-height: 46px; border: 0; background: transparent; color: var(--text); outline: 0; }
+    .strain-query-main input { font-size: 15px; }
+    .strain-query-shell select { padding: 0 34px 0 12px; border-left: 1px solid var(--line); font-size: 10px; }
+    .strain-provider-line { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 9px 4px 20px; color: var(--muted); font-size: 9px; }
+    .strain-provider-line span { display: inline-flex; align-items: center; gap: 6px; }
+    .strain-search-layout { display: grid; grid-template-columns: minmax(0,1fr) 380px; gap: 22px; align-items: start; }
+    .strain-results-panel { overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius-xl); background: var(--surface); }
+    .strain-results-head { display: flex; min-height: 58px; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 18px; border-bottom: 1px solid var(--line); }
+    .strain-results-head strong, .strain-results-head small { display: block; }
+    .strain-results-head small { margin-top: 3px; color: var(--muted); font-size: 8px; }
+    .strain-hit { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 16px; width: 100%; padding: 16px 18px; border: 0; border-bottom: 1px solid var(--line); background: transparent; color: var(--text); text-align: left; }
+    .strain-hit:last-child { border-bottom: 0; }
+    .strain-hit:hover, .strain-hit.active { background: var(--surface-2); }
+    .strain-hit.active { box-shadow: inset 3px 0 var(--green); }
+    .strain-hit-source { display: block; margin-bottom: 5px; color: var(--green-bright); font-size: 8px; }
+    .strain-hit strong { display: block; color: var(--blue); font-size: 15px; font-weight: 610; }
+    .strain-hit p { margin: 5px 0 0; color: var(--muted); font-size: 10px; line-height: 1.45; }
+    .strain-hit-meta { display: grid; min-width: 86px; align-content: center; justify-items: end; gap: 5px; color: var(--muted); font-size: 8px; }
+    .strain-preview { position: sticky; top: 20px; overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius-xl); background: var(--surface); }
+    .strain-preview-media { display: grid; height: 210px; place-items: center; overflow: hidden; border-bottom: 1px solid var(--line); background: var(--surface-2); }
+    .strain-preview-media img { width: 100%; height: 100%; object-fit: cover; }
+    .strain-preview-placeholder { display: grid; width: 76px; height: 76px; place-items: center; border: 1px solid var(--line-strong); border-radius: var(--radius-lg); color: var(--muted); font-size: 19px; }
+    .strain-preview-body { padding: 18px; }
+    .strain-preview-body h2 { margin-bottom: 4px; font-size: 23px; }
+    .strain-preview-body > p { margin-bottom: 16px; color: var(--muted); font-size: 10px; }
+    .strain-preview-facts { border-top: 1px solid var(--line); }
+    .strain-preview-facts div { display: grid; grid-template-columns: 120px minmax(0,1fr); gap: 14px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+    .strain-preview-facts dt { color: var(--muted); font-size: 8px; }
+    .strain-preview-facts dd { margin: 0; font-size: 10px; line-height: 1.4; }
+    .strain-preview-actions { display: flex; justify-content: space-between; gap: 8px; margin-top: 16px; }
+    .strain-empty-search { min-height: 280px; padding: 40px 20px; color: var(--muted); text-align: center; }
+    .strain-inline-page { width: min(860px,100%); margin: 0 auto; }
+    .strain-inline-preview { margin: 0 14px 14px; border: 1px solid var(--line-strong); border-radius: var(--radius-lg); background: var(--surface-2); }
+    .strain-inline-preview .strain-preview { position: static; border: 0; border-radius: inherit; }
+    .strain-drawer-scrim { position: fixed; z-index: 90; inset: 0; background: rgba(4,7,5,.58); backdrop-filter: blur(2px); }
+    .strain-drawer { position: absolute; top: 0; right: 0; width: min(440px,100%); height: 100%; overflow-y: auto; border-left: 1px solid var(--line-strong); background: var(--bg); box-shadow: -18px 0 50px rgba(0,0,0,.34); }
+    .strain-drawer-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid var(--line); }
+    .strain-drawer .strain-preview { position: static; border: 0; border-radius: 0; }
+
+    .finish-layout { display: grid; grid-template-columns: 220px minmax(0,1fr); gap: 18px; }
+    .finish-steps { border-top: 1px solid var(--line); }
+    .finish-step { display: grid; grid-template-columns: 28px 1fr; gap: 9px; width: 100%; padding: 12px 0; border: 0; border-bottom: 1px solid var(--line); background: transparent; color: var(--muted); text-align: left; }
+    .finish-step.active { color: var(--text); }
+    .finish-step i { display: grid; width: 26px; height: 26px; place-items: center; border: 1px solid var(--line-strong); border-radius: 50%; font-style: normal; font-size: 9px; }
+    .finish-step.active i { border-color: var(--green); background: var(--green); color: var(--green-ink); }
+    .finish-summary { display: grid; grid-template-columns: 190px minmax(0,1fr); gap: 20px; }
+    .finish-summary img { width: 190px; height: 210px; border-radius: var(--radius-lg); object-fit: cover; }
+
+    .archive-gallery { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; }
+    .archive-card { display: grid; overflow: hidden; grid-template-rows: 180px auto; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--surface); text-align: left; }
+    .archive-card img { width: 100%; height: 180px; object-fit: cover; filter: saturate(.8); }
+    .archive-card > span { padding: 15px; }
+    .archive-card h2 { margin-bottom: 4px; font-size: 17px; }
+    .archive-card p { margin-bottom: 12px; color: var(--muted); font-size: 9px; }
+    .archive-card dl { display: grid; grid-template-columns: 1fr 1fr; margin: 0; }
+    .archive-card dt { color: var(--muted); font-size: 8px; }
+    .archive-card dd { margin: 3px 0 0; font-size: 11px; font-weight: 700; }
+    .archive-split { display: grid; grid-template-columns: minmax(0,1fr) 380px; gap: 18px; }
+    .archive-preview { position: sticky; top: 20px; align-self: start; }
+
+    .completed-hero { display: grid; overflow: hidden; grid-template-columns: 300px minmax(0,1fr); border: 1px solid var(--line); border-radius: var(--radius-xl); background: var(--surface); }
+    .completed-hero img { width: 300px; height: 270px; object-fit: cover; filter: saturate(.8); }
+    .completed-copy { display: grid; align-content: space-between; padding: 25px; }
+    .completed-copy h1 { margin-bottom: 5px; font-size: 31px; font-weight: 590; }
+    .fact-strip { display: grid; overflow: hidden; grid-template-columns: repeat(5,1fr); margin-top: 18px; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--surface); }
+    .fact-strip span { padding: 14px; }
+    .fact-strip span + span { border-left: 1px solid var(--line); }
+    .fact-strip small, .fact-strip strong { display: block; }
+    .fact-strip small { color: var(--muted); font-size: 8px; }
+    .fact-strip strong { margin-top: 5px; font-size: 11px; }
+    .completed-grid { display: grid; grid-template-columns: minmax(0,1.3fr) minmax(300px,.7fr); gap: 18px; margin-top: 18px; }
+
+    .compare-head { display: grid; overflow: hidden; grid-template-columns: 190px 1fr 1fr; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--surface); }
+    .compare-head > * { padding: 16px; }
+    .compare-head > * + * { border-left: 1px solid var(--line); }
+    .compare-plant { display: flex; gap: 11px; align-items: center; }
+    .compare-plant img { width: 58px; height: 58px; border-radius: var(--radius-md); object-fit: cover; }
+    .compare-plant strong, .compare-plant small { display: block; }
+    .compare-plant small { margin-top: 4px; color: var(--muted); font-size: 8px; }
+    .compare-overlay { margin-top: 18px; padding: 20px; border: 1px solid var(--line); border-radius: var(--radius-xl); background: var(--surface); }
+    .legend { display: flex; gap: 16px; color: var(--muted); font-size: 9px; }
+    .legend i { display: inline-block; width: 18px; height: 2px; margin-right: 6px; vertical-align: 3px; background: var(--green); }
+    .legend i.alt { background: var(--blue); }
+
+    .settings-layout { display: grid; grid-template-columns: minmax(0,1fr) 390px; gap: 18px; }
+    .setting-row { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 18px; align-items: center; min-height: 64px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+    .setting-row strong, .setting-row small { display: block; }
+    .setting-row small { margin-top: 4px; color: var(--muted); font-size: 9px; }
+    .switch { position: relative; width: 42px; height: 23px; padding: 0; border: 1px solid var(--line-strong); border-radius: 999px; background: var(--surface-2); }
+    .switch::after { position: absolute; top: 3px; left: 3px; width: 15px; height: 15px; border-radius: 50%; background: var(--muted); content: ""; transition: transform .16s; }
+    .switch.on::after { transform: translateX(19px); background: var(--green); }
+    .settings-preview { position: sticky; top: 20px; align-self: start; }
+
+    .states-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 18px; }
+    .state-sample { min-height: 250px; padding: 22px; border: 1px solid var(--line); border-radius: var(--radius-xl); background: var(--surface); }
+    .state-sample h2 { margin-bottom: 7px; font-size: 18px; }
+    .state-sample p { color: var(--muted); font-size: 10px; line-height: 1.5; }
+    .empty-mark { display: grid; width: 52px; height: 52px; margin-bottom: 26px; place-items: center; border: 1px solid var(--line-strong); border-radius: var(--radius-lg); color: var(--green-bright); }
+    .skeleton { display: grid; gap: 9px; }
+    .skeleton i { display: block; height: 13px; border-radius: var(--radius-sm); background: var(--surface-3); animation: pulse 1.4s infinite alternate; }
+    .skeleton i:nth-child(2) { width: 72%; }
+    .skeleton i:nth-child(3) { width: 45%; }
+    @keyframes pulse { to { opacity: .45; } }
+
+    .ha-stage { min-height: 690px; padding: 34px; background: #101417; color: #e7ebed; font-family: Roboto,"Segoe UI",sans-serif; }
+    .ha-toolbar { display: flex; align-items: center; justify-content: space-between; max-width: 1100px; margin: 0 auto 25px; }
+    .ha-toolbar h1 { margin: 0; font-size: 24px; font-weight: 400; }
+    .ha-grid { display: grid; max-width: 1100px; margin: 0 auto; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; }
+    .ha-card { overflow: hidden; border-radius: 12px; background: #1c2023; box-shadow: 0 2px 6px rgba(0,0,0,.35); }
+    .ha-card-head { display: flex; align-items: center; justify-content: space-between; padding: 15px 16px; }
+    .ha-card-head h2 { margin: 0; font-size: 15px; font-weight: 500; }
+    .ha-content { padding: 0 16px 16px; }
+    .ha-plant { display: grid; grid-template-columns: 72px minmax(0,1fr) auto; gap: 12px; align-items: center; padding: 12px 0; border-top: 1px solid rgba(255,255,255,.1); }
+    .ha-plant img { width: 72px; height: 60px; border-radius: 8px; object-fit: cover; }
+    .ha-plant strong, .ha-plant small { display: block; }
+    .ha-plant small { margin-top: 4px; color: #aeb6ba; font-size: 11px; }
+    .ha-actions { display: grid; grid-template-columns: repeat(3,1fr); border-top: 1px solid rgba(255,255,255,.1); }
+    .ha-actions button { min-height: 48px; border: 0; border-right: 1px solid rgba(255,255,255,.1); background: transparent; color: #03a9f4; font-size: 11px; }
+    .ha-chart-card { grid-column: 1 / -1; }
+
+    .idea-flow { display: grid; overflow: hidden; grid-template-columns: repeat(4,1fr); border: 1px solid var(--line); border-radius: var(--radius-xl); background: var(--surface); }
+    .idea-step { min-height: 170px; padding: 18px; }
+    .idea-step + .idea-step { border-left: 1px solid var(--line); }
+    .idea-step i { display: grid; width: 36px; height: 36px; margin-bottom: 28px; place-items: center; border: 1px solid var(--line-strong); border-radius: var(--radius-md); color: var(--green-bright); font-style: normal; }
+    .idea-step strong, .idea-step small { display: block; }
+    .idea-step small { margin-top: 6px; color: var(--muted); font-size: 9px; line-height: 1.45; }
+
+    .prototype-switcher { position: fixed; z-index: 80; bottom: 18px; left: 50%; display: grid; min-width: 280px; overflow: hidden; grid-template-columns: 46px 1fr 46px; gap: 4px; padding: 5px; transform: translateX(-50%); border: 1px solid rgba(255,255,255,.15); border-radius: 16px; background: rgba(6,9,7,.95); color: white; box-shadow: 0 14px 45px rgba(0,0,0,.45); }
+    .prototype-switcher button { height: 40px; border: 0; border-radius: 11px; background: #18221a; color: white; }
+    .prototype-switcher strong { display: grid; place-items: center; font-size: 11px; }
+    .prototype-state { position: fixed; z-index: 79; right: 16px; bottom: 17px; width: 290px; max-height: 45vh; overflow: auto; border: 1px solid rgba(255,255,255,.12); border-radius: var(--radius-md); background: rgba(6,9,7,.95); color: white; }
+    .prototype-state summary { padding: 13px; cursor: pointer; font-size: 9px; font-weight: 700; }
+    .prototype-state pre { padding: 0 13px 13px; overflow: auto; font-size: 8px; white-space: pre-wrap; }
+    .toast { position: fixed; z-index: 100; top: 18px; left: 50%; padding: 11px 15px; transform: translateX(-50%); border: 1px solid var(--line-strong); border-radius: var(--radius-md); background: var(--surface-3); color: var(--text); font-size: 10px; }
+
+    @media (max-width: 1050px) {
+      .review-map { grid-template-columns: repeat(2,minmax(0,1fr)); }
+      .journal-a, .strain-layout, .strain-search-layout, .sensor-layout, .archive-split, .settings-layout, .completed-grid { grid-template-columns: 1fr; }
+      .composer-rail, .source-preview, .archive-preview, .settings-preview { position: static; }
+      .journal-a .composer-rail { order: -1; }
+      .archive-gallery { grid-template-columns: repeat(2,minmax(0,1fr)); }
+      .fact-strip { grid-template-columns: repeat(3,1fr); }
+    }
+    @media (max-width: 760px) {
+      .shell { display: block; }
+      .rail { position: fixed; top: auto; right: 0; bottom: 0; left: 0; z-index: 70; width: auto; height: 62px; flex-direction: row; justify-content: space-around; padding: 7px; border-top: 1px solid var(--line); border-right: 0; }
+      .brand, .rail-button.bottom, .rail-button.optional-mobile { display: none; }
+      .rail-button { width: 48px; height: 48px; border-bottom: 2px solid transparent; border-left: 0; }
+      .rail-button:hover, .rail-button.active { border-bottom-color: var(--green); border-left: 0; }
+      .main { padding: 14px 14px 125px; }
+      .topbar { margin-bottom: 20px; }
+      .language { display: none; }
+      .page-head { display: block; }
+      .page-head .button { margin-top: 14px; }
+      .review-map, .states-grid, .archive-gallery { grid-template-columns: 1fr; }
+      .map-item { min-height: 145px; }
+      .field-grid, .phase-layout, .finish-layout, .finish-summary, .completed-hero, .compare-head, .ha-grid { grid-template-columns: 1fr; }
+      .completed-hero img { width: 100%; height: 260px; }
+      .fact-strip { grid-template-columns: 1fr 1fr; }
+      .fact-strip span + span { border-left: 0; }
+      .fact-strip span { border-bottom: 1px solid var(--line); }
+      .journal-history-head { display: block; }
+      .journal-log-actions { justify-content: space-between; margin-top: 12px; }
+      .daybook-day { grid-template-columns: 1fr; }
+      .daybook-date { padding-bottom: 10px; }
+      .daybook-entries { border-left: 0; }
+      .daybook-entries .activity-row { padding-left: 0; }
+      .archive-table { display: block; overflow-x: auto; }
+      .context-summary-values, .capture-context, .idea-flow { grid-template-columns: 1fr 1fr; }
+      .context-summary-values span:nth-child(3) { padding-left: 0; border-left: 0; }
+      .context-summary-values span:nth-child(n+3) { margin-top: 9px; padding-top: 9px; border-top: 1px solid var(--line); }
+      .idea-step + .idea-step { border-left: 0; border-top: 1px solid var(--line); }
+      .prototype-state { display: none; }
+      .prototype-switcher { bottom: 70px; min-width: 250px; }
+      .ha-stage { padding: 18px 12px 120px; }
+      .strain-preview { position: static; }
+    }
+    @media (max-width: 480px) {
+      .review-map, .capture-context, .fact-strip, .idea-flow { grid-template-columns: 1fr; }
+      .composer-toolbar, .composer-rail .composer-toolbar, .journal-drawer .composer-toolbar { grid-template-columns: 1fr; }
+      .composer-rail .composer-control.time-control, .journal-drawer .composer-control.time-control { grid-column: 1; }
+      .context-summary summary { display: block; padding: 10px 14px; }
+      .context-summary summary small { display: block; margin-top: 4px; }
+      .context-summary-values { grid-template-columns: 1fr 1fr; }
+      .composer-actions { align-items: stretch; flex-direction: column; }
+      .composer-actions .button { width: 100%; }
+      .capture-context span + span { border-top: 1px solid var(--line); border-left: 0; }
+      .journal-filterbar { display: grid; grid-template-columns: 1fr 1fr; }
+      .journal-filter select { width: 100%; min-width: 0; }
+      .journal-log-actions { display: grid; grid-template-columns: 1fr; }
+      .journal-log-actions .button { width: 100%; }
+      .activity-row { grid-template-columns: 34px minmax(0,1fr); }
+      .activity-mark { width: 32px; height: 32px; }
+      .activity-end { grid-column: 2; grid-row: 2; grid-auto-flow: column; justify-content: space-between; justify-items: start; }
+      .journal-drawer { padding: 10px; }
+      .strain-query-shell { grid-template-columns: 1fr; }
+      .strain-query-shell select { border-top: 1px solid var(--line); border-left: 0; }
+      .strain-provider-line { align-items: flex-start; flex-direction: column; }
+      .strain-hit { grid-template-columns: 1fr; }
+      .strain-hit-meta { min-width: 0; grid-auto-flow: column; justify-content: space-between; justify-items: start; }
+      .strain-preview-facts div { grid-template-columns: 1fr; gap: 4px; }
+      .rule-row, .binding-map { grid-template-columns: 1fr; }
+      .binding-arrow { transform: rotate(90deg); }
+      .phase-axis { overflow-x: auto; grid-template-columns: repeat(4,120px); }
+      .archive-card { grid-template-rows: 220px auto; }
+      .archive-card img { height: 220px; }
+      .top-actions .button { display: none; }
+    }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; animation: none !important; transition: none !important; } }
+  </style>
+</head>
+<body>
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="i-leaf" viewBox="0 0 24 24"><path d="M20 4c-8 0-14 4-14 11 0 3 2 5 5 5 7 0 9-8 9-16Z"/><path d="M5 21c2-6 7-10 13-13"/></symbol>
+    <symbol id="i-home" viewBox="0 0 24 24"><path d="m3 11 9-8 9 8"/><path d="M5 10v10h14V10M9 20v-6h6v6"/></symbol>
+    <symbol id="i-book" viewBox="0 0 24 24"><path d="M4 5a3 3 0 0 1 3-3h13v17H7a3 3 0 0 0-3 3Z"/><path d="M4 5v17M8 6h8M8 10h7"/></symbol>
+    <symbol id="i-history" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1a1.7 1.7 0 0 0 1.9.3A1.7 1.7 0 0 0 10 3V2.8h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1Z"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-drop" viewBox="0 0 24 24"><path d="M12 2S5 10 5 15a7 7 0 0 0 14 0c0-5-7-13-7-13Z"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 15.2A8.5 8.5 0 0 1 8.8 4 8.5 8.5 0 1 0 20 15.2Z"/></symbol>
+    <symbol id="i-chart" viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 3 2 21h20L12 3Z"/><path d="M12 9v5M12 18h.01"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></symbol>
+    <symbol id="i-sensor" viewBox="0 0 24 24"><path d="M12 4v10"/><circle cx="12" cy="17" r="3"/><path d="M7 6a7 7 0 0 0 0 8M17 6a7 7 0 0 1 0 8"/></symbol>
+    <symbol id="i-timeline" viewBox="0 0 24 24"><path d="M6 3v18M6 7h10M6 12h7M6 17h12"/><circle cx="6" cy="7" r="2"/><circle cx="6" cy="12" r="2"/><circle cx="6" cy="17" r="2"/></symbol>
+    <symbol id="i-archive" viewBox="0 0 24 24"><path d="M4 7v13h16V7M3 3h18v4H3zM9 11h6"/></symbol>
+    <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></symbol>
+    <symbol id="i-camera" viewBox="0 0 24 24"><path d="M4 7h4l2-3h4l2 3h4v13H4Z"/><circle cx="12" cy="13" r="4"/></symbol>
+    <symbol id="i-bell" viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></symbol>
+    <symbol id="i-door" viewBox="0 0 24 24"><path d="M5 21V4l12-2v19M5 21h14"/><path d="M13 12h.01"/></symbol>
+  </svg>
+  <main id="app"></main>
+  <div id="toast-root"></div>
+  <script>
+    const VARIANTS=[
+      {key:"A",nameDe:"Arbeitsfluss",nameEn:"Workflow"},
+      {key:"B",nameDe:"Datentisch",nameEn:"Data desk"},
+      {key:"C",nameDe:"Fokus",nameEn:"Focus"}
+    ];
+    const VIEW_META=[
+      ["journal","journalTitle","journalBlurb","book","A/B/C"],
+      ["phases","phasesTitle","phasesBlurb","timeline","A/B/C"],
+      ["sensors","sensorsTitle","sensorsBlurb","sensor","A/B/C"],
+      ["strain","strainTitle","strainBlurb","search","A/B/C"],
+      ["edit","editTitle","editBlurb","settings","A/B/C"],
+      ["finish","finishTitle","finishBlurb","check","A/B/C"],
+      ["archive","archiveTitle","archiveBlurb","archive","A/B/C"],
+      ["completed","completedTitle","completedBlurb","leaf","A/B/C"],
+      ["compare","compareTitle","compareBlurb","chart","A/B/C"],
+      ["settings","settingsTitle","settingsBlurb","settings","A/B/C"],
+      ["states","statesTitle","statesBlurb","alert","A/B/C"],
+      ["lovelace","lovelaceTitle","lovelaceBlurb","grid","A/B/C"],
+      ["ideas","ideasTitle","ideasBlurb","bell","A/B/C · future"]
+    ];
+    const COPY={
+      de:{
+        prepared:"Bereits vorbereitet",creationReview:"Anlageflow",creationReviewText:"Guided A ist gewählt: eine Pflanze pro Lauf, mit Strain-Suche und manuellem Fallback.",plantDetailReview:"Pflanzenansicht",plantDetailReviewText:"Clean development, Revision 13, als aktuelle Arbeitsrichtung.",tentReview:"Zeltübersicht",tentReviewText:"Photo focus mit beiden aktiven Pflanzen und gemeinsamen Zeltwerten.",
+        mapTitle:"Review-Parcours",mapIntro:"Alle noch offenen PlantRun-Oberflächen an einem Ort. Jeder Screen nutzt dieselben Beispieldaten und bleibt vollständig ohne Speicherung.",remaining:"Noch offene Produktflächen",open:"Öffnen",backMap:"Zur Übersicht",prototype:"Wegwerf-Prototyp · Beispieldaten",variantHint:"Pfeile unten wechseln die Struktur A/B/C",overview:"Tent-Prototyp",journalTitle:"Journal und Schnelleintrag",journalBlurb:"Etwas direkt nach der Arbeit an der Pflanze festhalten und später chronologisch wiederfinden.",phasesTitle:"Phasen verwalten",phasesBlurb:"Standard- und eigene Phasen ordnen, bearbeiten und ohne starre Anbauregeln fortschalten.",sensorsTitle:"Sensoren zuordnen",sensorsBlurb:"Gemeinsame Zeltwerte und exklusive Pflanzensensoren nachvollziehbar verbinden.",strainTitle:"Strain finden",strainBlurb:"Breeder-Daten übernehmen, Zeitangaben korrekt erklären und bei Ausfall manuell fortfahren.",editTitle:"Pflanze bearbeiten",editBlurb:"Stammdaten, Spitzname, Bild und Erntekorridor bleiben jederzeit änderbar.",finishTitle:"Ernte und Abschluss",finishBlurb:"Den Sensorzeitraum beenden, Erntedaten sichern und den Lauf dauerhaft archivieren.",archiveTitle:"Archiv",archiveBlurb:"Abgeschlossene Läufe wiederfinden, öffnen und für spätere Vergleiche auswählen.",completedTitle:"Abgeschlossener Lauf",completedBlurb:"Den gesamten Verlauf mit Fakten, Sensorentwicklung, Journal und Erntewerten lesen.",compareTitle:"Läufe vergleichen",compareBlurb:"Entwicklung und Ergebnis verschiedener Pflanzen ohne falsche Gleichsetzung gegenüberstellen.",settingsTitle:"Einstellungen",settingsBlurb:"Zelt, Darstellung, Sprache, Ton und Bewertungsbereiche kontrollieren.",statesTitle:"Leer-, Lade- und Fehlerzustände",statesBlurb:"Ehrliche Zustände für den ersten Start, fehlende Sensoren, Recorder-Lücken und Provider-Ausfälle.",lovelaceTitle:"Lovelace-Begleitkarte",lovelaceBlurb:"Eine kompakte Home-Assistant-Karte für Status und den direkten Weg zum Eintrag.",ideasTitle:"Spätere Home-Assistant-Ideen",ideasBlurb:"Türkontakt, Benachrichtigung und geplante Folgeaktionen, klar getrennt vom ersten Prototypumfang.",
+        tangerine:"Tangerine Dream Auto",diesel:"Diesel Auto",zamnesia:"Zamnesia",rqs:"Royal Queen Seeds",breeder:"Breeder",seedling:"Sämling",vegetative:"Vegetativ",flowering:"Blüte",harvested:"Geerntet",drying:"Trocknung",done:"Abgeschlossen",day:"Tag",exampleData:"Beispieldaten an Tag 21",entry:"Eintrag",newEntry:"Neuer Eintrag",savePrototype:"Eintrag speichern",saved:"Nur im Prototyp gespeichert",capturePrompt:"Was hast du gerade getan oder beobachtet?",captureHint:"Ein Schritt: Pflanze wählen, Art markieren, festhalten.",automaticContext:"Automatisch angehängte Werte",attachedValuesShort:"4 Sensorwerte angehängt",shortcutSave:"Strg + Enter zum Speichern",close:"Schließen",sensorValuesAttached:"Zeitpunkt und aktuelle Sensorwerte werden mitgespeichert.",history:"Verlauf",historyHint:"Chronologisch, lesbar und nach Pflanze oder Art filterbar.",filterPlant:"Nach Pflanze",filterType:"Nach Art",recentEntries:"Letzte Einträge",dayLog:"Tagesprotokoll",freeText:"Freitext",water:"Gießen",stageChange:"Phase ändern",inspect:"Prüfen",harvest:"Ernten",observation:"Beobachtung",action:"Aktion",plan:"Plan",allPlants:"Alle Pflanzen",allTypes:"Alle Arten",today:"Heute",yesterday:"Gestern",date:"Datum",time:"Uhrzeit",plant:"Pflanze",type:"Art",text:"Inhalt",context:"Sensorkontext",temperature:"Temperatur",humidity:"Luftfeuchte",moisture:"Bodenfeuchte",light:"Helligkeit",conductivity:"Leitfähigkeit",tentDoor:"Zelttür",openDoor:"Geöffnet",closed:"Geschlossen",current:"Aktuell",average:"Durchschnitt",minimum:"Minimum",maximum:"Maximum",target:"Zielbereich",inRange:"Im grünen Bereich",check:"Prüfen",cancel:"Abbrechen",save:"Speichern",edit:"Bearbeiten",delete:"Löschen",optional:"Optional",notAssigned:"Noch nicht zugeordnet",sharedTent:"Gemeinsamer Zeltwert",plantSpecific:"Je Pflanze",longTerm:"Langzeitstatistik verfügbar",noLongTerm:"Keine Langzeitstatistik",source:"Quelle",entity:"Entität",metric:"Messwert",assign:"Zuordnen",change:"Ändern",preview:"Vorschau",search:"Suchen",manual:"Manuell eingeben",providerOffline:"SeedFinder ist gerade nicht erreichbar. Du kannst den Lauf trotzdem vollständig manuell anlegen.",providerValue:"Breeder-Angabe",originalWording:"Originalangabe",meaning:"Bedeutung",seedToHarvest:"Keimung bis Ernte",floweringTime:"Nur Blütezeit",useData:"Daten übernehmen",nickname:"Spitzname",breederImage:"Breeder-Bild",userPhoto:"Eigenes Pflanzenfoto",replacePhoto:"Foto ersetzen",removeBreederImage:"Breeder-Bild löschen",plantDate:"Pflanzdatum",harvestWindow:"Erntekorridor",lightSchedule:"Lichtplan",allEditable:"Jeder Wert bleibt später änderbar.",
+        phasePlan:"Phasenplan",currentPhase:"Aktuelle Phase",selectedTarget:"Ausgewählte Zielphase",switchTime:"Wechselzeitpunkt",choosePhase:"Phase oben oder im Plan anklicken. Jede Phase kann ausgewählt werden; die Reihenfolge ist nur deine Darstellung.",switchTo:"Wechseln zu",dragHint:"Am Griff ziehen, um die Darstellung zu sortieren.",advance:"Phase wechseln",addPhase:"Eigene Phase hinzufügen",rename:"Umbenennen",skip:"Überspringen",phaseHistory:"Bisheriger Verlauf",started:"Begonnen",planned:"Geplant",custom:"Eigene Phase",reorder:"Reihenfolge",sensorWindow:"Sensorzeitraum",endsAtHarvest:"Endet mit der Ernte",dryYield:"Trockenertrag",wetYield:"Nassertrag",height:"Endhöhe",harvestDate:"Erntedatum",closeRun:"Lauf abschließen",finishWarning:"Der Recorder-Zeitraum endet mit diesem Zeitpunkt. Trocknung und spätere Notizen bleiben am Lauf, verlängern aber nicht den Sensorzeitraum.",summary:"Zusammenfassung",confirm:"Bestätigen",next:"Weiter",back:"Zurück",runCompleted:"Lauf im Prototyp abgeschlossen",postHarvest:"Nach der Ernte",addDrying:"Trocknung als Journalphase weiterführen",laterYield:"Trockenertrag später ergänzen",
+        active:"Aktiv",completed:"Abgeschlossen",duration:"Dauer",yield:"Ertrag",days:"Tage",entries:"Einträge",sortNewest:"Neueste zuerst",compare:"Vergleichen",selected:"Ausgewählt",openRecord:"Lauf öffnen",noDeletion:"Abgeschlossen, aber nicht gelöscht",correction:"Werte dürfen direkt korrigiert werden",development:"Entwicklung",sensorSummary:"Sensorentwicklung",journal:"Journal",facts:"Stammdaten",harvestFacts:"Erntewerte",timeline:"Zeitleiste",normalized:"Auf Lebensdauer normalisiert",difference:"Unterschied",sameTent:"Gleiches Zelt",differentStrain:"Unterschiedlicher Strain",selectRuns:"Zwei Läufe auswählen",
+        appearance:"Darstellung",darkMode:"Dunkle Darstellung",sound:"Interaktionston",language:"Sprache",density:"Informationsdichte",comfortable:"Komfortabel",compact:"Kompakt",tentSettings:"Zelteinstellungen",tentName:"Zeltname",averages:"Mittelwerte",targets:"Phasen-Zielbereiche",notifications:"Benachrichtigungen",doorPrompt:"Nach Zeltöffnung nach Eintrag fragen",settingsPreview:"Live-Vorschau",on:"An",off:"Aus",german:"Deutsch",english:"English",
+        firstRun:"Noch keine Pflanze angelegt",firstRunText:"Lege den ersten Lauf an. Sensoren und Strain-Daten kannst du auch später verbinden.",createFirst:"Erste Pflanze anlegen",sensorUnavailable:"Bodensensor nicht verfügbar",sensorUnavailableText:"Der letzte Wert bleibt sichtbar und klar als veraltet markiert. Frühere Recorder-Daten bleiben dem Lauf zugeordnet.",lastSeen:"Zuletzt vor 2 Stunden",recorderGap:"Recorder-Lücke",recorderGapText:"Für diesen Zeitraum liegen keine Rohdaten mehr vor. Langzeitstatistiken zeigen weiterhin Minimum, Mittelwert und Maximum.",loading:"PlantRun wird geladen",offline:"Home Assistant nicht erreichbar",retry:"Erneut versuchen",partial:"Ein Teil der Daten fehlt",manualStillWorks:"Manuelle Einträge bleiben möglich.",
+        haCard:"PlantRun · Grow Tent",openDashboard:"Öffnen",quickEntry:"Eintrag",watered:"Gegossen",attention:"Prüfen",noAttention:"Alles im Bereich",due:"Heute",nativeStyle:"Lovelace im Home-Assistant-Stil",
+        doorOpened:"Zelttür geöffnet",waitSession:"Arbeitssitzung abwarten",phonePrompt:"Handy-Benachrichtigung",captureWork:"Eintrag vorbefüllen",futureOnly:"Spätere Idee, nicht erster Prototypumfang",plannedFollowup:"Geplante Folgeaktion",followupText:"Ein Journalplan kann später eine Erinnerung erzeugen und deren Abschluss wieder als Ereignis speichern."
+      },
+      en:{
+        prepared:"Already prepared",creationReview:"Creation flow",creationReviewText:"Guided A is selected: one plant per run, with strain search and manual fallback.",plantDetailReview:"Plant workspace",plantDetailReviewText:"Clean development revision 13 as the current working direction.",tentReview:"Tent overview",tentReviewText:"Photo focus with both active plants and shared tent values.",
+        mapTitle:"Review route",mapIntro:"Every remaining PlantRun surface in one place. Each screen uses the same sample data and stores nothing.",remaining:"Remaining product surfaces",open:"Open",backMap:"Back to overview",prototype:"Disposable prototype · sample data",variantHint:"Use the arrows below to switch structure A/B/C",overview:"Tent prototype",journalTitle:"Journal and quick capture",journalBlurb:"Capture work on a plant immediately and find it later in chronological order.",phasesTitle:"Manage stages",phasesBlurb:"Order, edit, and advance default or custom stages without enforcing one growing method.",sensorsTitle:"Assign sensors",sensorsBlurb:"Connect shared tent values and exclusive plant sensors with clear ownership.",strainTitle:"Find strain",strainBlurb:"Use breeder data, explain timing correctly, and continue manually when the provider fails.",editTitle:"Edit plant",editBlurb:"Base data, nickname, image, and harvest window remain editable at any time.",finishTitle:"Harvest and complete",finishBlurb:"End the sensor window, record harvest facts, and keep the run permanently.",archiveTitle:"Archive",archiveBlurb:"Find completed runs, open them, and select them for later comparison.",completedTitle:"Completed run",completedBlurb:"Read the full development with facts, sensor trends, journal, and harvest values.",compareTitle:"Compare runs",compareBlurb:"Compare development and outcomes without pretending different plants are identical.",settingsTitle:"Settings",settingsBlurb:"Control tent, appearance, language, sound, and target ranges.",statesTitle:"Empty, loading, and error states",statesBlurb:"Honest states for first use, missing sensors, Recorder gaps, and provider failures.",lovelaceTitle:"Lovelace companion card",lovelaceBlurb:"A compact Home Assistant card for status and a direct path to capture.",ideasTitle:"Later Home Assistant ideas",ideasBlurb:"Door contact, notification, and planned follow-ups, kept separate from the first prototype scope.",
+        tangerine:"Tangerine Dream Auto",diesel:"Diesel Auto",zamnesia:"Zamnesia",rqs:"Royal Queen Seeds",breeder:"Breeder",seedling:"Seedling",vegetative:"Vegetative",flowering:"Flowering",harvested:"Harvested",drying:"Drying",done:"Completed",day:"Day",exampleData:"Sample data on day 21",entry:"Entry",newEntry:"New entry",savePrototype:"Save entry",saved:"Saved only in the prototype",capturePrompt:"What did you just do or observe?",captureHint:"One step: choose the plant, mark the type, and record it.",automaticContext:"Automatically attached values",attachedValuesShort:"4 sensor values attached",shortcutSave:"Ctrl + Enter to save",close:"Close",sensorValuesAttached:"The time and current sensor values are saved with the entry.",history:"History",historyHint:"Chronological, readable, and filterable by plant or type.",filterPlant:"By plant",filterType:"By type",recentEntries:"Recent entries",dayLog:"Daily log",freeText:"Free text",water:"Water",stageChange:"Change stage",inspect:"Inspect",harvest:"Harvest",observation:"Observation",action:"Action",plan:"Plan",allPlants:"All plants",allTypes:"All types",today:"Today",yesterday:"Yesterday",date:"Date",time:"Time",plant:"Plant",type:"Type",text:"Content",context:"Sensor context",temperature:"Temperature",humidity:"Humidity",moisture:"Soil moisture",light:"Illuminance",conductivity:"Conductivity",tentDoor:"Tent door",openDoor:"Open",closed:"Closed",current:"Current",average:"Average",minimum:"Minimum",maximum:"Maximum",target:"Target range",inRange:"In the green",check:"Check",cancel:"Cancel",save:"Save",edit:"Edit",delete:"Delete",optional:"Optional",notAssigned:"Not assigned",sharedTent:"Shared tent value",plantSpecific:"Per plant",longTerm:"Long-term statistics available",noLongTerm:"No long-term statistics",source:"Source",entity:"Entity",metric:"Metric",assign:"Assign",change:"Change",preview:"Preview",search:"Search",manual:"Enter manually",providerOffline:"SeedFinder is currently unavailable. You can still create the run manually.",providerValue:"Breeder value",originalWording:"Original wording",meaning:"Meaning",seedToHarvest:"Germination to harvest",floweringTime:"Flowering time only",useData:"Use data",nickname:"Nickname",breederImage:"Breeder image",userPhoto:"User plant photo",replacePhoto:"Replace photo",removeBreederImage:"Delete breeder image",plantDate:"Planting date",harvestWindow:"Harvest window",lightSchedule:"Light schedule",allEditable:"Every value remains editable later.",
+        phasePlan:"Stage plan",currentPhase:"Current stage",selectedTarget:"Selected target stage",switchTime:"Change timestamp",choosePhase:"Select a stage above or in the plan. Any stage may be selected; the order is only your display.",switchTo:"Switch to",dragHint:"Drag the handle to change the display order.",advance:"Change stage",addPhase:"Add custom stage",rename:"Rename",skip:"Skip",phaseHistory:"History so far",started:"Started",planned:"Planned",custom:"Custom stage",reorder:"Order",sensorWindow:"Sensor window",endsAtHarvest:"Ends at harvest",dryYield:"Dry yield",wetYield:"Wet yield",height:"Final height",harvestDate:"Harvest date",closeRun:"Complete run",finishWarning:"The Recorder window ends at this time. Drying and later notes remain attached without extending the sensor window.",summary:"Summary",confirm:"Confirm",next:"Continue",back:"Back",runCompleted:"Run completed in the prototype",postHarvest:"After harvest",addDrying:"Continue drying as journal history",laterYield:"Add dry yield later",active:"Active",completed:"Completed",duration:"Duration",yield:"Yield",days:"days",entries:"entries",sortNewest:"Newest first",compare:"Compare",selected:"Selected",openRecord:"Open run",noDeletion:"Completed, not deleted",correction:"Values can be corrected directly",development:"Development",sensorSummary:"Sensor development",journal:"Journal",facts:"Base data",harvestFacts:"Harvest values",timeline:"Timeline",normalized:"Normalized by lifetime",difference:"Difference",sameTent:"Same tent",differentStrain:"Different strain",selectRuns:"Select two runs",appearance:"Appearance",darkMode:"Dark appearance",sound:"Interaction sound",language:"Language",density:"Information density",comfortable:"Comfortable",compact:"Compact",tentSettings:"Tent settings",tentName:"Tent name",averages:"Averages",targets:"Stage target ranges",notifications:"Notifications",doorPrompt:"Ask for an entry after tent opening",settingsPreview:"Live preview",on:"On",off:"Off",german:"Deutsch",english:"English",firstRun:"No plant yet",firstRunText:"Create the first run. Sensors and strain data may be connected later.",createFirst:"Add first plant",sensorUnavailable:"Soil sensor unavailable",sensorUnavailableText:"The latest value remains visible and clearly marked stale. Earlier Recorder data remains assigned to the run.",lastSeen:"Last seen 2 hours ago",recorderGap:"Recorder gap",recorderGapText:"Raw data no longer exists for this period. Long-term statistics still show minimum, average, and maximum.",loading:"Loading PlantRun",offline:"Home Assistant unavailable",retry:"Retry",partial:"Some data is missing",manualStillWorks:"Manual entries still work.",haCard:"PlantRun · Grow Tent",openDashboard:"Open",quickEntry:"Entry",watered:"Watered",attention:"Check",noAttention:"Everything in range",due:"Today",nativeStyle:"Lovelace in Home Assistant style",doorOpened:"Tent door opened",waitSession:"Wait for work session",phonePrompt:"Phone notification",captureWork:"Prefill entry",futureOnly:"Later idea, outside the first prototype scope",plannedFollowup:"Planned follow-up",followupText:"A journal plan may later create a reminder and record its completion as another event."
+      }
+    };
+    const params=new URLSearchParams(location.search);
+    const state={
+      view:params.get("view")||"map",variant:params.get("variant")||"A",lang:params.get("lang")||"de",theme:params.get("theme")||"dark",plant:params.get("plant")||"tangerine",
+      action:"freeText",journalPlant:"all",journalType:"all",journalDraft:"",composerOpen:false,currentPhase:"vegetative",selectedPhase:"flowering",completedPhases:["seedling"],phaseOrder:["seedling","vegetative","flowering","drying","harvested"],customPhases:[{id:"drying",nameDe:"Trocknung",nameEn:"Drying"}],sensorTab:"tent",selectedMetric:"moisture",strainSelected:"tangerine",strainQuery:"auto",strainBreeder:"all",strainPreviewOpen:false,strainApplied:false,providerFailed:false,
+      finishStep:1,finishDone:false,archiveSelected:["apple","amnesia"],systemState:"firstRun",settings:{sound:false,density:"comfortable",doorPrompt:false,drying:true},savedEntries:[]
+    };
+    const plants={
+      tangerine:{id:"tangerine",name:"Tangerine Dream Auto",breeder:"Zamnesia",image:"./assets/tangerine-dream-breeder.jpg",stage:"Vegetativ",day:21,moisture:"46 %",harvest:"30. Okt. – 6. Nov."},
+      diesel:{id:"diesel",name:"Diesel Auto",breeder:"Royal Queen Seeds",image:"./assets/diesel-auto-breeder.jpg",stage:"Vegetativ",day:21,moisture:"52 %",harvest:"19. – 24. Nov."}
+    };
+    const strainCatalog=[
+      {id:"tangerine",name:"Tangerine Dream Automatic",breeder:"Zamnesia",aliases:["Tangerine Dream Auto"],duration:[70,77],meaning:"seedToHarvest",original:"10–11 weeks from seed to harvest",image:"./assets/tangerine-dream-breeder.jpg"},
+      {id:"diesel",name:"Diesel Automatic",breeder:"Royal Queen Seeds",aliases:["Diesel Auto","RQS"],duration:[90,95],meaning:"seedToHarvest",original:"90–95 days after germination",image:"./assets/diesel-auto-breeder.jpg"},
+      {id:"northern-lights-auto",name:"Northern Lights Automatic",breeder:"Royal Queen Seeds",aliases:["Northern Light Auto","RQS"],duration:[70,84],meaning:"seedToHarvest",original:"Prototype sample · 70–84 days",image:null},
+      {id:"amnesia-haze-auto",name:"Amnesia Haze Automatic",breeder:"Royal Queen Seeds",aliases:["Amnesia Auto","RQS"],duration:[70,84],meaning:"seedToHarvest",original:"Prototype sample · 70–84 days",image:null},
+      {id:"royal-critical-auto",name:"Royal Critical Automatic",breeder:"Royal Queen Seeds",aliases:["Critical Auto","RQS"],duration:[70,77],meaning:"seedToHarvest",original:"Prototype sample · 70–77 days",image:null},
+      {id:"blueberry-auto",name:"Blueberry Automatic",breeder:"Zamnesia",aliases:["Blueberry Auto"],duration:[70,77],meaning:"seedToHarvest",original:"Prototype sample · 70–77 days",image:null},
+      {id:"gelato-auto",name:"Gelato Automatic",breeder:"Zamnesia",aliases:["Gelato Auto"],duration:[70,77],meaning:"seedToHarvest",original:"Prototype sample · 70–77 days",image:null},
+      {id:"apple-fritter-auto",name:"Apple Fritter Automatic",breeder:"Royal Queen Seeds",aliases:["Apple Fritter Auto","RQS"],duration:[70,77],meaning:"seedToHarvest",original:"Prototype sample · 70–77 days",image:null}
+    ];
+    const archiveRuns={
+      apple:{id:"apple",name:"Apple Fritter Auto",breeder:"Royal Queen Seeds",image:"./assets/diesel-auto-breeder.jpg",dates:"19.01.2025 – 09.03.2025",duration:50,yield:84,entries:18,moisture:[54,51,46,59,52,48,45]},
+      amnesia:{id:"amnesia",name:"Sensi Amnesia Automatic",breeder:"Sensi Seeds",image:"./assets/tangerine-dream-breeder.jpg",dates:"08.06.2024 – 31.08.2024",duration:84,yield:134,entries:31,moisture:[62,58,51,49,56,52,47]},
+      dieselOld:{id:"dieselOld",name:"Diesel Auto",breeder:"Royal Queen Seeds",image:"./assets/diesel-auto-breeder.jpg",dates:"03.02.2023 – 10.05.2023",duration:96,yield:102,entries:24,moisture:[57,54,52,48,61,55,49]}
+    };
+    const sampleEntries=[
+      {day:"today",time:"20:14",plant:"tangerine",type:"water",textDe:"1 l gegossen. Erde war oben trocken, Topf deutlich leichter.",textEn:"Watered 1 l. Topsoil was dry and the pot felt much lighter.",context:"24,2 °C · 63,5 % · 138 lx"},
+      {day:"today",time:"20:09",plant:"diesel",type:"inspect",textDe:"Seitentriebe kontrolliert. Neue Blätter wirken gleichmäßig und ohne Flecken.",textEn:"Checked side shoots. New leaves look even and free of spots.",context:"24,1 °C · 63,2 % · 138 lx"},
+      {day:"yesterday",time:"18:42",plant:"tangerine",type:"observation",textDe:"Wächst kompakter als Diesel und braucht aktuell weniger Wasser.",textEn:"Growing more compactly than Diesel and currently needs less water.",context:"23,8 °C · 61,9 % · 122 lx"},
+      {day:"yesterday",time:"18:38",plant:"diesel",type:"plan",textDe:"Bodensensor morgen neu positionieren und Feuchtewert vergleichen.",textEn:"Reposition soil sensor tomorrow and compare moisture reading.",context:"23,8 °C · 61,9 % · 122 lx"}
+    ];
+    const t=key=>COPY[state.lang][key]||key;
+    const icon=(name,small=false)=>`<svg class="icon${small?" small":""}" aria-hidden="true"><use href="#i-${name}"></use></svg>`;
+    const escapeHtml=value=>String(value??"").replace(/[&<>'"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"})[c]);
+    const selectedPlant=()=>plants[state.plant]||plants.tangerine;
+    function flag(lang){return lang==="de"?`<svg class="flag" viewBox="0 0 18 12"><path fill="#111" d="M0 0h18v4H0z"/><path fill="#c92b35" d="M0 4h18v4H0z"/><path fill="#e4b83c" d="M0 8h18v4H0z"/></svg>`:`<svg class="flag" viewBox="0 0 60 36"><path fill="#012169" d="M0 0h60v36H0z"/><path stroke="#fff" stroke-width="11" d="m0 0 60 36M60 0 0 36"/><path stroke="#c8102e" stroke-width="5" d="m0 0 60 36M60 0 0 36"/><path stroke="#fff" stroke-width="12" d="M30 0v36M0 18h60"/><path stroke="#c8102e" stroke-width="7" d="M30 0v36M0 18h60"/></svg>`}
+    function miniChart(values=[64,61,58,55,51,48,46],alt=false){const min=Math.min(...values)-4,max=Math.max(...values)+4,w=600,h=120,points=values.map((v,i)=>`${i*w/(values.length-1)},${12+(max-v)/(max-min)*(h-25)}`).join(" ");return `<svg class="mini-chart" viewBox="0 0 600 120" preserveAspectRatio="none"><line class="grid" x1="0" y1="20" x2="600" y2="20"/><line class="grid" x1="0" y1="60" x2="600" y2="60"/><line class="grid" x1="0" y1="105" x2="600" y2="105"/><polyline class="line" style="${alt?"stroke:var(--blue)":""}" points="${points}"/></svg>`}
+    function metricBar(on=14,warn=false){return `<span class="metric-bar ${warn?"warn":""}">${Array.from({length:18},(_,i)=>`<i class="${i<on?"on":""}"></i>`).join("")}</span>`}
+    function variantName(){if(state.view==="journal"){const names={A:{de:"Verlauf + Editor",en:"Log + editor"},B:{de:"Direkteingabe",en:"Inline capture"},C:{de:"Verlauf zuerst",en:"History first"}};return names[state.variant]?.[state.lang]||names.A[state.lang]}if(state.view==="strain"){const names={A:{de:"Treffer + Vorschau",en:"Results + preview"},B:{de:"Inline-Vorschau",en:"Inline preview"},C:{de:"Suchfokus",en:"Search focus"}};return names[state.variant]?.[state.lang]||names.A[state.lang]}const variant=VARIANTS.find(v=>v.key===state.variant)||VARIANTS[0];return state.lang==="de"?variant.nameDe:variant.nameEn}
+    function languageSwitch(){return `<div class="language"><button data-lang="de" class="${state.lang==="de"?"active":""}">${flag("de")}DE</button><button data-lang="en" class="${state.lang==="en"?"active":""}">${flag("en")}EN</button></div>`}
+    function rail(){return `<nav class="rail" aria-label="PlantRun"><button class="brand" data-view="map" title="${t("mapTitle")}">${icon("leaf")}</button><button class="rail-button ${state.view==="map"?"active":""}" data-view="map" title="${t("mapTitle")}">${icon("home")}</button><button class="rail-button ${state.view==="journal"?"active":""}" data-view="journal" title="${t("journalTitle")}">${icon("book")}</button><button class="rail-button ${["archive","completed","compare"].includes(state.view)?"active":""}" data-view="archive" title="${t("archiveTitle")}">${icon("history")}</button><button class="rail-button optional-mobile ${state.view==="lovelace"?"active":""}" data-view="lovelace" title="${t("lovelaceTitle")}">${icon("grid")}</button><button class="rail-button bottom ${state.view==="settings"?"active":""}" data-view="settings" title="${t("settingsTitle")}">${icon("settings")}</button></nav>`}
+    function topbar(){return `<header class="topbar"><div class="crumbs"><button data-view="map">PlantRun</button><span>/</span><span>${state.view==="map"?t("mapTitle"):t(`${state.view}Title`)}</span></div><div class="top-actions">${languageSwitch()}<button class="icon-button" data-theme-toggle title="${t("appearance")}">${icon(state.theme==="dark"?"sun":"moon")}</button><button class="button small outline" data-original>${t("overview")}</button></div></header>`}
+    function pageHead(title,blurb,action=""){return `<header class="page-head"><div><p class="eyebrow">${t("prototype")}</p><h1>${title}</h1><p>${blurb}</p></div>${action}</header>`}
+    function shell(content){return `<section class="prototype"><div class="shell">${rail()}<main class="main">${topbar()}${content}</main></div></section>`}
+    function controls(){return `<div class="prototype-switcher" aria-label="Prototype variants"><button data-variant-step="-1">←</button><strong>${state.variant} · ${variantName()}</strong><button data-variant-step="1">→</button></div><details class="prototype-state"><summary>Prototype state</summary><pre>${escapeHtml(JSON.stringify(state,null,2))}</pre></details>`}
+    function renderMap(){const cards=VIEW_META.map(([view,title,blurb,ico,status],index)=>`<button class="map-item" data-view="${view}"><span class="map-number">${String(index+1).padStart(2,"0")} · ${status}</span><span><h2>${t(title)}</h2><p>${t(blurb)}</p></span><span class="map-footer"><span>${t("open")}</span>${icon(ico,true)}</span></button>`).join(""),prepared=[["create","creationReview","creationReviewText","plus"],["plant","plantDetailReview","plantDetailReviewText","chart"],["overview","tentReview","tentReviewText","home"]].map(([target,title,text,ico])=>`<button class="map-item" data-existing="${target}"><span class="map-number">${t("prepared")}</span><span><h2>${t(title)}</h2><p>${t(text)}</p></span><span class="map-footer"><span>${t("open")}</span>${icon(ico,true)}</span></button>`).join("");return shell(`${pageHead(t("mapTitle"),t("mapIntro"),`<span class="prototype-note">${t("variantHint")}</span>`)}<p class="section-label">${t("prepared")}</p><section class="review-map" style="margin-bottom:28px">${prepared}</section><p class="section-label">${t("remaining")}</p><section class="review-map">${cards}</section>`)}
+    function composerPlantSelect(){return `<label class="composer-control"><span>${t("plant")}</span><select data-entry-plant aria-label="${t("plant")}">${Object.values(plants).map(plant=>`<option value="${plant.id}" ${state.plant===plant.id?"selected":""}>${plant.name}</option>`).join("")}</select></label>`}
+    function composerTypeSelect(){const types=["freeText","water","inspect","stageChange","harvest"];return `<label class="composer-control"><span>${t("type")}</span><select data-entry-type aria-label="${t("type")}">${types.map(type=>`<option value="${type}" ${state.action===type?"selected":""}>${t(type)}</option>`).join("")}</select></label>`}
+    function captureContext(){return `<details class="context-summary"><summary><span>${icon("sensor",true)}${t("attachedValuesShort")}</span><small>24,2 °C · 63,5 % · ${selectedPlant().moisture} · 138 lx</small></summary><div class="context-summary-values"><span><small>${t("temperature")}</small><strong>24,2 °C</strong></span><span><small>${t("humidity")}</small><strong>63,5 %</strong></span><span><small>${t("moisture")}</small><strong>${selectedPlant().moisture}</strong></span><span><small>${t("light")}</small><strong>138 lx</strong></span></div></details>`}
+    function captureComposer(mode="rail",closable=false){return `<section class="compact-composer composer-${mode}"><header class="compact-composer-head"><strong>${t("newEntry")}</strong>${closable?`<button class="composer-close" data-close-composer aria-label="${t("close")}">×</button>`:`<small>${selectedPlant().name}</small>`}</header><div class="composer-toolbar">${composerPlantSelect()}${composerTypeSelect()}<label class="composer-control time-control"><span>${t("date")} · ${t("time")}</span><input type="datetime-local" value="2026-08-21T20:16" aria-label="${t("date")} · ${t("time")}"></label></div><textarea class="composer-text" data-journal-draft aria-label="${t("text")}" placeholder="${t("capturePrompt")}">${escapeHtml(state.journalDraft)}</textarea>${captureContext()}<footer class="composer-actions"><small>${t("shortcutSave")}</small><button class="button primary" data-journal-save>${t("savePrototype")}</button></footer></section>`}
+    function allEntries(){return [...state.savedEntries,...sampleEntries]}
+    function filteredEntries(){return allEntries().filter(entry=>(state.journalPlant==="all"||entry.plant===state.journalPlant)&&(state.journalType==="all"||entry.type===state.journalType))}
+    function entryLabel(entry){return t(entry.type)||entry.type}
+    function entryText(entry){return entry.text||entry[state.lang==="de"?"textDe":"textEn"]||""}
+    function entryIcon(entry){return ({water:"drop",inspect:"search",observation:"book",plan:"timeline",stageChange:"timeline",harvest:"check",freeText:"book"})[entry.type]||"book"}
+    function activityEntry(entry){return `<article class="activity-row"><span class="activity-mark ${entry.type}">${icon(entryIcon(entry))}</span><div class="activity-main"><div class="activity-kicker"><strong>${plants[entry.plant]?.name||entry.plant}</strong><span>·</span><span>${entryLabel(entry)}</span></div><p>${escapeHtml(entryText(entry))}</p><div class="activity-context"><span>${icon("sensor",true)}${entry.context}</span></div></div><aside class="activity-end"><time>${entry.time}</time><button class="link-button">${t("edit")}</button></aside></article>`}
+    function timelineEntries(){let currentDay="";return `<div class="activity-list">${filteredEntries().map(entry=>{const heading=entry.day!==currentDay?`<p class="activity-day">${t(entry.day)}</p>`:"";currentDay=entry.day;return `${heading}${activityEntry(entry)}`}).join("")}</div>`}
+    function daybookEntries(){const groups=[];filteredEntries().forEach(entry=>{let group=groups.find(item=>item.day===entry.day);if(!group){group={day:entry.day,entries:[]};groups.push(group)}group.entries.push(entry)});return `<div class="daybook-body">${groups.map(group=>`<section class="daybook-day"><header class="daybook-date"><strong>${t(group.day)}</strong><small>${group.entries.length} ${t("entries")}</small></header><div class="daybook-entries">${group.entries.map(activityEntry).join("")}</div></section>`).join("")}</div>`}
+    function journalFilters(){const types=["all","freeText","water","inspect","stageChange","harvest"];return `<div class="journal-filterbar"><label class="journal-filter"><span>${t("filterPlant")}</span><select data-journal-plant-select aria-label="${t("filterPlant")}"><option value="all" ${state.journalPlant==="all"?"selected":""}>${t("allPlants")}</option><option value="tangerine" ${state.journalPlant==="tangerine"?"selected":""}>Tangerine</option><option value="diesel" ${state.journalPlant==="diesel"?"selected":""}>Diesel</option></select></label><label class="journal-filter"><span>${t("filterType")}</span><select data-journal-type-select aria-label="${t("filterType")}">${types.map(type=>`<option value="${type}" ${state.journalType===type?"selected":""}>${type==="all"?t("allTypes"):t(type)}</option>`).join("")}</select></label></div>`}
+    function journalHistoryHead(title="history",withCreate=false){return `<header class="journal-history-head"><div><h2>${t(title)}</h2><p>${filteredEntries().length} ${t("entries")} · ${t("sortNewest")}</p></div><div class="journal-log-actions">${withCreate?`<button class="button primary small" data-open-composer>${t("newEntry")}</button>`:""}${journalFilters()}</div></header>`}
+    function renderJournalA(){return `<div class="journal-a"><section class="journal-log">${journalHistoryHead()}${timelineEntries()}</section><aside class="composer-rail">${captureComposer("rail")}</aside></div>`}
+    function renderJournalB(){return `<section class="journal-b">${captureComposer("inline")}<section class="journal-log">${journalHistoryHead("dayLog")}${daybookEntries()}</section></section>`}
+    function renderJournalC(){return `<section class="journal-c"><section class="journal-log">${journalHistoryHead("history",true)}${timelineEntries()}</section>${state.composerOpen?`<div class="journal-drawer-scrim" data-close-composer><aside class="journal-drawer" data-composer-drawer>${captureComposer("drawer",true)}</aside></div>`:""}</section>`}
+    function renderJournal(){const content=state.variant==="B"?renderJournalB():state.variant==="C"?renderJournalC():renderJournalA();return shell(`<div class="journal-page">${pageHead(t("journalTitle"),t("journalBlurb"),`<button class="button outline" data-view="map">${t("backMap")}</button>`)}${content}</div>`)}
+    function phasePlanItems(){const base={seedling:{id:"seedling",key:"seedling",days:"21.08. – 29.08."},vegetative:{id:"vegetative",key:"vegetative",days:"seit 30.08."},flowering:{id:"flowering",key:"flowering",days:"offen"},harvested:{id:"harvested",key:"harvested",days:"offen"}},custom=Object.fromEntries(state.customPhases.map(phase=>[phase.id,{...phase,days:t("planned"),custom:true}]));return state.phaseOrder.map(id=>base[id]||custom[id]).filter(Boolean)}
+    function phaseName(phase){return phase.key?t(phase.key):(state.lang==="de"?phase.nameDe:phase.nameEn)||phase.nameDe||phase.id}
+    function phaseState(phase){if(phase.id===state.currentPhase)return "current";if(state.completedPhases.includes(phase.id))return "done";return phase.custom?"custom":"planned"}
+    function phaseAxis(){const phases=phasePlanItems();return `<div class="phase-axis" style="grid-template-columns:repeat(${phases.length},minmax(132px,1fr))">${phases.map(phase=>{const status=phaseState(phase),selected=phase.id===state.selectedPhase;return `<button class="phase-node ${status} ${selected?"selected":""}" data-select-phase="${phase.id}" aria-pressed="${selected}"><strong>${phaseName(phase)}</strong><small>${status==="done"?t("done"):status==="current"?`${t("current")} · ${t("day")} 13`:selected?t("selected"):t("planned")}</small></button>`}).join("")}</div>`}
+    function phaseRows(){return phasePlanItems().map(phase=>{const status=phaseState(phase),selected=phase.id===state.selectedPhase;return `<div class="phase-item ${status} ${selected?"selected":""}" data-phase-drop="${phase.id}"><button class="drag" draggable="true" data-phase-drag="${phase.id}" aria-label="${t("reorder")}: ${phaseName(phase)}" title="${t("dragHint")}">⋮⋮</button><button class="phase-select" data-select-phase="${phase.id}"><strong>${phaseName(phase)}</strong><small>${phase.days} · ${t(status)}</small></button><span class="action-strip"><button class="link-button">${t("rename")}</button>${phase.custom&&status!=="current"?`<button class="link-button" data-remove-custom="${phase.id}">${t("delete")}</button>`:""}</span></div>`}).join("")}
+    function phaseAdvancePanel(){const current=phasePlanItems().find(phase=>phase.id===state.currentPhase),target=phasePlanItems().find(phase=>phase.id===state.selectedPhase)||current,same=target?.id===current?.id;return `<aside class="panel panel-pad"><p class="section-label">${t("currentPhase")}</p><h2>${phaseName(current)}</h2><p class="prototype-note">${t("started")}: 30.08.2026 · ${t("day")} 13</p><div class="phase-target"><small>${t("selectedTarget")}</small><strong>${phaseName(target)}</strong></div><div class="field"><label>${t("switchTime")}</label><input type="datetime-local" value="2026-09-11T20:20"></div><button class="button primary" style="width:100%;margin-top:16px" data-advance-phase ${same?"disabled":""}>${same?t("currentPhase"):`${t("switchTo")} ${phaseName(target)}`}</button><p class="prototype-note" style="margin-top:12px">${t("choosePhase")}</p></aside>`}
+    function renderPhasesA(){return `<section class="panel panel-pad">${phaseAxis()}<div class="phase-layout"><div><header class="panel-head"><div><h2>${t("phasePlan")}</h2><p>${t("dragHint")}</p></div><button class="button small outline" data-add-custom>${t("addPhase")}</button></header>${phaseRows()}</div>${phaseAdvancePanel()}</div></section>`}
+    function renderPhasesB(){const rows=phaseRows();return `<div class="phase-layout"><section class="panel panel-pad"><header class="panel-head"><div><h2>${t("reorder")}</h2><p>${state.lang==="de"?"Tabelle für direkte Bearbeitung":"Table for direct editing"}</p></div><button class="button small outline" data-add-custom>${t("addPhase")}</button></header>${rows}</section>${phaseAdvancePanel()}</div>`}
+    function renderPhasesC(){const current=phasePlanItems().find(phase=>phase.id===state.currentPhase);return `<section style="width:min(820px,100%);margin:0 auto"><section class="panel panel-pad"><p class="section-label">${t("development")}</p><h2 style="font-size:28px">${phaseName(current)} · ${t("day")} 13</h2>${phaseAxis()}${phaseAdvancePanel()}</section><section class="panel panel-pad" style="margin-top:18px"><header class="panel-head"><div><h2>${t("phaseHistory")}</h2><p>${t("allEditable")}</p></div><button class="button small outline" data-add-custom>${t("addPhase")}</button></header>${phaseRows()}</section></section>`}
+    function renderPhases(){const content=state.variant==="B"?renderPhasesB():state.variant==="C"?renderPhasesC():renderPhasesA();return shell(`${pageHead(t("phasesTitle"),t("phasesBlurb"),`<button class="button outline" data-view="map">${t("backMap")}</button>`)}${content}`)}
+    const sensorRowsData=[
+      {owner:"tent",metric:"temperature",entity:"sensor.grow_tent_temperature_average",value:"24,2 °C",stats:true,status:"good"},
+      {owner:"tent",metric:"humidity",entity:"sensor.grow_tent_humidity_average",value:"63,5 %",stats:true,status:"good"},
+      {owner:"tent",metric:"light",entity:"sensor.grow_tent_illuminance",value:"138 lx",stats:true,status:"warn"},
+      {owner:"tent",metric:"tentDoor",entity:"binary_sensor.growbox_door",value:"Geschlossen",stats:false,status:"good"},
+      {owner:"tangerine",metric:"moisture",entity:"sensor.soil_a_moisture",value:"46 %",stats:true,status:"good"},
+      {owner:"tangerine",metric:"conductivity",entity:"sensor.soil_a_conductivity",value:"0 µS/cm",stats:true,status:"warn"},
+      {owner:"diesel",metric:"moisture",entity:"sensor.soil_b_moisture",value:"52 %",stats:true,status:"good"},
+      {owner:"diesel",metric:"temperature",entity:"sensor.soil_b_temperature",value:"23,6 °C",stats:true,status:"good"}
+    ];
+    function sensorBindingRows(filter=state.sensorTab){return sensorRowsData.filter(item=>filter==="all"||item.owner===filter).map(item=>`<div class="rule-row sensor-binding-row"><span><strong>${t(item.metric)}</strong><small>${item.owner==="tent"?t("sharedTent"):plants[item.owner]?.name}</small></span><span><code class="entity-code">${item.entity}</code><small>${item.stats?t("longTerm"):t("noLongTerm")}</small></span><span style="text-align:right"><strong class="value">${item.value}</strong><button class="link-button" style="display:block;margin:5px 0 0 auto">${t("change")}</button></span></div>`).join("")}
+    function sensorTabs(){const count=owner=>sensorRowsData.filter(item=>owner==="all"||item.owner===owner).length,tentLabel=state.lang==="de"?"Zelt":"Tent",allLabel=state.lang==="de"?"Alle":"All";return `<div class="tabs"><button class="tab ${state.sensorTab==="tent"?"active":""}" data-sensor-tab="tent" aria-label="${state.lang==="de"?"Zeltwerte":"Tent values"}">${tentLabel} · ${count("tent")}</button><button class="tab ${state.sensorTab==="tangerine"?"active":""}" data-sensor-tab="tangerine">Tangerine · ${count("tangerine")}</button><button class="tab ${state.sensorTab==="diesel"?"active":""}" data-sensor-tab="diesel">Diesel · ${count("diesel")}</button><button class="tab ${state.sensorTab==="all"?"active":""}" data-sensor-tab="all" aria-label="${state.lang==="de"?"Alle Sensoren":"All sensors"}">${allLabel} · ${count("all")}</button></div>`}
+    function sensorPreview(){const metric=sensorRowsData.find(item=>item.metric===state.selectedMetric)||sensorRowsData[4];return `<aside class="panel panel-pad source-preview"><p class="section-label">${t("preview")}</p><h2>${t(metric.metric)}</h2><code class="entity-code">${metric.entity}</code><div class="source-value"><strong>${metric.value}</strong><span class="tag ${metric.status}">${metric.status==="good"?t("inRange"):t("check")}</span></div>${miniChart(metric.metric==="temperature"?[23.4,23.8,24.1,24.4,24,24.3,24.2]:[62,59,56,54,51,48,46])}<div class="rule-list"><div class="rule-row" style="grid-template-columns:1fr auto"><span><strong>${t("source")}</strong><small>${metric.owner==="tent"?t("sharedTent"):t("plantSpecific")}</small></span><span class="tag ${metric.stats?"good":"warn"}">${metric.stats?t("longTerm"):t("noLongTerm")}</span></div></div></aside>`}
+    function renderSensorsA(){return `<div class="sensor-layout"><section class="panel panel-pad">${sensorTabs()}<div class="rule-list">${sensorBindingRows()}</div><button class="button outline" style="margin-top:16px">${t("assign")}</button></section>${sensorPreview()}</div>`}
+    function renderSensorsB(){const mappings=sensorRowsData.map(item=>`<div class="binding-map"><span><strong>${item.owner==="tent"?"Grow Tent":plants[item.owner].name}</strong><small>${item.owner==="tent"?t("sharedTent"):t("plantSpecific")}</small></span><span class="binding-arrow">→</span><button class="choice" data-metric="${item.metric}"><strong>${t(item.metric)}</strong><small class="entity-code">${item.entity}</small></button></div>`).join("");return `<div class="sensor-layout"><section class="panel panel-pad"><header class="panel-head"><div><h2>${state.lang==="de"?"Zuordnungskarte":"Binding map"}</h2><p>${state.lang==="de"?"Eigentümer links, Home-Assistant-Entität rechts":"Owner left, Home Assistant entity right"}</p></div></header>${mappings}</section>${sensorPreview()}</div>`}
+    function renderSensorsC(){const owner=["tent","tangerine","diesel","all"].includes(state.sensorTab)?state.sensorTab:"tent",scopeLabel=owner==="all"?(state.lang==="de"?"Alle Sensoren":"All sensors"):owner==="tent"?t("sharedTent"):t("plantSpecific");return `<section style="width:min(900px,100%);margin:0 auto"><section class="panel panel-pad"><header class="panel-head"><div><h2>${state.lang==="de"?"Zuordnung nach Bereich":"Assignments by area"}</h2><p>${state.lang==="de"?"Wähle Zelt oder Pflanze und ändere die zugeordneten Entitäten direkt.":"Choose the tent or a plant and edit its assigned entities directly."}</p></div></header>${sensorTabs()}<p class="section-label" style="margin-top:20px">${scopeLabel}</p><div class="rule-list">${sensorBindingRows(owner)}</div></section></section>`}
+    function renderSensors(){const content=state.variant==="B"?renderSensorsB():state.variant==="C"?renderSensorsC():renderSensorsA();return shell(`${pageHead(t("sensorsTitle"),t("sensorsBlurb"),`<button class="button outline" data-view="map">${t("backMap")}</button>`)}${content}`)}
+    function strainInitials(p){return p.name.split(/\s+/).slice(0,2).map(word=>word[0]||"").join("").toUpperCase()}
+    function matchingStrains(){const query=state.strainQuery.trim().toLocaleLowerCase(),tokens=query.split(/\s+/).filter(Boolean);if(query.length<2)return [];return strainCatalog.filter(item=>{const haystack=[item.name,item.breeder,...(item.aliases||[])].join(" ").toLocaleLowerCase(),breederMatches=state.strainBreeder==="all"||item.breeder===state.strainBreeder;return breederMatches&&tokens.every(token=>haystack.includes(token))}).slice(0,5)}
+    function activeStrain(){const matches=matchingStrains();return matches.find(item=>item.id===state.strainSelected)||matches[0]||null}
+    function strainDuration(p){return p?.duration?`${p.duration[0]}–${p.duration[1]} ${t("days")}`:"—"}
+    function strainHarvestEstimate(p){if(!p?.duration)return "—";const start=new Date("2026-08-21T12:00:00"),end=new Date("2026-08-21T12:00:00");start.setDate(start.getDate()+p.duration[0]);end.setDate(end.getDate()+p.duration[1]);const locale=state.lang==="de"?"de-DE":"en-GB",format=value=>value.toLocaleDateString(locale,{day:"numeric",month:"short"});return `${format(start)} – ${format(end)}`}
+    function strainSearchBar(){const breeders=[...new Set(strainCatalog.map(item=>item.breeder))];return `<div class="strain-query-shell"><label class="strain-query-main">${icon("search")}<input data-strain-query value="${escapeHtml(state.strainQuery)}" aria-label="${state.lang==="de"?"Strain suchen":"Search strains"}" placeholder="${state.lang==="de"?"Strain suchen, z. B. Northern Lights Auto":"Search strains, e.g. Northern Lights Auto"}"></label><select data-strain-breeder aria-label="${t("breeder")}"><option value="all" ${state.strainBreeder==="all"?"selected":""}>${state.lang==="de"?"Alle Breeder":"All breeders"}</option>${breeders.map(breeder=>`<option value="${escapeHtml(breeder)}" ${state.strainBreeder===breeder?"selected":""}>${escapeHtml(breeder)}</option>`).join("")}</select></div><div class="strain-provider-line"><span><i class="status-dot good"></i>${state.lang==="de"?"Live-Treffer · SeedFinder-Beispieldaten":"Live results · SeedFinder sample data"}</span><button class="link-button" data-provider-fail>${t("manual")}</button></div>`}
+    function strainHit(p){const selected=activeStrain()?.id===p.id;return `<button class="strain-hit ${selected?"active":""}" data-strain="${p.id}"><span><small class="strain-hit-source">seedfinder.eu › ${escapeHtml(p.breeder)}</small><strong>${escapeHtml(p.name)}</strong><p>${escapeHtml(p.breeder)} · ${strainDuration(p)} · ${t(p.meaning)}</p></span><span class="strain-hit-meta"><span>${state.lang==="de"?"Treffer":"Match"}</span><span>→</span></span></button>`}
+    function strainResultsHead(){const count=matchingStrains().length;return `<header class="strain-results-head"><span><strong>${state.lang==="de"?"Suchergebnisse":"Search results"}</strong><small>${count} ${state.lang==="de"?"Live-Treffer":"live results"}</small></span><span class="tag">SeedFinder</span></header>`}
+    function strainResultList(){const matches=matchingStrains();return matches.length?matches.map(strainHit).join(""):`<div class="strain-empty-search"><strong>${state.lang==="de"?"Keine passenden Treffer":"No matching results"}</strong><p>${state.lang==="de"?"Suche ändern oder den Strain manuell eintragen.":"Change the search or enter the strain manually."}</p><button class="button outline" data-provider-fail>${t("manual")}</button></div>`}
+    function strainPreview(p){if(!p)return `<aside class="strain-preview"><div class="strain-empty-search">${state.lang==="de"?"Wähle einen Treffer für die Vorschau.":"Select a result to preview it."}</div></aside>`;return `<aside class="strain-preview"><div class="strain-preview-media">${p.image?`<img src="${p.image}" alt="${escapeHtml(p.name)}">`:`<span class="strain-preview-placeholder">${strainInitials(p)}</span>`}</div><div class="strain-preview-body"><p class="section-label">SeedFinder · ${t("preview")}</p><h2>${escapeHtml(p.name)}</h2><p>${escapeHtml(p.breeder)}</p><dl class="strain-preview-facts"><div><dt>${t("providerValue")}</dt><dd>${strainDuration(p)}</dd></div><div><dt>${t("meaning")}</dt><dd>${t(p.meaning)}</dd></div><div><dt>${t("originalWording")}</dt><dd>${escapeHtml(p.original)}</dd></div><div><dt>${t("harvestWindow")}</dt><dd>${strainHarvestEstimate(p)} · ${state.lang==="de"?"ab Pflanzdatum 21.08.2026":"from planting date 21 Aug 2026"}</dd></div><div><dt>${t("source")}</dt><dd>SeedFinder · ${state.lang==="de"?"Detailseite nach Auswahl":"detail page after selection"}</dd></div></dl><div class="strain-preview-actions"><button class="button outline" data-provider-fail>${t("manual")}</button><button class="button primary" data-use-strain="${p.id}">${t("useData")}</button></div></div></aside>`}
+    function manualStrainForm(){return `<section class="panel panel-pad strain-search-page"><div class="provider-warning">${t("providerOffline")}</div><div class="field-grid" style="margin-top:18px"><span class="field"><label>Strain</label><input value="Tangerine Dream Auto"></span><span class="field"><label>${t("breeder")}</label><input value="Zamnesia"></span><span class="field"><label>${t("providerValue")}</label><input value="70–77"></span><span class="field"><label>${t("meaning")}</label><select><option>${t("seedToHarvest")}</option><option>${t("floweringTime")}</option></select></span><span class="field full"><label>${t("originalWording")}</label><input value="10–11 weeks from seed to harvest"></span></div><div class="strain-preview-actions"><button class="button outline" data-provider-fail>${state.lang==="de"?"Zurück zur Suche":"Back to search"}</button><button class="button primary">${t("save")}</button></div></section>`}
+    function renderStrainA(){const active=activeStrain();return state.providerFailed?manualStrainForm():`<section class="strain-search-page">${strainSearchBar()}<div class="strain-search-layout"><section class="strain-results-panel">${strainResultsHead()}${strainResultList()}</section>${strainPreview(active)}</div></section>`}
+    function renderStrainB(){const active=activeStrain(),matches=matchingStrains();return state.providerFailed?manualStrainForm():`<section class="strain-inline-page">${strainSearchBar()}<section class="strain-results-panel">${strainResultsHead()}${matches.length?matches.map(item=>`${strainHit(item)}${item.id===active?.id?`<div class="strain-inline-preview">${strainPreview(item)}</div>`:""}`).join(""):strainResultList()}</section></section>`}
+    function renderStrainC(){const active=activeStrain();return state.providerFailed?manualStrainForm():`<section class="strain-search-page">${strainSearchBar()}<section class="strain-results-panel">${strainResultsHead()}${strainResultList()}</section>${state.strainPreviewOpen&&active?`<div class="strain-drawer-scrim" data-close-strain-preview><aside class="strain-drawer" data-strain-drawer><header class="strain-drawer-head"><strong>${t("preview")}</strong><button class="composer-close" data-close-strain-preview aria-label="${t("close")}">×</button></header>${strainPreview(active)}</aside></div>`:""}</section>`}
+    function renderStrain(){const content=state.variant==="B"?renderStrainB():state.variant==="C"?renderStrainC():renderStrainA();return shell(`${pageHead(t("strainTitle"),t("strainBlurb"),`<button class="button outline" data-view="map">${t("backMap")}</button>`)}${content}`)}
+    function editFields(){const p=selectedPlant();return `<div class="field-grid"><span class="field"><label>Strain</label><input value="${p.name}"></span><span class="field"><label>${t("breeder")}</label><input value="${p.breeder}"></span><span class="field"><label>${t("nickname")}</label><input placeholder="${t("optional")}"></span><span class="field"><label>${t("plantDate")}</label><input type="date" value="2026-08-21"></span><span class="field"><label>${t("harvestWindow")}</label><input value="${p.harvest}"></span><span class="field"><label>${t("lightSchedule")}</label><input value="18/6"></span></div>`}
+    function photoEditor(){const p=selectedPlant();return `<section class="panel"><img class="strain-detail-photo" src="${p.image}" alt="${p.name}"><div class="panel-pad"><p class="section-label">${t("breederImage")}</p><h2>${p.name}</h2><p class="prototype-note">${state.lang==="de"?"Wird angezeigt, bis ein eigenes Foto existiert.":"Displayed until a user photo exists."}</p><div class="action-strip" style="margin-top:15px"><button class="button small outline">${t("replacePhoto")}</button><button class="button small danger">${t("removeBreederImage")}</button></div></div></section>`}
+    function renderEditA(){return `<div class="strain-layout">${photoEditor()}<section class="panel panel-pad"><header class="panel-head"><div><h2>${t("facts")}</h2><p>${t("allEditable")}</p></div></header>${editFields()}<div style="display:flex;justify-content:flex-end;margin-top:18px"><button class="button primary">${t("save")}</button></div></section></div>`}
+    function renderEditB(){return `<section class="panel panel-pad"><div class="plant-id" style="margin-bottom:20px"><img src="${selectedPlant().image}" alt=""><span><strong>${selectedPlant().name}</strong><small>${selectedPlant().breeder}</small></span></div>${editFields()}<div class="rule-list" style="margin-top:18px"><div class="rule-row"><span><strong>${t("breederImage")}</strong><small>${state.lang==="de"?"Im Hintergrund gespeichert":"Stored in background"}</small></span><span>${t("userPhoto")}: ${t("notAssigned")}</span><button class="button small outline">${t("replacePhoto")}</button></div></div><div style="display:flex;justify-content:flex-end;margin-top:18px"><button class="button primary">${t("save")}</button></div></section>`}
+    function renderEditC(){return `<div class="settings-layout"><section class="panel panel-pad"><header class="panel-head"><div><h2>${t("editTitle")}</h2><p>${t("allEditable")}</p></div></header>${editFields()}</section><aside class="panel settings-preview">${photoEditor()}<div class="panel-pad"><button class="button primary" style="width:100%">${t("save")}</button></div></aside></div>`}
+    function renderEdit(){const content=state.variant==="B"?renderEditB():state.variant==="C"?renderEditC():renderEditA();return shell(`${pageHead(t("editTitle"),t("editBlurb"),`<button class="button outline" data-view="map">${t("backMap")}</button>`)}${content}`)}
+    function finishSteps(){const labels=["harvestDate","harvestFacts","summary"];return `<nav class="finish-steps">${labels.map((key,index)=>`<button class="finish-step ${state.finishStep===index+1?"active":""}" data-finish-step="${index+1}"><i>${index+1}</i><span>${t(key)}</span></button>`).join("")}</nav>`}
+    function finishStepContent(){if(state.finishDone)return `<section class="panel panel-pad" style="min-height:420px;display:grid;place-items:center;text-align:center"><div><span class="empty-mark" style="margin:0 auto 18px">${icon("check")}</span><h2>${t("runCompleted")}</h2><p class="prototype-note">${t("noDeletion")} · ${t("correction")}</p><button class="button primary" style="margin-top:14px" data-view="completed">${t("openRecord")}</button></div></section>`;if(state.finishStep===1)return `<section class="panel panel-pad"><header class="panel-head"><div><h2>${t("harvestDate")}</h2><p>${t("endsAtHarvest")}</p></div><span class="tag warn">${t("sensorWindow")}</span></header><div class="finish-summary"><img src="${selectedPlant().image}" alt=""><div><div class="field"><label>${t("harvestDate")}</label><input type="datetime-local" value="2026-11-03T18:30"></div><div class="provider-warning" style="margin-top:14px">${t("finishWarning")}</div><label class="setting-row" style="margin-top:10px"><span><strong>${t("addDrying")}</strong><small>${t("postHarvest")}</small></span><button class="switch on" data-toggle-setting="drying"></button></label></div></div><div style="display:flex;justify-content:flex-end;margin-top:18px"><button class="button primary" data-finish-next="2">${t("next")}</button></div></section>`;if(state.finishStep===2)return `<section class="panel panel-pad"><header class="panel-head"><div><h2>${t("harvestFacts")}</h2><p>${t("allEditable")}</p></div></header><div class="field-grid"><span class="field"><label>${t("wetYield")} · ${t("optional")}</label><input type="number" value="312"><small>g</small></span><span class="field"><label>${t("dryYield")} · ${t("optional")}</label><input type="number" placeholder="${t("laterYield")}"></span><span class="field"><label>${t("height")} · ${t("optional")}</label><input type="number" value="78"></span><span class="field"><label>${state.lang==="de"?"Erntenotiz":"Harvest note"}</label><input value="${state.lang==="de"?"Trichome überwiegend milchig":"Trichomes mostly cloudy"}"></span></div><div class="action-strip" style="justify-content:space-between;margin-top:18px"><button class="button outline" data-finish-next="1">${t("back")}</button><button class="button primary" data-finish-next="3">${t("next")}</button></div></section>`;return `<section class="panel panel-pad"><header class="panel-head"><div><h2>${t("summary")}</h2><p>${t("confirm")}</p></div></header><div class="finish-summary"><img src="${selectedPlant().image}" alt=""><div><div class="rule-list"><div class="rule-row"><span>${t("plant")}</span><strong>${selectedPlant().name}</strong><span>${selectedPlant().breeder}</span></div><div class="rule-row"><span>${t("harvestDate")}</span><strong>03.11.2026 · 18:30</strong><span class="tag good">${t("sensorWindow")}</span></div><div class="rule-row"><span>${t("wetYield")}</span><strong>312 g</strong><span>${t("dryYield")}: ${t("laterYield")}</span></div><div class="rule-row"><span>${t("postHarvest")}</span><strong>${t("drying")}</strong><span>${t("journal")}</span></div></div></div></div><div class="action-strip" style="justify-content:space-between;margin-top:18px"><button class="button outline" data-finish-next="2">${t("back")}</button><button class="button primary" data-finish-complete>${t("closeRun")}</button></div></section>`}
+    function renderFinishA(){return `<div class="finish-layout">${finishSteps()}${finishStepContent()}</div>`}
+    function renderFinishB(){return `<section class="panel panel-pad"><header class="panel-head"><div><h2>${t("closeRun")}</h2><p>${t("finishWarning")}</p></div><span class="tag warn">${t("sensorWindow")}</span></header><div class="field-grid"><span class="field"><label>${t("harvestDate")}</label><input type="datetime-local" value="2026-11-03T18:30"></span><span class="field"><label>${t("wetYield")}</label><input value="312 g"></span><span class="field"><label>${t("dryYield")} · ${t("optional")}</label><input placeholder="${t("laterYield")}"></span><span class="field"><label>${t("height")}</label><input value="78 cm"></span></div><label class="setting-row" style="margin-top:16px"><span><strong>${t("addDrying")}</strong><small>${t("postHarvest")}</small></span><button class="switch on"></button></label><div class="finish-summary" style="margin-top:18px"><img src="${selectedPlant().image}" alt=""><div class="rule-list"><div class="rule-row"><span>${t("plant")}</span><strong>${selectedPlant().name}</strong><span>${selectedPlant().breeder}</span></div><div class="rule-row"><span>${t("duration")}</span><strong>75 ${t("days")}</strong><span>21.08. – 03.11.</span></div></div></div><div style="display:flex;justify-content:flex-end;margin-top:18px"><button class="button primary" data-finish-complete>${t("closeRun")}</button></div></section>`}
+    function renderFinishC(){return `<section style="width:min(850px,100%);margin:0 auto"><section class="panel panel-pad"><p class="section-label">${t("harvest")}</p><h2 style="font-size:29px">${selectedPlant().name}</h2><div class="phase-axis"><span class="phase-node done"><strong>${t("seedling")}</strong></span><span class="phase-node done"><strong>${t("vegetative")}</strong></span><span class="phase-node done"><strong>${t("flowering")}</strong></span><span class="phase-node current"><strong>${t("harvested")}</strong><small>03.11.2026</small></span></div><div class="provider-warning">${t("finishWarning")}</div><div class="field-grid" style="margin-top:18px"><span class="field"><label>${t("harvestDate")}</label><input type="datetime-local" value="2026-11-03T18:30"></span><span class="field"><label>${t("wetYield")}</label><input value="312 g"></span></div><div class="action-strip" style="justify-content:flex-end;margin-top:18px"><button class="button outline">${t("laterYield")}</button><button class="button primary" data-finish-complete>${t("closeRun")}</button></div></section></section>`}
+    function renderFinish(){const content=state.variant==="B"?renderFinishB():state.variant==="C"?renderFinishC():renderFinishA();return shell(`${pageHead(t("finishTitle"),t("finishBlurb"),`<button class="button outline" data-view="map">${t("backMap")}</button>`)}${content}`)}
+    function archiveCard(run){return `<button class="archive-card" data-open-run="${run.id}"><img src="${run.image}" alt="${run.name}"><span><h2>${run.name}</h2><p>${run.breeder} · ${run.dates}</p><dl><span><dt>${t("duration")}</dt><dd>${run.duration} ${t("days")}</dd></span><span><dt>${t("dryYield")}</dt><dd>${run.yield} g</dd></span></dl></span></button>`}
+    function archiveRows(){return Object.values(archiveRuns).map(run=>`<tr><td><span class="plant-id"><img src="${run.image}" alt=""><span><strong>${run.name}</strong><small>${run.breeder}</small></span></span></td><td>${run.dates}</td><td>${run.duration} ${t("days")}</td><td>${run.yield} g</td><td>${run.entries}</td><td><button class="link-button" data-open-run="${run.id}">${t("openRecord")}</button></td></tr>`).join("")}
+    function archiveSelectRows(){return Object.values(archiveRuns).map(run=>`<label class="rule-row"><span class="plant-id"><img src="${run.image}" alt=""><span><strong>${run.name}</strong><small>${run.breeder}</small></span></span><span>${run.dates}<small>${run.duration} ${t("days")} · ${run.yield} g</small></span><input type="checkbox" data-archive-select="${run.id}" ${state.archiveSelected.includes(run.id)?"checked":""}></label>`).join("")}
+    function archivePreview(){const run=archiveRuns[state.archiveSelected[0]]||archiveRuns.apple;return `<aside class="panel archive-preview"><img class="strain-detail-photo" src="${run.image}" alt="${run.name}"><div class="panel-pad"><p class="section-label">${t("selected")}</p><h2>${run.name}</h2><p class="prototype-note">${run.breeder} · ${run.dates}</p>${miniChart(run.moisture)}<div class="action-strip" style="margin-top:15px"><button class="button small outline" data-open-run="${run.id}">${t("openRecord")}</button><button class="button small primary" data-view="compare" ${state.archiveSelected.length<2?"disabled":""}>${t("compare")}</button></div></div></aside>`}
+    function renderArchiveA(){return `<section class="archive-gallery">${Object.values(archiveRuns).map(archiveCard).join("")}</section>`}
+    function renderArchiveB(){return `<section class="panel panel-pad"><div class="action-strip"><button class="choice active">${t("sortNewest")}</button><button class="choice">2025</button><button class="choice">2024</button><button class="choice">2023</button></div><table class="archive-table"><thead><tr><th>${t("plant")}</th><th>${t("date")}</th><th>${t("duration")}</th><th>${t("dryYield")}</th><th>${t("entries")}</th><th></th></tr></thead><tbody>${archiveRows()}</tbody></table></section>`}
+    function renderArchiveC(){return `<div class="archive-split"><section class="panel panel-pad"><header class="panel-head"><div><h2>${t("selectRuns")}</h2><p>${state.archiveSelected.length}/2 ${t("selected")}</p></div></header><div class="rule-list">${archiveSelectRows()}</div></section>${archivePreview()}</div>`}
+    function renderArchive(){const content=state.variant==="B"?renderArchiveB():state.variant==="C"?renderArchiveC():renderArchiveA();return shell(`${pageHead(t("archiveTitle"),t("archiveBlurb"),`<button class="button primary" data-view="compare">${t("compare")}</button>`)}${content}`)}
+    function completedHero(run=archiveRuns.apple){return `<section class="completed-hero"><img src="${run.image}" alt="${run.name}"><div class="completed-copy"><div><span class="tag good">${t("completed")}</span><h1>${run.name}</h1><p class="prototype-note">${run.breeder} · ${run.dates}</p></div><div><strong>${t("noDeletion")}</strong><p class="prototype-note">${t("correction")}</p><button class="button small outline" style="margin-top:10px">${t("edit")}</button></div></div></section>`}
+    function completedFacts(run=archiveRuns.apple){return `<section class="fact-strip"><span><small>${t("duration")}</small><strong>${run.duration} ${t("days")}</strong></span><span><small>${t("dryYield")}</small><strong>${run.yield} g</strong></span><span><small>${t("entries")}</small><strong>${run.entries}</strong></span><span><small>${t("harvestDate")}</small><strong>09.03.2025</strong></span><span><small>${t("sensorWindow")}</small><strong>19.01. – 09.03.</strong></span></section>`}
+    function completedTimeline(){return `<div class="timeline"><p class="timeline-day">09.03.2025</p><article class="entry"><header class="entry-head"><h3>${t("harvest")}</h3><time>18:10</time></header><p>${state.lang==="de"?"Geerntet und zum Trocknen aufgehängt.":"Harvested and hung to dry."}</p></article><p class="timeline-day">17.02.2025</p><article class="entry"><header class="entry-head"><h3>${t("inspect")}</h3><time>20:30</time></header><p>${state.lang==="de"?"Trichome überwiegend milchig, einzelne bernsteinfarben.":"Trichomes mostly cloudy with a few amber heads."}</p></article><p class="timeline-day">19.01.2025</p><article class="entry"><header class="entry-head"><h3>${t("plantDate")}</h3><time>12:00</time></header><p>${state.lang==="de"?"Samen eingesetzt, Lauf begonnen.":"Seed planted and run started."}</p></article></div>`}
+    function renderCompletedA(){const run=archiveRuns.apple;return `${completedHero(run)}${completedFacts(run)}<div class="completed-grid"><section class="panel panel-pad"><header class="panel-head"><div><h2>${t("sensorSummary")}</h2><p>${t("normalized")}</p></div></header>${miniChart(run.moisture)}<div class="capture-context"><span><small>${t("minimum")}</small><strong>41 %</strong></span><span><small>${t("average")}</small><strong>52,3 %</strong></span><span><small>${t("maximum")}</small><strong>68 %</strong></span></div></section><section class="panel panel-pad"><h2>${t("timeline")}</h2>${completedTimeline()}</section></div>`}
+    function renderCompletedB(){const run=archiveRuns.apple;return `<section class="panel panel-pad">${completedHero(run)}<div class="tabs" style="margin-top:18px"><button class="tab active">${t("facts")}</button><button class="tab">${t("sensorSummary")}</button><button class="tab">${t("journal")}</button></div><table class="archive-table"><tbody><tr><th>${t("duration")}</th><td>${run.duration} ${t("days")}</td><th>${t("dryYield")}</th><td>${run.yield} g</td></tr><tr><th>${t("temperature")}</th><td>Ø 24,4 °C</td><th>${t("humidity")}</th><td>Ø 61,8 %</td></tr><tr><th>${t("moisture")}</th><td>Ø 52,3 %</td><th>${t("entries")}</th><td>${run.entries}</td></tr></tbody></table><div style="margin-top:18px">${miniChart(run.moisture)}</div></section>`}
+    function renderCompletedC(){const run=archiveRuns.apple;return `<section style="width:min(850px,100%);margin:0 auto">${completedHero(run)}${completedFacts(run)}<section class="panel panel-pad" style="margin-top:18px"><header class="panel-head"><div><h2>${t("development")}</h2><p>${t("sensorSummary")} + ${t("journal")}</p></div></header>${miniChart(run.moisture)}${completedTimeline()}</section></section>`}
+    function renderCompleted(){const content=state.variant==="B"?renderCompletedB():state.variant==="C"?renderCompletedC():renderCompletedA();return shell(`${pageHead(t("completedTitle"),t("completedBlurb"),`<button class="button outline" data-view="archive">${t("archiveTitle")}</button>`)}${content}`)}
+    function compareHeader(a,b){return `<section class="compare-head"><div><p class="section-label">${t("compare")}</p><strong>${t("sameTent")}</strong></div><div class="compare-plant"><img src="${a.image}" alt=""><span><strong>${a.name}</strong><small>${a.breeder}</small></span></div><div class="compare-plant"><img src="${b.image}" alt=""><span><strong>${b.name}</strong><small>${b.breeder}</small></span></div></section>`}
+    function compareRows(a,b){const rows=[[t("duration"),`${a.duration} ${t("days")}`,`${b.duration} ${t("days")}`],[t("dryYield"),`${a.yield} g`,`${b.yield} g`],[t("entries"),a.entries,b.entries],[t("temperature"),"Ø 24,4 °C","Ø 23,9 °C"],[t("humidity"),"Ø 61,8 %","Ø 64,1 %"],[t("moisture"),"Ø 52,3 %","Ø 55,6 %"]];return rows.map(row=>`<tr><th>${row[0]}</th><td>${row[1]}</td><td>${row[2]}</td></tr>`).join("")}
+    function renderCompareA(){const a=archiveRuns.apple,b=archiveRuns.amnesia;return `${compareHeader(a,b)}<table class="compare-table"><thead><tr><th>${t("metric")}</th><th>${a.name}</th><th>${b.name}</th></tr></thead><tbody>${compareRows(a,b)}</tbody></table><div class="completed-grid"><section class="panel panel-pad"><h2>${a.name}</h2>${miniChart(a.moisture)}</section><section class="panel panel-pad"><h2>${b.name}</h2>${miniChart(b.moisture,true)}</section></div>`}
+    function renderCompareB(){const a=archiveRuns.apple,b=archiveRuns.amnesia;return `${compareHeader(a,b)}<section class="compare-overlay"><header class="panel-head"><div><h2>${t("moisture")} · ${t("normalized")}</h2><p>${state.lang==="de"?"0 % ist Pflanzdatum, 100 % ist Ernte":"0% is planting date, 100% is harvest"}</p></div><span class="legend"><span><i></i>${a.name}</span><span><i class="alt"></i>${b.name}</span></span></header>${miniChart(a.moisture)}<div style="margin-top:-105px;pointer-events:none">${miniChart(b.moisture,true)}</div></section><table class="compare-table"><tbody>${compareRows(a,b)}</tbody></table>`}
+    function renderCompareC(){const a=archiveRuns.apple,b=archiveRuns.amnesia;return `<section style="width:min(900px,100%);margin:0 auto">${compareHeader(a,b)}<section class="panel panel-pad" style="margin-top:18px"><p class="section-label">${t("difference")}</p><div class="rule-list"><div class="rule-row"><span><strong>${t("duration")}</strong><small>${t("differentStrain")}</small></span><span>${a.duration} ${t("days")} ↔ ${b.duration} ${t("days")}</span><strong>34 ${t("days")}</strong></div><div class="rule-row"><span><strong>${t("dryYield")}</strong><small>${t("sameTent")}</small></span><span>${a.yield} g ↔ ${b.yield} g</span><strong>50 g</strong></div><div class="rule-row"><span><strong>${t("moisture")}</strong><small>${t("average")}</small></span><span>52,3 % ↔ 55,6 %</span><strong>3,3 pp</strong></div></div>${miniChart(a.moisture)}</section></section>`}
+    function renderCompare(){const content=state.variant==="B"?renderCompareB():state.variant==="C"?renderCompareC():renderCompareA();return shell(`${pageHead(t("compareTitle"),t("compareBlurb"),`<button class="button outline" data-view="archive">${t("archiveTitle")}</button>`)}${content}`)}
+    function toggleButton(key,on=state.settings[key]){return `<button class="switch ${on?"on":""}" data-toggle-setting="${key}" aria-label="${key}"></button>`}
+    function settingsRows(){return `<div class="setting-row"><span><strong>${t("darkMode")}</strong><small>${state.theme==="dark"?t("on"):t("off")}</small></span>${toggleButton("theme",state.theme==="dark")}</div><div class="setting-row"><span><strong>${t("sound")}</strong><small>${state.settings.sound?t("on"):t("off")}</small></span>${toggleButton("sound")}</div><div class="setting-row"><span><strong>${t("language")}</strong><small>${state.lang==="de"?t("german"):t("english")}</small></span><select data-setting-language><option value="de" ${state.lang==="de"?"selected":""}>Deutsch</option><option value="en" ${state.lang==="en"?"selected":""}>English</option></select></div><div class="setting-row"><span><strong>${t("density")}</strong><small>${t(state.settings.density)}</small></span><div class="action-strip"><button class="choice ${state.settings.density==="comfortable"?"active":""}" data-density="comfortable">${t("comfortable")}</button><button class="choice ${state.settings.density==="compact"?"active":""}" data-density="compact">${t("compact")}</button></div></div><div class="setting-row"><span><strong>${t("doorPrompt")}</strong><small>${t("notifications")}</small></span>${toggleButton("doorPrompt")}</div>`}
+    function settingsPreview(){return `<aside class="panel panel-pad settings-preview"><p class="section-label">${t("settingsPreview")}</p><div class="plant-id"><img src="${plants.tangerine.image}" alt=""><span><strong>${plants.tangerine.name}</strong><small>${t("vegetative")} · ${t("day")} 21</small></span></div><div class="rule-list" style="margin-top:16px"><div class="rule-row" style="grid-template-columns:1fr auto"><span><strong>${t("moisture")}</strong><small>${t("target")}: 40–60 %</small></span><span><strong>46 %</strong><small style="color:var(--green-bright)">${t("inRange")}</small></span></div><div class="rule-row" style="grid-template-columns:1fr auto"><span><strong>${t("harvestWindow")}</strong><small>${t("providerValue")}</small></span><strong>30. Okt. – 6. Nov.</strong></div></div><div style="margin-top:15px">${miniChart([62,58,55,53,50,48,46])}</div></aside>`}
+    function renderSettingsA(){return `<div class="settings-layout"><div><section class="panel panel-pad"><header class="panel-head"><div><h2>${t("appearance")}</h2><p>${t("allEditable")}</p></div></header>${settingsRows()}</section><section class="panel panel-pad" style="margin-top:18px"><h2>${t("tentSettings")}</h2><div class="field-grid"><span class="field"><label>${t("tentName")}</label><input value="Grow Tent"></span><span class="field"><label>${t("averages")}</label><input value="3 Temperaturquellen · 3 Feuchtequellen"></span></div></section></div>${settingsPreview()}</div>`}
+    function renderSettingsB(){return `<section class="panel panel-pad"><table class="archive-table"><thead><tr><th>${t("settingsTitle")}</th><th>${t("current")}</th><th>${t("change")}</th></tr></thead><tbody><tr><td>${t("darkMode")}</td><td>${state.theme==="dark"?t("on"):t("off")}</td><td>${toggleButton("theme",state.theme==="dark")}</td></tr><tr><td>${t("sound")}</td><td>${state.settings.sound?t("on"):t("off")}</td><td>${toggleButton("sound")}</td></tr><tr><td>${t("language")}</td><td>${state.lang==="de"?"Deutsch":"English"}</td><td><select data-setting-language><option value="de">Deutsch</option><option value="en">English</option></select></td></tr><tr><td>${t("density")}</td><td>${t(state.settings.density)}</td><td><button class="link-button" data-density="${state.settings.density==="compact"?"comfortable":"compact"}">${t("change")}</button></td></tr><tr><td>${t("doorPrompt")}</td><td>${state.settings.doorPrompt?t("on"):t("off")}</td><td>${toggleButton("doorPrompt")}</td></tr><tr><td>${t("tentName")}</td><td>Grow Tent</td><td><button class="link-button">${t("edit")}</button></td></tr><tr><td>${t("targets")}</td><td>4 ${state.lang==="de"?"Messwerte":"metrics"}</td><td><button class="link-button">${t("edit")}</button></td></tr></tbody></table></section>`}
+    function renderSettingsC(){return `<section style="width:min(900px,100%);margin:0 auto"><div class="completed-hero"><div style="display:grid;place-items:center;min-height:270px;background:var(--surface-2)">${icon(state.theme==="dark"?"moon":"sun")}</div><div class="completed-copy"><div><p class="section-label">${t("appearance")}</p><h1>${state.theme==="dark"?t("darkMode"):state.lang==="de"?"Helle Darstellung":"Light appearance"}</h1><p class="prototype-note">${t("sound")}: ${state.settings.sound?t("on"):t("off")} · ${t("density")}: ${t(state.settings.density)}</p></div>${toggleButton("theme",state.theme==="dark")}</div></div><section class="panel panel-pad" style="margin-top:18px">${settingsRows()}</section></section>`}
+    function renderSettings(){const content=state.variant==="B"?renderSettingsB():state.variant==="C"?renderSettingsC():renderSettingsA();return shell(`${pageHead(t("settingsTitle"),t("settingsBlurb"),`<button class="button outline" data-view="map">${t("backMap")}</button>`)}${content}`)}
+    function stateSample(key,iconName,titleKey,textKey,extra=""){return `<article class="state-sample"><span class="empty-mark">${icon(iconName)}</span><h2>${t(titleKey)}</h2><p>${t(textKey)}</p>${extra}</article>`}
+    function renderStatesA(){return `<section class="states-grid">${stateSample("firstRun","leaf","firstRun","firstRunText",`<button class="button primary" data-original>${t("createFirst")}</button>`)}${stateSample("sensorUnavailable","sensor","sensorUnavailable","sensorUnavailableText",`<span class="tag warn">${t("lastSeen")}</span>`)}${stateSample("recorderGap","chart","recorderGap","recorderGapText",miniChart([52,52,52,52,52]))}${stateSample("offline","alert","offline","manualStillWorks",`<button class="button outline">${t("retry")}</button>`)}</section>`}
+    function stateRows(){return `<div class="rule-list"><button class="rule-row" data-system-state="firstRun"><span><strong>${t("firstRun")}</strong><small>${t("firstRunText")}</small></span><span class="tag">Empty</span><span>→</span></button><button class="rule-row" data-system-state="sensorUnavailable"><span><strong>${t("sensorUnavailable")}</strong><small>${t("lastSeen")}</small></span><span class="tag warn">Stale</span><span>→</span></button><button class="rule-row" data-system-state="recorderGap"><span><strong>${t("recorderGap")}</strong><small>${t("recorderGapText")}</small></span><span class="tag warn">Recorder</span><span>→</span></button><button class="rule-row" data-system-state="offline"><span><strong>${t("offline")}</strong><small>${t("manualStillWorks")}</small></span><span class="tag bad">Offline</span><span>→</span></button></div>`}
+    function activeSystemState(){if(state.systemState==="sensorUnavailable")return stateSample("sensorUnavailable","sensor","sensorUnavailable","sensorUnavailableText",`<span class="tag warn">${t("lastSeen")}</span>`);if(state.systemState==="recorderGap")return stateSample("recorderGap","chart","recorderGap","recorderGapText",miniChart([52,52,52,52,52]));if(state.systemState==="offline")return stateSample("offline","alert","offline","manualStillWorks",`<button class="button outline">${t("retry")}</button>`);return stateSample("firstRun","leaf","firstRun","firstRunText",`<button class="button primary" data-original>${t("createFirst")}</button>`)}
+    function renderStatesB(){return `<div class="archive-split"><section class="panel panel-pad"><header class="panel-head"><div><h2>${t("statesTitle")}</h2><p>${state.lang==="de"?"Zustand auswählen":"Select a state"}</p></div></header>${stateRows()}</section}<aside>${activeSystemState()}</aside></div>`}
+    function renderStatesC(){return `<section style="width:min(760px,100%);margin:0 auto"><section class="panel panel-pad"><p class="section-label">${t("loading")}</p><div class="skeleton"><i></i><i></i><i></i></div></section><section class="panel panel-pad" style="margin-top:18px"><span class="tag warn">${t("partial")}</span><h2 style="margin-top:14px">${t("sensorUnavailable")}</h2><p class="prototype-note">${t("sensorUnavailableText")} ${t("manualStillWorks")}</p><div class="rule-list" style="margin-top:18px"><div class="rule-row"><span><strong>${t("moisture")}</strong><small>${t("lastSeen")}</small></span><strong>46 %</strong><span class="tag warn">Stale</span></div><div class="rule-row"><span><strong>${t("temperature")}</strong><small>${t("longTerm")}</small></span><strong>24,2 °C</strong><span class="tag good">Live</span></div></div></section></section>`}
+    function renderStates(){const content=state.variant==="B"?renderStatesB():state.variant==="C"?renderStatesC():renderStatesA();return shell(`${pageHead(t("statesTitle"),t("statesBlurb"),`<button class="button outline" data-view="map">${t("backMap")}</button>`)}${content}`)}
+    function haPlant(p,status=t("noAttention")){return `<div class="ha-plant"><img src="${p.image}" alt=""><span><strong>${p.name}</strong><small>${t("vegetative")} · ${t("day")} ${p.day} · ${status}</small></span><strong>${p.moisture}</strong></div>`}
+    function renderLovelaceA(){return `<section class="ha-stage"><header class="ha-toolbar"><h1>Home Assistant</h1><span>${t("nativeStyle")}</span></header><div class="ha-grid"><article class="ha-card" style="grid-column:1/-1"><header class="ha-card-head"><h2>${t("haCard")}</h2><button class="link-button" data-original>${t("openDashboard")}</button></header><div class="ha-content">${haPlant(plants.tangerine)}${haPlant(plants.diesel,t("attention"))}</div><footer class="ha-actions"><button data-view="journal">${t("quickEntry")}</button><button>${t("water")}</button><button data-original>${t("openDashboard")}</button></footer></article></div></section>`}
+    function renderLovelaceB(){const p=selectedPlant();return `<section class="ha-stage"><header class="ha-toolbar"><h1>Home Assistant</h1><span>${t("nativeStyle")}</span></header><div class="ha-grid"><article class="ha-card"><header class="ha-card-head"><h2>${p.name}</h2><span>${p.moisture}</span></header><div class="ha-content"><div class="plant-id"><img src="${p.image}" alt=""><span><strong>${t("vegetative")} · ${t("day")} ${p.day}</strong><small>${t("harvestWindow")}: ${p.harvest}</small></span></div>${miniChart([62,59,56,54,51,48,46])}</div><footer class="ha-actions"><button data-view="journal">${t("quickEntry")}</button><button>${t("water")}</button><button data-original>${t("openDashboard")}</button></footer></article><article class="ha-card"><header class="ha-card-head"><h2>${t("today")}</h2></header><div class="ha-content"><div class="ha-plant"><span>${icon("drop")}</span><span><strong>${t("moisture")}</strong><small>Tangerine 46 % · Diesel 52 %</small></span><span class="tag good">${t("inRange")}</span></div><div class="ha-plant"><span>${icon("sun")}</span><span><strong>${t("light")}</strong><small>138 lx</small></span><span class="tag warn">${t("check")}</span></div></div></article></div></section>`}
+    function renderLovelaceC(){return `<section class="ha-stage"><header class="ha-toolbar"><h1>Home Assistant</h1><span>${t("nativeStyle")}</span></header><div class="ha-grid"><article class="ha-card" style="grid-column:1/-1"><header class="ha-card-head"><h2>${t("haCard")}</h2><span>${t("today")}</span></header><div class="ha-content"><div class="ha-plant"><span>${icon("door")}</span><span><strong>${t("doorOpened")}</strong><small>20:03 · ${t("manualStillWorks")}</small></span><button class="button small primary" data-view="journal">${t("quickEntry")}</button></div>${haPlant(plants.tangerine)}${haPlant(plants.diesel)}</div><footer class="ha-actions"><button data-view="journal">${t("freeText")}</button><button>${t("water")}</button><button>${t("inspect")}</button></footer></article></div></section>`}
+    function renderLovelace(){const content=state.variant==="B"?renderLovelaceB():state.variant==="C"?renderLovelaceC():renderLovelaceA();return shell(`${pageHead(t("lovelaceTitle"),t("lovelaceBlurb"),`<button class="button outline" data-view="map">${t("backMap")}</button>`)}${content}`)}
+    function renderIdeasA(){return `<section><div class="idea-flow"><article class="idea-step"><i>1</i><strong>${t("doorOpened")}</strong><small>binary_sensor.growbox_door</small></article><article class="idea-step"><i>2</i><strong>${t("waitSession")}</strong><small>${state.lang==="de"?"Zum Beispiel 10 Minuten nach dem Schließen":"For example 10 minutes after closing"}</small></article><article class="idea-step"><i>3</i><strong>${t("phonePrompt")}</strong><small>${state.lang==="de"?"Welche Pflanze und welche Aktion?":"Which plant and which action?"}</small></article><article class="idea-step"><i>4</i><strong>${t("captureWork")}</strong><small>${t("journalTitle")}</small></article></div><p class="prototype-note" style="margin-top:12px">${t("futureOnly")}</p></section>`}
+    function renderIdeasB(){return `<div class="settings-layout"><section class="panel panel-pad"><span class="tag warn">${t("futureOnly")}</span><h2 style="margin-top:16px">${t("doorPrompt")}</h2><div class="rule-list"><div class="rule-row"><span><strong>${t("source")}</strong></span><code class="entity-code">binary_sensor.growbox_door</code><span class="tag good">Home Assistant</span></div><div class="rule-row"><span><strong>${t("waitSession")}</strong></span><span>10 min nach Schließen</span><button class="link-button">${t("edit")}</button></div><div class="rule-row"><span><strong>${t("phonePrompt")}</strong></span><span>notify.mobile_app_phone</span><button class="link-button">${t("preview")}</button></div></div></section><aside class="panel panel-pad"><p class="section-label">${t("plannedFollowup")}</p><h2>${state.lang==="de"?"In 3 Tagen ernten":"Harvest in 3 days"}</h2><p class="prototype-note">${t("followupText")}</p><div class="action-strip" style="margin-top:18px"><button class="button outline">${t("cancel")}</button><button class="button primary">${t("confirm")}</button></div></aside></div>`}
+    function renderIdeasC(){return `<section style="width:min(760px,100%);margin:0 auto"><section class="state-sample"><span class="empty-mark">${icon("bell")}</span><span class="tag warn">${t("futureOnly")}</span><h2 style="margin-top:16px">${t("doorPrompt")}</h2><p>${t("doorOpened")} → ${t("waitSession")} → ${t("phonePrompt")} → ${t("captureWork")}</p></section><section class="state-sample" style="margin-top:18px"><span class="empty-mark">${icon("timeline")}</span><h2>${t("plannedFollowup")}</h2><p>${t("followupText")}</p></section></section>`}
+    function renderIdeas(){const content=state.variant==="B"?renderIdeasB():state.variant==="C"?renderIdeasC():renderIdeasA();return shell(`${pageHead(t("ideasTitle"),t("ideasBlurb"),`<button class="button outline" data-view="map">${t("backMap")}</button>`)}${content}`)}
+    const RENDERERS={map:renderMap,journal:renderJournal,phases:renderPhases,sensors:renderSensors,strain:renderStrain,edit:renderEdit,finish:renderFinish,archive:renderArchive,completed:renderCompleted,compare:renderCompare,settings:renderSettings,states:renderStates,lovelace:renderLovelace,ideas:renderIdeas};
+    function render(){if(!VARIANTS.some(item=>item.key===state.variant))state.variant="A";if(!RENDERERS[state.view])state.view="map";if(!plants[state.plant])state.plant="tangerine";document.documentElement.lang=state.lang;document.documentElement.dataset.theme=state.theme;document.getElementById("app").innerHTML=RENDERERS[state.view]()+controls();bindEvents()}
+    function go(view){state.view=view;syncUrl();render();window.scrollTo({top:0,left:0,behavior:"instant"})}
+    function stepVariant(delta){const index=Math.max(0,VARIANTS.findIndex(item=>item.key===state.variant));state.variant=VARIANTS[(index+delta+VARIANTS.length)%VARIANTS.length].key;syncUrl();render();window.scrollTo({top:0,left:0,behavior:"instant"})}
+    function syncUrl(){const next=new URLSearchParams(location.search);next.set("view",state.view);next.set("variant",state.variant);next.set("lang",state.lang);next.set("theme",state.theme);next.set("plant",state.plant);history.replaceState(null,"",`${location.pathname}?${next}`)}
+    function showToast(message){const root=document.getElementById("toast-root");root.innerHTML=`<div class="toast">${escapeHtml(message)}</div>`;setTimeout(()=>root.innerHTML="",2200)}
+    function bindEvents(){
+      document.querySelectorAll("[data-view]").forEach(button=>button.onclick=()=>go(button.dataset.view));
+      document.querySelectorAll("[data-existing]").forEach(button=>button.onclick=()=>{const target=button.dataset.existing,query=target==="create"?`variant=A&detail=B&view=create&create=A&step=1&plant=tangerine&lang=${state.lang}&theme=${state.theme}&rev=15`:target==="plant"?`variant=A&detail=B&view=plant&plant=tangerine&metric=moisture&lang=${state.lang}&theme=${state.theme}&rev=13`:`variant=A&view=overview&plant=tangerine&lang=${state.lang}&theme=${state.theme}&rev=14`;location.href=`./plantrun-ui-prototype.html?${query}`});
+      document.querySelectorAll("[data-original]").forEach(button=>button.onclick=()=>{location.href=`./plantrun-ui-prototype.html?variant=A&detail=B&view=overview&plant=${state.plant}&metric=moisture&lang=${state.lang}&theme=${state.theme}&rev=14`});
+      document.querySelectorAll("[data-lang]").forEach(button=>button.onclick=()=>{state.lang=button.dataset.lang;syncUrl();render()});
+      document.querySelectorAll("[data-theme-toggle]").forEach(button=>button.onclick=()=>{state.theme=state.theme==="dark"?"light":"dark";syncUrl();render()});
+      document.querySelectorAll("[data-variant-step]").forEach(button=>button.onclick=()=>stepVariant(Number(button.dataset.variantStep)));
+      document.querySelectorAll("[data-action]").forEach(button=>button.onclick=()=>{state.action=button.dataset.action;render()});
+      document.querySelectorAll("[data-journal-draft]").forEach(field=>{field.oninput=()=>{state.journalDraft=field.value};field.onkeydown=event=>{if((event.ctrlKey||event.metaKey)&&event.key==="Enter"){event.preventDefault();document.querySelector("[data-journal-save]")?.click()}}});
+      document.querySelectorAll("[data-compose-plant]").forEach(button=>button.onclick=()=>{state.plant=button.dataset.composePlant;syncUrl();render()});
+      document.querySelectorAll("[data-entry-plant]").forEach(field=>field.onchange=()=>{state.plant=field.value;syncUrl();render()});
+      document.querySelectorAll("[data-entry-type]").forEach(field=>field.onchange=()=>{state.action=field.value;render()});
+      document.querySelectorAll("[data-open-composer]").forEach(button=>button.onclick=()=>{state.composerOpen=true;render();requestAnimationFrame(()=>document.querySelector("[data-journal-draft]")?.focus())});
+      document.querySelectorAll("[data-close-composer]").forEach(button=>button.onclick=()=>{state.composerOpen=false;render()});
+      document.querySelectorAll("[data-composer-drawer]").forEach(drawer=>drawer.onclick=event=>event.stopPropagation());
+      document.querySelectorAll("[data-journal-save]").forEach(button=>button.onclick=()=>{const field=document.querySelector("[data-journal-draft]"),text=(field?.value||state.journalDraft).trim()||(state.lang==="de"?"Zustand geprüft und Arbeit dokumentiert.":"Checked condition and documented the work.");state.savedEntries.unshift({day:"today",time:"20:16",plant:state.plant,type:state.action,text,context:"24,2 °C · 63,5 % · 138 lx"});state.journalDraft="";if(state.variant==="C")state.composerOpen=false;render();showToast(t("saved"))});
+      document.querySelectorAll("[data-journal-plant]").forEach(button=>button.onclick=()=>{state.journalPlant=button.dataset.journalPlant;render()});
+      document.querySelectorAll("[data-journal-type]").forEach(button=>button.onclick=()=>{state.journalType=button.dataset.journalType;render()});
+      document.querySelectorAll("[data-journal-plant-select]").forEach(select=>select.onchange=()=>{state.journalPlant=select.value;render()});
+      document.querySelectorAll("[data-journal-type-select]").forEach(select=>select.onchange=()=>{state.journalType=select.value;render()});
+      document.querySelectorAll("[data-select-phase]").forEach(button=>button.onclick=()=>{state.selectedPhase=button.dataset.selectPhase;render()});
+      let draggedPhase="";
+      document.querySelectorAll("[data-phase-drag]").forEach(handle=>{handle.ondragstart=event=>{draggedPhase=handle.dataset.phaseDrag;event.dataTransfer.effectAllowed="move";event.dataTransfer.setData("text/plain",draggedPhase)};handle.ondragend=()=>document.querySelectorAll(".phase-item.drag-over").forEach(row=>row.classList.remove("drag-over"))});
+      document.querySelectorAll("[data-phase-drop]").forEach(row=>{row.ondragover=event=>{event.preventDefault();event.dataTransfer.dropEffect="move";row.classList.add("drag-over")};row.ondragleave=()=>row.classList.remove("drag-over");row.ondrop=event=>{event.preventDefault();const source=event.dataTransfer.getData("text/plain")||draggedPhase,target=row.dataset.phaseDrop;row.classList.remove("drag-over");if(!source||source===target)return;const from=state.phaseOrder.indexOf(source),to=state.phaseOrder.indexOf(target);if(from<0||to<0)return;state.phaseOrder.splice(from,1);state.phaseOrder.splice(to,0,source);render()}});
+      document.querySelectorAll("[data-add-custom]").forEach(button=>button.onclick=()=>{const fallback=state.lang==="de"?"Trocknung":"Drying",name=prompt(state.lang==="de"?"Name der eigenen Phase":"Custom stage name",fallback);if(name&&name.trim()){const id=`custom-${Date.now()}`;state.customPhases.push({id,nameDe:name.trim(),nameEn:name.trim()});const harvestIndex=state.phaseOrder.indexOf("harvested");state.phaseOrder.splice(harvestIndex<0?state.phaseOrder.length:harvestIndex,0,id);state.selectedPhase=id;render()}});
+      document.querySelectorAll("[data-remove-custom]").forEach(button=>button.onclick=()=>{const id=button.dataset.removeCustom;state.customPhases=state.customPhases.filter(phase=>phase.id!==id);state.phaseOrder=state.phaseOrder.filter(phaseId=>phaseId!==id);if(state.selectedPhase===id)state.selectedPhase=state.currentPhase;render()});
+      document.querySelectorAll("[data-advance-phase]").forEach(button=>button.onclick=()=>{const next=state.selectedPhase;if(!next||next===state.currentPhase)return;if(!state.completedPhases.includes(state.currentPhase))state.completedPhases.push(state.currentPhase);state.completedPhases=state.completedPhases.filter(id=>id!==next);state.currentPhase=next;state.selectedPhase=next;render();const current=phasePlanItems().find(phase=>phase.id===state.currentPhase);showToast(`${t("currentPhase")}: ${phaseName(current)}`)});
+      document.querySelectorAll("[data-sensor-tab]").forEach(button=>button.onclick=()=>{state.sensorTab=button.dataset.sensorTab;render()});
+      document.querySelectorAll("[data-metric]").forEach(button=>button.onclick=()=>{state.selectedMetric=button.dataset.metric;render()});
+      document.querySelectorAll("[data-strain-query]").forEach(input=>input.oninput=()=>{state.strainQuery=input.value;const first=matchingStrains()[0];state.strainSelected=first?.id||"";render();requestAnimationFrame(()=>{const next=document.querySelector("[data-strain-query]");next?.focus();next?.setSelectionRange(next.value.length,next.value.length)})});
+      document.querySelectorAll("[data-strain-breeder]").forEach(select=>select.onchange=()=>{state.strainBreeder=select.value;const first=matchingStrains()[0];state.strainSelected=first?.id||"";render()});
+      document.querySelectorAll("[data-strain]").forEach(button=>button.onclick=()=>{state.strainSelected=button.dataset.strain;if(state.variant==="C")state.strainPreviewOpen=true;render()});
+      document.querySelectorAll("[data-close-strain-preview]").forEach(button=>button.onclick=()=>{state.strainPreviewOpen=false;render()});
+      document.querySelectorAll("[data-strain-drawer]").forEach(drawer=>drawer.onclick=event=>event.stopPropagation());
+      document.querySelectorAll("[data-use-strain]").forEach(button=>button.onclick=()=>{state.strainApplied=true;state.strainSelected=button.dataset.useStrain;showToast(state.lang==="de"?"Strain-Daten im Prototyp übernommen":"Strain data applied in the prototype")});
+      document.querySelectorAll("[data-provider-fail]").forEach(button=>button.onclick=()=>{state.providerFailed=!state.providerFailed;render()});
+      document.querySelectorAll("[data-finish-step],[data-finish-next]").forEach(button=>button.onclick=()=>{state.finishStep=Number(button.dataset.finishStep||button.dataset.finishNext);render()});
+      document.querySelectorAll("[data-finish-complete]").forEach(button=>button.onclick=()=>{state.finishDone=true;render();showToast(t("runCompleted"))});
+      document.querySelectorAll("[data-open-run]").forEach(button=>button.onclick=()=>go("completed"));
+      document.querySelectorAll("[data-archive-select]").forEach(input=>input.onchange=()=>{const id=input.dataset.archiveSelect;if(input.checked&&!state.archiveSelected.includes(id)){if(state.archiveSelected.length>=2)state.archiveSelected.shift();state.archiveSelected.push(id)}else if(!input.checked)state.archiveSelected=state.archiveSelected.filter(item=>item!==id);render()});
+      document.querySelectorAll("[data-toggle-setting]").forEach(button=>button.onclick=()=>{const key=button.dataset.toggleSetting;if(key==="theme"){state.theme=state.theme==="dark"?"light":"dark";syncUrl()}else state.settings[key]=!state.settings[key];render()});
+      document.querySelectorAll("[data-setting-language]").forEach(select=>select.onchange=()=>{state.lang=select.value;syncUrl();render()});
+      document.querySelectorAll("[data-density]").forEach(button=>button.onclick=()=>{state.settings.density=button.dataset.density;render()});
+      document.querySelectorAll("[data-system-state]").forEach(button=>button.onclick=()=>{state.systemState=button.dataset.systemState;render()});
+    }
+    document.addEventListener("keydown",event=>{if(["INPUT","TEXTAREA","SELECT"].includes(event.target.tagName)||event.target.isContentEditable)return;if(event.key==="ArrowLeft")stepVariant(-1);if(event.key==="ArrowRight")stepVariant(1);if(event.key==="Escape"&&state.view!=="map")go("map")});
+    render();
+  </script>
+</body>
+</html>

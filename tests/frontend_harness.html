@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PlantRun production frontend harness</title>
+  <style>html,body{margin:0;min-height:100%;background:#0b100d}body{font-family:Inter,system-ui,sans-serif}</style>
+</head>
+<body>
+  <plantrun-dashboard-panel></plantrun-dashboard-panel>
+  <script type="module">
+    class HaIcon extends HTMLElement {
+      connectedCallback() { this.setAttribute("aria-hidden", "true"); }
+    }
+    customElements.define("ha-icon", HaIcon);
+    customElements.define("ha-panel-lovelace", class extends HTMLElement {});
+
+    const plantedAt = "2026-08-25T16:00:00+02:00";
+    const state = {
+      schema_version: 3,
+      active_tent_id: "tent-growzelt",
+      tents: [{
+        id: "tent-growzelt",
+        name: "Growzelt",
+        created_at: plantedAt,
+        light_schedule: "20:00 bis 14:00, 18/6",
+      }],
+      plants: [
+        { id: "plant-diesel", tent_id: "tent-growzelt", name: "Diesel Auto", strain: { name: "Diesel Auto", breeder: "Royal Queen Seeds", duration: null }, image: null, container: "7 L Endtopf", substrate: "All-Mix Erde" },
+        { id: "plant-tangerine", tent_id: "tent-growzelt", name: "Tangerine Dream Auto", strain: { name: "Tangerine Dream Auto", breeder: "Zamnesia", duration: null }, image: null, container: "7 L Endtopf", substrate: "All-Mix Erde" },
+      ],
+      runs: [
+        { id: "run-diesel", name: "Diesel Auto RQS", tent_id: "tent-growzelt", plant_id: "plant-diesel", planted_at: plantedAt, stage_plan: ["Germination","Seedling","Vegetative","Flowering","Harvested"], current_stage: "Germination", stage_history: [{ id: "stage-diesel", from_stage: null, to_stage: "Germination", occurred_at: plantedAt, created_at: plantedAt }], status: "active", ended_at: null, harvest_details: {} },
+        { id: "run-tangerine", name: "Tangerine Dream Auto Zamnesia", tent_id: "tent-growzelt", plant_id: "plant-tangerine", planted_at: plantedAt, stage_plan: ["Germination","Seedling","Vegetative","Flowering","Harvested"], current_stage: "Germination", stage_history: [{ id: "stage-tangerine", from_stage: null, to_stage: "Germination", occurred_at: plantedAt, created_at: plantedAt }], status: "active", ended_at: null, harvest_details: {} },
+      ],
+      journal_entries: [
+        { id: "journal-diesel-plant", tent_id: "tent-growzelt", run_ids: ["run-diesel"], entry_type: "Planting", text: "Trockenen Samen direkt aus der Packung in All-Mix Erde im 7 L Endtopf gesetzt.", occurred_at: plantedAt, created_at: plantedAt, updated_at: plantedAt, details: { time_is_approximate: true }, sensor_snapshot: {} },
+        { id: "journal-diesel-water", tent_id: "tent-growzelt", run_ids: ["run-diesel"], entry_type: "Water", text: "Frische Erde angefeuchtet und etwas zusätzliches Wasser über den Samen gesprenkelt. Menge nicht gemessen.", occurred_at: plantedAt, created_at: plantedAt, updated_at: plantedAt, details: { amount: null, measured: false }, sensor_snapshot: {} },
+        { id: "journal-tangerine-plant", tent_id: "tent-growzelt", run_ids: ["run-tangerine"], entry_type: "Planting", text: "Trockenen Samen direkt aus der Packung in All-Mix Erde im 7 L Endtopf gesetzt.", occurred_at: plantedAt, created_at: plantedAt, updated_at: plantedAt, details: { time_is_approximate: true }, sensor_snapshot: {} },
+        { id: "journal-tangerine-water", tent_id: "tent-growzelt", run_ids: ["run-tangerine"], entry_type: "Water", text: "Frische Erde angefeuchtet und etwas zusätzliches Wasser über den Samen gesprenkelt. Menge nicht gemessen.", occurred_at: plantedAt, created_at: plantedAt, updated_at: plantedAt, details: { amount: null, measured: false }, sensor_snapshot: {} },
+        { id: "journal-light", tent_id: "tent-growzelt", run_ids: [], entry_type: "Lighting", text: "Erstes planmäßiges Einschalten. Lichtzyklus 20:00 bis 14:00, 18/6.", occurred_at: "2026-08-25T20:00:00+02:00", created_at: "2026-08-25T20:00:00+02:00", updated_at: "2026-08-25T20:00:00+02:00", details: {}, sensor_snapshot: {} },
+      ],
+      sensor_bindings: [],
+    };
+
+    const hass = {
+      states: {},
+      async callWS(message) {
+        if (message.type === "plantrun/get_state") return structuredClone(state);
+        if (message.type === "plantrun/search_cultivar") return { results: [] };
+        if (message.type === "plantrun/command") return structuredClone(state);
+        throw new Error(`Unsupported websocket call: ${message.type}`);
+      },
+      async callApi() { return [[]]; },
+    };
+
+    await import("../custom_components/plantrun/www/plantrun-panel.js");
+    document.querySelector("plantrun-dashboard-panel").hass = hass;
+  </script>
+</body>
+</html>

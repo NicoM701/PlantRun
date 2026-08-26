@@ -1,8 +1,14 @@
-# PlantRun 🌱
+# PlantRun
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg?style=for-the-badge)](https://github.com/hacs/integration)
 
 PlantRun is a Home Assistant custom integration for tracking cultivation runs end to end.
+
+Version 0.7.0 is the first usable rebuild. Its production sidebar follows the
+accepted one-plant-per-run model, three-step creation flow, history-first
+Journal, direct Stage changes, Recorder workspace, Archive, and warned Permanent
+Deletion. The HTML under `custom_components/plantrun/www/prototype/` remains
+disposable design evidence.
 
 It combines:
 - guided run setup
@@ -10,7 +16,7 @@ It combines:
 - a Lovelace run card
 - sensor bindings and proxy entities
 - SeedFinder cultivar enrichment
-- persistent per-run history and summaries
+- persistent run metadata, lifecycle, and journal history
 - Home Assistant history deeplinks scoped to a PlantRun run window
 
 ---
@@ -19,30 +25,26 @@ It combines:
 
 ### Run management
 - Create and manage multiple runs
+- Keep exactly one plant in each run while any number of runs overlap in one tent
 - Track phases, notes, planted date, target days, status, and harvest yield
 - Keep one active run for compatibility with older service flows
 
 ### Frontend
-PlantRun ships with two UI entry points:
+PlantRun has two UI entry points:
 - **Sidebar dashboard** at `/plantrun-dashboard`
 - **Lovelace card** via `custom:plantrun-card`
 
-Current UI capabilities include:
-- a plant-first garden overview with watering schedules and attention signals
-- quick watering logs that create durable journal entries
-- focused Overview, Climate, and Journal run workspaces
-- stage-aware run cards, named plants, and prominent lifecycle rails
-- responsive light/dark themes with customizable grid/list layouts and optional sections
-- detail editing for metadata, notes, bindings, cultivar, breeder, and images
-- a validated 4-step onboarding wizard with editable plants and phase plans
-- theme and layout preferences
-- live cultivar suggestions backed by SeedFinder
-- working custom phases alongside the common Seedling, Vegetative, Flowering, and Harvested stages
-- a guided finish flow that records dry yield and archives the completed run
-- read-only completed-run summaries with an explicit correction path
-- note editing/deletion with in-panel confirmation
-- phase changes via in-panel confirmation modal
-- Home Assistant history deeplinks from bound sensor tiles
+The rebuilt sidebar currently provides:
+- a Tent-first opening view with one prominent card per active Plant
+- a focused Run workspace with lifecycle, Recorder chart, permanent facts, and latest Journal context
+- responsive dark and light layouts with a phone-width bottom navigation
+- a three-step flow that creates exactly one Plant and one Run
+- manual Strain entry plus authenticated SeedFinder suggestions when a Breeder is supplied
+- direct, timestamped Stage changes without forced transition rules
+- chronological Journal capture, filtering, editing, deletion, and attached sensor context
+- dated Tent or Plant sensor assignment with reassignment history
+- completion into a durable Archive
+- separate Permanent Deletion with an exact-name warning gate
 
 Sensor tiles are recorder-first: PlantRun stores the entity link and run time window,
 then opens Home Assistant's native History panel for the actual chart. It does not
@@ -62,7 +64,13 @@ a frontend build toolchain.
 
 ### Persistence
 - local store-backed run history
-- migration support for older payload shapes and legacy binding IDs
+- an atomic v3 domain store with the former v2 records retained in a hidden backup bucket
+- an idempotent acceptance-ledger import command
+
+The owner's acceptance cycle began on August 25, 2026. The rebuild imports that
+cycle into the v3 store. Older v2 runs remain inside the Home Assistant backup
+and the store's hidden legacy bucket, but the rebuilt sidebar does not mix them
+into the new cultivation history.
 
 ---
 
@@ -174,6 +182,9 @@ python3 -m unittest tests.test_dashboard_panel_interactions -q
 ```
 
 Related docs:
+- `CONTEXT.md`
+- `docs/PRODUCT_DISCOVERY.md`
+- `docs/adr/0002-one-plant-per-run.md`
 - `docs/RELEASE_QA_SIGNOFF.md`
 - `docs/PERFORMANCE_NOTES.md`
 - `docs/RELEASE_CHECKLIST.md`

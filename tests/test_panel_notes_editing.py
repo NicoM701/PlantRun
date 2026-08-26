@@ -3,24 +3,17 @@ import unittest
 from tests.dashboard_js_test_utils import load_panel_source
 
 
-class PanelNotesEditingTests(unittest.TestCase):
-    def test_notes_support_create_edit_delete_and_datetime_display(self):
+class PanelJournalEditingTests(unittest.TestCase):
+    def test_journal_supports_create_edit_delete_and_occurrence_time(self):
         source = load_panel_source()
-
-        self.assertIn("formatDateTime", source)
-        self.assertIn('data-action="add-note"', source)
-        self.assertIn('data-action="edit-note"', source)
-        self.assertIn('data-action="confirm-delete-note"', source)
-        self.assertIn('data-action="save-note-edit"', source)
-        self.assertIn('data-action="delete-note"', source)
-        self.assertIn('data-note-edit-text', source)
-        self.assertIn('S.formatDateTime(note.timestamp)', source)
-        self.assertIn('_openNewNoteEditor(runId)', source)
-        self.assertIn('<h2>${isNew ? "New note" : "Edit note"}</h2>', source)
-        self.assertIn('this._api.callService("add_note"', source)
-        self.assertIn('this._api.callService("update_note"', source)
-        self.assertIn('this._api.callService("delete_note"', source)
-        self.assertNotIn('data-note-draft', source)
+        self.assertIn('"create_journal_entry"', source)
+        self.assertIn('"update_journal_entry"', source)
+        self.assertIn('command("delete_journal_entry"', source)
+        self.assertIn('data-journal-occurred-at', source)
+        self.assertIn('data-action="edit-journal-entry"', source)
+        self.assertIn('data-action="request-delete-journal-entry"', source)
+        self.assertIn("occurred_at:", source)
+        self.assertIn("entry_id: entry.id", source)
 
 
 if __name__ == "__main__":

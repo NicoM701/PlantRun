@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+  <title>PlantRun</title>
+  <rect width="64" height="64" rx="16" fill="#151c17"/>
+  <path
+    d="M50 14C30 14 18 24 18 39c0 6.6 5.4 12 12 12 15 0 20-17 20-37Z"
+    fill="#79c84f"
+  />
+  <path
+    d="M14 54c6-14 14-23 28-31"
+    fill="none"
+    stroke="#f1f5f0"
+    stroke-linecap="round"
+    stroke-width="4"
+  />
+</svg>

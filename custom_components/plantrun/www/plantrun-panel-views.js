@@ -1,220 +1,270 @@
-import { CANONICAL_STAGES } from "./plantrun-panel-domain.js?v=0.6.1";
+import {
+  METRICS,
+  bindingForMetric,
+  bindingsFor,
+  breederName,
+  chartPath,
+  chartStats,
+  cultivarName,
+  currentStage,
+  daysSince,
+  entityIdFor,
+  escapeHtml,
+  formatDate,
+  harvestEstimate,
+  isArchived,
+  metricDefinition,
+  plantName,
+  recordedStages,
+  runEnd,
+  runName,
+  runStart,
+  stagePlan,
+  targetFor,
+} from "./plantrun-panel-domain.js?v=0.7.0";
 
-const stageIcon = (stage) => {
-  const value = String(stage || "").toLowerCase();
-  if (value.includes("flower")) return "mdi:flower";
-  if (value.includes("dry")) return "mdi:weather-windy";
-  if (value.includes("cur")) return "mdi:archive-outline";
-  if (value.includes("harvest")) return "mdi:basket-outline";
-  if (value.includes("veg")) return "mdi:leaf";
-  return "mdi:sprout";
-};
+const e = escapeHtml;
 
-const dateOnly = (value) => {
-  if (!value) return "";
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? "" : parsed.toISOString().slice(0, 10);
-};
+function plantImage(run) {
+  return run?.plant?.image_url
+    || run?.image_url
+    || run?.plant?.cultivar?.image_url
+    || run?.cultivar?.image_url
+    || "";
+}
 
-export function createPanelViewMethods(S) {
+function imageMarkup(run, className = "plant-photo") {
+  const src = plantImage(run);
+  if (src) return `<img class="${className}" src="${e(src)}" alt="${e(plantName(run))}" loading="lazy" />`;
+  return `<div class="${className} photo-empty"><ha-icon icon="mdi:sprout-outline"></ha-icon><span>Noch kein Pflanzenfoto</span></div>`;
+}
+
+function statusText(value, target) {
+  if (!Number.isFinite(value)) return { key: "missing", label: "Kein aktueller Wert" };
+  if (!target) return { key: "neutral", label: "Ohne Zielbereich" };
+  return value >= target.minimum && value <= target.maximum
+    ? { key: "good", label: "Im Zielbereich" }
+    : { key: "warn", label: "Außerhalb des Zielbereichs" };
+}
+
+export function createPanelViewMethods() {
   return {
-    _phasePlan(run) {
-      const configured = run?.base_config?.phase_plan;
-      return Array.isArray(configured) && configured.length ? configured : CANONICAL_STAGES;
+    _renderShell() {
+      const tent = this._activeTent();
+      const tentName = tent?.name || "Growzelt";
+      const active = this._state.runs.filter((run) => !isArchived(run));
+      return `<div class="app theme-${e(this._theme)}">
+        <aside class="desktop-rail" aria-label="PlantRun Navigation">
+          <button class="rail-brand" data-action="navigate" data-screen="overview" type="button" aria-label="PlantRun Startseite">
+            <span class="brand-leaf"><ha-icon icon="mdi:sprout"></ha-icon></span><span>PlantRun</span>
+          </button>
+          <nav>
+            ${this._navButton("overview", "mdi:greenhouse", tentName)}
+            ${this._navButton("journal", "mdi:notebook-outline", "Journal")}
+            ${this._navButton("archive", "mdi:archive-outline", "Archiv")}
+          </nav>
+          <button class="rail-utility" data-action="toggle-theme" type="button" title="Darstellung wechseln"><ha-icon icon="${this._theme === "dark" ? "mdi:white-balance-sunny" : "mdi:weather-night"}"></ha-icon><span>Darstellung</span></button>
+        </aside>
+        <div class="page-frame">
+          <header class="topbar">
+            <div><span class="overline">${e(tentName)}</span><strong>${active.length} aktive ${active.length === 1 ? "Pflanze" : "Pflanzen"}</strong></div>
+            <button class="primary" data-action="open-create" type="button"><ha-icon icon="mdi:plus"></ha-icon> Neue Pflanze</button>
+          </header>
+          <main id="main-content">
+            ${this._loading ? this._renderLoading() : this._error ? this._renderError() : this._renderScreen()}
+          </main>
+        </div>
+        <nav class="mobile-nav" aria-label="PlantRun Navigation">
+          ${this._navButton("overview", "mdi:greenhouse", "Zelt")}
+          ${this._navButton("journal", "mdi:notebook-outline", "Journal")}
+          ${this._navButton("archive", "mdi:archive-outline", "Archiv")}
+        </nav>
+        ${this._busy ? `<div class="busy-line" role="status"><span></span>PlantRun speichert</div>` : ""}
+        ${this._toast ? `<div class="toast" role="status">${e(this._toast)}</div>` : ""}
+        ${this._renderDialogs()}
+      </div>`;
     },
 
-    _plantObjects(run) {
-      const plants = run?.base_config?.plants;
-      if (!Array.isArray(plants)) return [];
-      return plants
-        .map((plant, index) => {
-          if (typeof plant === "string") {
-            const name = plant.trim();
-            return name ? { id: `legacy-${index}`, name, last_watered: "" } : null;
-          }
-          if (!plant || typeof plant !== "object") return null;
-          const name = String(plant.name || "").trim();
-          return name ? { ...plant, id: String(plant.id || `legacy-${index}`), name } : null;
-        })
-        .filter(Boolean);
+    _navButton(screen, icon, label) {
+      const selected = this._screen === screen || (screen === "overview" && this._screen === "run");
+      return `<button class="nav-button ${selected ? "selected" : ""}" data-action="navigate" data-screen="${screen}" type="button" ${selected ? 'aria-current="page"' : ""}><ha-icon icon="${icon}"></ha-icon><span>${e(label)}</span></button>`;
     },
 
-    _plants(run) {
-      return this._plantObjects(run).map((plant) => plant.name);
+    _renderLoading() {
+      return `<section class="system-state" aria-live="polite"><ha-icon icon="mdi:sprout"></ha-icon><h1>PlantRun wird geladen</h1><p>Home Assistant liest Zelt, Pflanzen und Journal.</p></section>`;
     },
 
-    _stageAsset(run) {
-      const stage = String(run?.phases?.at?.(-1)?.name || "seedling").toLowerCase();
-      const file = stage.includes("flower") || stage.includes("harvest") || stage.includes("dry")
-        ? "plant-flowering-v1.png"
-        : stage.includes("veg") ? "plant-vegetative-v1.png" : "plant-seedling-v1.png";
-      return `/plantrun_frontend/assets/${file}`;
+    _renderError() {
+      return `<section class="system-state error" role="alert"><ha-icon icon="mdi:cloud-alert-outline"></ha-icon><h1>PlantRun ist gerade nicht erreichbar</h1><p>${e(this._error)}</p><button class="secondary" data-action="reload" type="button">Erneut versuchen</button></section>`;
     },
 
-    _wateringState(run, plant) {
-      const interval = Math.max(1, Number(plant.watering_interval_days || run?.base_config?.watering_interval_days || 3));
-      if (!plant.last_watered) {
-        return { key: "setup", label: "Not logged yet", detail: "Log the first watering", daysLeft: null };
-      }
-      const elapsed = S.daysBetween(plant.last_watered, new Date());
-      const daysLeft = interval - elapsed;
-      if (daysLeft < 0) return { key: "attention", label: "Check today", detail: `${Math.abs(daysLeft)}d past schedule`, daysLeft };
-      if (daysLeft === 0) return { key: "attention", label: "Due today", detail: "Watering scheduled", daysLeft };
-      if (daysLeft === 1) return { key: "soon", label: "Tomorrow", detail: "Watering coming up", daysLeft };
-      return { key: "good", label: "On schedule", detail: `Water in ${daysLeft} days`, daysLeft };
-    },
-
-    _runSignals(run) {
-      const bindings = Array.isArray(run?.bindings) ? run.bindings : [];
-      const unavailable = bindings.filter((binding) => !this._hass?.states?.[binding.sensor_id]);
-      const progress = this._progress(run);
-      const plants = this._plantObjects(run);
-      const duePlants = plants.filter((plant) => this._wateringState(run, plant).key === "attention");
-      if (run.status === "ended") return { key: "complete", label: "Completed", detail: run.end_time ? S.formatDate(run.end_time) : "Archived" };
-      if (duePlants.length) return { key: "attention", label: "Needs attention", detail: `${duePlants.length} watering ${duePlants.length === 1 ? "check" : "checks"}` };
-      if (unavailable.length) return { key: "attention", label: "Sensor offline", detail: `${unavailable.length} unavailable` };
-      if (progress >= 100) return { key: "soon", label: "Review cycle", detail: "Expected duration reached" };
-      if (!bindings.length) return { key: "setup", label: "Setup", detail: "No sensors linked" };
-      return { key: "good", label: "On track", detail: "No action due" };
-    },
-
-    _attentionItems() {
-      return this._runs
-        .filter((run) => run.status !== "ended")
-        .map((run) => ({ run, signal: this._runSignals(run) }))
-        .filter(({ signal }) => signal.key === "attention" || signal.key === "soon");
-    },
-
-    _renderAttention() {
-      if (!this._layout.show_attention) return "";
-      const items = this._attentionItems();
-      return `<section class="focus-section">
-        <div class="section-heading compact-heading"><div><span class="eyebrow">Today</span><h2>${items.length ? "Worth a look" : "Everything is calm"}</h2></div><span class="section-caption">Only useful signals, never decorative alerts.</span></div>
-        ${items.length ? `<div class="attention-row">${items.map(({ run, signal }) => `<button class="attention-card ${signal.key}" data-action="select-run" data-run-id="${S.escapeHtml(run.id)}" type="button"><span class="signal-icon">${S.icon(signal.key === "attention" ? "mdi:water-alert-outline" : "mdi:calendar-clock-outline")}</span><span><strong>${S.escapeHtml(run.friendly_name)}</strong><small>${S.escapeHtml(signal.detail)}</small></span>${S.icon("mdi:arrow-right")}</button>`).join("")}</div>` : `<div class="calm-banner"><span>${S.icon("mdi:check-circle-outline")}</span><div><strong>No urgent items</strong><small>PlantRun will surface overdue watering, offline sensors and runs that reached their expected duration.</small></div></div>`}
-      </section>`;
-    },
-
-    _renderRunList() {
-      const runs = this._filteredRuns();
-      if (this._loading) return `<div class="empty-panel">${S.icon("mdi:loading")}<strong>Opening your garden…</strong></div>`;
-      if (this._error) return `<div class="empty-panel error">${S.escapeHtml(this._error)}</div>`;
-      if (!runs.length) return `<div class="empty-panel"><div class="plant-mark">${S.icon("mdi:sprout")}</div><strong>No runs here yet</strong><span>Your first cultivation journal starts with only a name and date.</span><button class="primary" data-action="open-wizard" type="button">${S.icon("mdi:plus")} Start a run</button></div>`;
-      return `<div class="run-gallery layout-${S.escapeHtml(this._layout.card_layout)}">${runs.map((run) => {
-        const progress = this._progress(run);
-        const days = S.daysBetween(run.planted_date || run.start_time, run.end_time || new Date());
-        const current = run.phases?.at?.(-1)?.name || "Seedling";
-        const plants = this._plantObjects(run);
-        const signal = this._runSignals(run);
-        return `<button class="run-card ${S.stageKey(run)}${run.image_url ? " has-image" : ""}" ${this._heroMediaStyle(run)} data-action="select-run" data-run-id="${S.escapeHtml(run.id)}" type="button">
-          <span class="run-image"><img class="stage-plant-card${run.image_url ? " photo-backed" : ""}" src="${S.escapeHtml(this._stageAsset(run))}" alt="" /><span class="run-art" aria-hidden="true">${S.icon(stageIcon(current))}</span><span class="phase-pill">${S.icon(stageIcon(current))} ${S.escapeHtml(current)}</span><span class="ring" style="--progress:${progress}">${progress}%</span></span>
-          <span class="run-card-copy"><span class="status-line ${signal.key}"><i></i>${S.escapeHtml(signal.label)}</span><strong>${S.escapeHtml(run.friendly_name || "Unnamed run")}</strong><span>${S.escapeHtml(run.cultivar?.name || "Cultivar not set")}</span><small>Day ${days} · ${plants.length || "No"} ${plants.length === 1 ? "plant" : "plants"}</small></span>
-          <span class="run-card-foot"><span>${S.escapeHtml(signal.detail)}</span>${S.icon("mdi:arrow-right")}</span>
-        </button>`;
-      }).join("")}</div>`;
-    },
-
-    _renderPlantCards() {
-      if (!this._layout.show_plants || this._filter === "ended") return "";
-      const entries = this._runs.filter((run) => run.status !== "ended").flatMap((run) => this._plantObjects(run).map((plant) => ({ run, plant })));
-      if (!entries.length) return "";
-      return `<section class="plant-section"><div class="section-heading compact-heading"><div><span class="eyebrow">Plants</span><h2>Care at a glance</h2></div><span class="section-caption">Watering is a journal entry, not a guessed health score.</span></div><div class="plant-grid">${entries.map(({ run, plant }) => {
-        const state = this._wateringState(run, plant);
-        return `<article class="plant-card ${state.key}"><button class="plant-open" data-action="select-run" data-run-id="${S.escapeHtml(run.id)}" type="button"><span class="plant-avatar" ${this._heroMediaStyle(run)}><img src="${S.escapeHtml(this._stageAsset(run))}" alt="" /></span><span class="plant-copy"><small>${S.escapeHtml(run.friendly_name)}</small><strong>${S.escapeHtml(plant.name)}</strong><span>${S.escapeHtml(state.detail)}</span></span></button><button class="water-action" data-action="water-plant" data-run-id="${S.escapeHtml(run.id)}" data-plant-id="${S.escapeHtml(plant.id)}" type="button" title="Log watering for ${S.escapeHtml(plant.name)}">${S.icon("mdi:watering-can-outline")} <span>Watered</span></button></article>`;
-      }).join("")}</div></section>`;
+    _renderScreen() {
+      if (this._screen === "run") return this._renderRunWorkspace();
+      if (this._screen === "journal") return this._renderJournal();
+      if (this._screen === "archive") return this._renderArchive();
+      return this._renderOverview();
     },
 
     _renderOverview() {
-      const active = this._runs.filter((run) => run.status !== "ended");
-      return `<section class="overview-screen">
-        <div class="welcome-row"><div><span class="eyebrow">Cultivation companion</span><h1>${active.length ? "Good evening. Your garden is ready." : "Start a calmer grow journal."}</h1><p>${active.length ? `${active.length} active ${active.length === 1 ? "run" : "runs"}. PlantRun keeps care, phases and Recorder context together.` : "Create a run, name your plants and connect the sensors you already own in Home Assistant."}</p></div><button class="primary large" data-action="open-wizard" type="button">${S.icon("mdi:plus")} New run</button></div>
-        ${this._renderAttention()}
-        ${this._renderPlantCards()}
-        <section class="runs-section"><div class="section-heading"><div><span class="eyebrow">Runs</span><h2>${this._filter === "ended" ? "Completed" : this._filter === "all" ? "All journals" : "In progress"}</h2></div><div class="segmented" aria-label="Filter runs">${["active", "ended", "all"].map((filter) => `<button class="${this._filter === filter ? "active" : ""}" data-action="filter" data-filter="${filter}" type="button">${filter === "ended" ? "Archive" : filter}</button>`).join("")}</div></div>${this._renderRunList()}</section>
+      const tent = this._activeTent();
+      const runs = this._state.runs.filter((run) => !isArchived(run));
+      return `<section class="tent-overview">
+        <header class="page-heading">
+          <div><span class="overline">Heute im Zelt</span><h1>${e(tent?.name || "Growzelt")}</h1><p>Deine Pflanzen stehen im Mittelpunkt. Geteilte Zeltwerte bleiben eine ruhige Zeile darüber.</p></div>
+          <button class="quiet" data-action="navigate" data-screen="journal" type="button">Journal öffnen <ha-icon icon="mdi:arrow-right"></ha-icon></button>
+        </header>
+        ${this._renderTentStrip(tent)}
+        ${runs.length ? `<div class="plant-gallery">${runs.map((run) => this._renderPlantCard(run)).join("")}</div>` : this._renderEmptyGarden()}
       </section>`;
     },
 
-    _renderSensorTile(run, binding) {
-      const entityId = binding.sensor_id;
-      const available = !!this._hass?.states?.[entityId];
-      return `<article class="sensor-tile ${available ? "available" : "unavailable"}" data-sensor-tile data-run-id="${S.escapeHtml(run.id)}" data-entity-id="${S.escapeHtml(entityId)}" data-binding-id="${S.escapeHtml(binding.id || "")}" tabindex="0" role="button" aria-label="Open ${S.escapeHtml(this._metricLabel(binding.metric_type))} history">
-        <div class="sensor-head"><span class="metric-badge">${S.icon(this._metricIcon(binding.metric_type))}</span><span class="live-dot">${available ? "Live" : "Unavailable"}</span>${run.status === "ended" ? "" : `<div class="sensor-actions"><button class="icon-button" data-action="edit-binding" data-run-id="${S.escapeHtml(run.id)}" data-binding-id="${S.escapeHtml(binding.id)}" type="button" title="Edit binding">${S.icon("mdi:pencil")}</button><button class="icon-button danger" data-action="remove-binding" data-run-id="${S.escapeHtml(run.id)}" data-binding-id="${S.escapeHtml(binding.id)}" type="button" title="Remove binding">${S.icon("mdi:trash-can-outline")}</button></div>`}</div>
-        <small>${S.escapeHtml(this._metricLabel(binding.metric_type))}</small><span class="sensor-state" data-live-entity="${S.escapeHtml(entityId)}">${S.escapeHtml(this._entityState(entityId))}</span><strong>${S.escapeHtml(this._entityName(entityId))}</strong>
-        <div class="recorder-link"><span>${S.icon("mdi:database-clock-outline")} Recorder history</span><strong>Run window ${S.icon("mdi:arrow-top-right")}</strong></div>
+    _renderTentStrip(tent) {
+      const metrics = ["temperature", "humidity", "light", "energy"];
+      const bindings = Array.isArray(tent?.bindings) ? tent.bindings : [];
+      const rows = metrics.map((metric) => {
+        const binding = bindings.find((item) => item?.metric_type === metric && !item?.ended_at);
+        const entityId = entityIdFor(binding);
+        const live = this._entityDisplay(entityId);
+        const label = metric === "temperature" ? "Temperatur" : metric === "humidity" ? "Luftfeuchte" : metric === "light" ? "Licht" : "Energie";
+        return `<div class="tent-reading"><span>${label}</span><strong>${e(live.value)}</strong><small>${entityId ? e(live.status) : "Nicht zugeordnet"}</small></div>`;
+      });
+      return `<section class="tent-strip" aria-label="Geteilte Zeltwerte">${rows.join("")}</section>`;
+    },
+
+    _renderPlantCard(run) {
+      const stage = currentStage(run);
+      return `<article class="plant-card">
+        <button class="plant-card-main" data-action="open-run" data-run-id="${e(run.id)}" type="button">
+          ${imageMarkup(run, "plant-card-photo")}
+          <span class="plant-card-body">
+            <span class="stage-label">${e(stage)}</span>
+            <strong>${e(plantName(run))}</strong>
+            <small>${e(cultivarName(run))}${breederName(run) ? ` · ${e(breederName(run))}` : ""}</small>
+            <span class="plant-card-meta"><span>Tag ${daysSince(runStart(run))}</span><span><b>Nächste Schätzung</b>${e(harvestEstimate(run))}</span></span>
+          </span>
+        </button>
+        <button class="journal-direct" data-action="open-journal-editor" data-run-id="${e(run.id)}" type="button"><ha-icon icon="mdi:plus"></ha-icon> Eintrag</button>
       </article>`;
     },
 
-    _renderPhaseRail(run) {
-      const phases = Array.isArray(run.phases) ? run.phases : [];
-      const plan = [...this._phasePlan(run)];
-      const currentName = String(phases.at(-1)?.name || plan[0] || "Seedling");
-      if (!plan.some((stage) => String(stage).toLowerCase() === currentName.toLowerCase())) plan.push(currentName);
-      const currentIndex = Math.max(0, plan.findIndex((stage) => String(stage).toLowerCase() === currentName.toLowerCase()));
-      return `<div class="phase-rail" role="list">${plan.map((stage, index) => {
-        const phase = [...phases].reverse().find((item) => String(item.name).toLowerCase() === String(stage).toLowerCase());
-        const state = index < currentIndex ? "done" : index === currentIndex ? "current" : "upcoming";
-        const canChange = run.status !== "ended";
-        return `<button class="phase-step ${state}" ${canChange ? `data-action="select-phase" data-run-id="${S.escapeHtml(run.id)}" data-phase="${S.escapeHtml(stage)}"` : "disabled"} type="button"><span class="phase-node">${state === "done" ? S.icon("mdi:check") : S.icon(stageIcon(stage))}</span><strong>${S.escapeHtml(stage)}</strong><small>${phase?.start_time ? S.formatDate(phase.start_time) : state === "current" ? "Current" : "Next"}</small></button>`;
-      }).join("")}</div>`;
+    _renderEmptyGarden() {
+      return `<section class="empty-garden"><ha-icon icon="mdi:sprout-outline"></ha-icon><h2>Noch keine Pflanze</h2><p>Ein Durchlauf legt genau eine Pflanze an. Sensoren und Sortendaten kannst du später ergänzen.</p><button class="primary" data-action="open-create" type="button">Erste Pflanze anlegen</button></section>`;
     },
 
-    _renderCompletedSummary(run, days, plants) {
-      return `<section class="completion-card"><span class="completion-mark">${S.icon("mdi:check-decagram-outline")}</span><div><span class="eyebrow">Harvest overview</span><h2>${days} days, fully documented.</h2><p>${S.escapeHtml(run.notes_summary || "This run is archived read-only. Use Correct archive only when stored details need a correction.")}</p><div class="completion-facts"><span><small>Plants</small><strong>${plants.length}</strong></span><span><small>Dry yield</small><strong>${run.dry_yield_grams == null ? "—" : `${run.dry_yield_grams} g`}</strong></span><span><small>Started</small><strong>${S.escapeHtml(S.formatDate(run.planted_date || run.start_time))}</strong></span><span><small>Harvested</small><strong>${S.escapeHtml(S.formatDate(run.end_time))}</strong></span><span><small>Notes</small><strong>${run.notes?.length || 0}</strong></span></div></div><button class="ghost" data-action="edit-run" data-run-id="${S.escapeHtml(run.id)}" type="button">${S.icon("mdi:pencil-outline")} Correct archive</button></section>`;
+    _renderRunWorkspace() {
+      const run = this._selectedRun();
+      if (!run) return this._renderEmptyGarden();
+      const stage = currentStage(run);
+      const latest = run.journal_entries?.[0];
+      return `<section class="run-workspace">
+        <button class="back-button" data-action="navigate" data-screen="overview" type="button"><ha-icon icon="mdi:arrow-left"></ha-icon> ${e(this._activeTent()?.name || "Growzelt")}</button>
+        <header class="workspace-identity">
+          ${imageMarkup(run, "workspace-photo")}
+          <div><span class="stage-label">${e(stage)} · Tag ${daysSince(runStart(run))}</span><h1>${e(plantName(run))}</h1><p>${e(cultivarName(run))}${breederName(run) ? ` · ${e(breederName(run))}` : ""}</p></div>
+          <button class="primary" data-action="open-journal-editor" data-run-id="${e(run.id)}" type="button"><ha-icon icon="mdi:notebook-plus-outline"></ha-icon> Eintrag</button>
+        </header>
+        ${this._renderLifecycle(run)}
+        ${this._renderRecorderWorkspace(run)}
+        ${this._renderFacts(run)}
+        <section class="latest-entry">
+          <header><div><span class="overline">Journal</span><h2>Letzter Journaleintrag</h2></div><button class="quiet" data-action="navigate" data-screen="journal" type="button">Alle Einträge</button></header>
+          ${latest ? this._renderJournalEntry(latest, run, true) : `<p class="empty-copy">Noch kein Eintrag. Sensordaten und feste Daten laufen trotzdem weiter.</p>`}
+        </section>
+        <footer class="run-footer">
+          ${isArchived(run) ? `<span>Archiviert am ${e(formatDate(runEnd(run)))}</span>` : `<button class="secondary" data-action="request-archive" data-run-id="${e(run.id)}" type="button">Lauf abschließen und archivieren</button>`}
+          <button class="danger-link" data-action="request-delete-run" data-run-id="${e(run.id)}" type="button">Dauerhaft löschen</button>
+        </footer>
+      </section>`;
     },
 
-    _renderRunFacts(run, bindings, notes, plants) {
-      const current = run.phases?.at?.(-1)?.name || "Seedling";
-      const days = S.daysBetween(run.planted_date || run.start_time, run.end_time || new Date());
-      const mainFacts = [
-        ["mdi:seed-outline", "Cultivar", run.cultivar?.name || "Not set"],
-        ["mdi:bank-outline", "Breeder", run.cultivar?.breeder || "Not set"],
-        ["mdi:flower-tulip-outline", "Plants", plants.length ? plants.map((plant) => plant.name).join(", ") : "Not named"],
-        ["mdi:calendar-start", "Planted", S.formatDate(run.planted_date || run.start_time)],
-      ];
-      const growFacts = [
-        [stageIcon(current), "Phase", current],
-        ["mdi:progress-clock", "Cycle", `Day ${days} of ${this._targetDaysForRun(run)}`],
-        ["mdi:access-point", "Sensors", `${bindings.length} linked`],
-        ["mdi:notebook-outline", "Journal", `${notes.length} ${notes.length === 1 ? "entry" : "entries"}`],
-        ...bindings.slice(0, 3).map((binding) => [this._metricIcon(binding.metric_type), this._metricLabel(binding.metric_type), this._entityState(binding.sensor_id)]),
-      ];
-      const panel = (title, accent, rows) => `<section class="fact-panel ${accent}"><div class="fact-title"><span></span><h2>${title}</h2></div><div class="fact-list">${rows.map(([icon, label, value]) => `<div><span class="fact-icon">${S.icon(icon)}</span><span><small>${S.escapeHtml(label)}</small><strong>${S.escapeHtml(value)}</strong></span></div>`).join("")}</div></section>`;
-      return `<div class="fact-grid">${panel("Main data", "main-facts", mainFacts)}${panel("Grow info", "grow-facts", growFacts)}</div>`;
+    _renderLifecycle(run) {
+      const active = currentStage(run);
+      const plan = stagePlan(run);
+      const recorded = recordedStages(run);
+      return `<section class="lifecycle-panel"><header><div><span class="overline">Lebenszyklus</span><h2>${e(active)}</h2></div><span>Schätzung: ${e(harvestEstimate(run))}</span></header><div class="lifecycle-rail">${plan.map((stage) => `<button class="stage-target ${stage.toLowerCase() === active.toLowerCase() ? "current" : recorded.has(stage.toLowerCase()) ? "past" : "future"}" data-action="select-stage" data-stage="${e(stage)}" type="button"><i></i><span>${e(stage)}</span></button>`).join("")}</div></section>`;
     },
 
-    _renderWorkspaceNav(run) {
-      const tabs = [["overview", "Overview", "mdi:sprout-outline"], ["climate", "Climate", "mdi:thermometer"], ["journal", "Journal", "mdi:notebook-outline"]];
-      return `<nav class="workspace-nav" aria-label="Run sections">${tabs.map(([key, label, icon]) => `<button class="${this._workspaceTab === key ? "active" : ""}" data-action="workspace-tab" data-tab="${key}" type="button">${S.icon(icon)} ${label}</button>`).join("")}</nav>`;
+    _renderRecorderWorkspace(run) {
+      const tent = this._activeTent();
+      const metric = metricDefinition(this._selectedMetric);
+      const binding = bindingForMetric(run, tent, metric.key);
+      const entityId = entityIdFor(binding);
+      const live = this._entityDisplay(entityId);
+      const numeric = Number(live.raw);
+      const target = targetFor(run, metric.key);
+      const status = statusText(numeric, target);
+      const stats = chartStats(this._historyPoints);
+      return `<section class="recorder-workspace">
+        <nav class="environment-list" aria-label="Messwert wählen">${METRICS.map((item) => {
+          const itemBinding = bindingForMetric(run, tent, item.key);
+          const itemLive = this._entityDisplay(entityIdFor(itemBinding));
+          return `<button class="environment-row ${item.key === metric.key ? "selected" : ""}" data-action="select-metric" data-metric="${item.key}" type="button"><ha-icon icon="${item.icon}"></ha-icon><span><strong>${e(item.label)}</strong><small>${itemBinding ? (itemBinding.owner_type === "tent" ? "Zelt" : "Pflanze") : "Nicht zugeordnet"}</small></span><b>${e(itemLive.value)}</b></button>`;
+        }).join("")}</nav>
+        <div class="chart-panel">
+          <header class="chart-heading"><div><span class="overline">Recorder-Verlauf</span><h2>${e(metric.label)}</h2></div><div class="current-reading"><strong>${e(live.value)}</strong><span class="assessment ${status.key}">${e(status.label)}</span><button class="quiet" data-action="open-binding-editor" data-run-id="${e(run.id)}" type="button">Sensoren verwalten</button></div></header>
+          ${this._renderChart(entityId)}
+          <div class="chart-context">
+            <span><b>Zielbereich</b>${target ? `${target.minimum}–${target.maximum} ${e(metric.unit)}` : "Noch nicht festgelegt"}</span>
+            <span><b>Letztes Ereignis</b>${run.journal_entries?.[0] ? e(formatDate(run.journal_entries[0].occurred_at, true)) : "Noch kein Eintrag"}</span>
+            <span><b>Minimum</b>${stats ? `${stats.minimum.toFixed(1)} ${e(metric.unit)}` : "–"}</span>
+            <span><b>Durchschnitt</b>${stats ? `${stats.average.toFixed(1)} ${e(metric.unit)}` : "–"}</span>
+            <span><b>Maximum</b>${stats ? `${stats.maximum.toFixed(1)} ${e(metric.unit)}` : "–"}</span>
+          </div>
+        </div>
+      </section>`;
     },
 
-    _renderWorkspaceOverview(run, bindings, notes, plants) {
-      const current = run.phases?.at?.(-1)?.name || "Seedling";
-      return `<section class="workspace-content"><section class="phase-band"><div class="block-head"><div><span class="eyebrow">Lifecycle</span><h2>${S.escapeHtml(current)}</h2></div><span class="subtle-copy">Every change becomes part of the permanent timeline.</span></div>${this._renderPhaseRail(run)}${run.status === "ended" ? "" : `<div class="custom-phase-control"><label><span>Advance to a custom phase</span><input data-custom-phase value="${S.escapeHtml(this._customPhaseDraft)}" placeholder="Drying, Flush, Week 4…" autocomplete="off" /></label><button class="ghost" data-action="add-custom-phase" data-run-id="${S.escapeHtml(run.id)}" type="button">${S.icon("mdi:arrow-right")} Advance</button></div>`}</section>${this._renderRunFacts(run, bindings, notes, plants)}<div class="overview-columns"><section class="quiet-card"><span class="eyebrow">Plants</span><h2>${plants.length ? plants.map((plant) => S.escapeHtml(plant.name)).join(" · ") : "No plants named"}</h2><p>${bindings.length} linked ${bindings.length === 1 ? "sensor" : "sensors"} · ${notes.length} journal ${notes.length === 1 ? "entry" : "entries"}</p></section><section class="quiet-card"><span class="eyebrow">Next step</span><h2>${S.escapeHtml(this._runSignals(run).label)}</h2><p>${S.escapeHtml(this._runSignals(run).detail)}</p></section></div></section>`;
+    _renderChart(entityId) {
+      if (this._historyLoading) return `<div class="chart-state"><ha-icon icon="mdi:loading"></ha-icon>Recorder-Daten werden geladen</div>`;
+      const path = chartPath(this._historyPoints);
+      if (!entityId) return `<div class="chart-state"><span>Kein Sensor zugeordnet.</span><small>Ordne diesen Messwert später der Pflanze oder dem Zelt zu.</small></div>`;
+      if (!path) return `<div class="chart-state"><span>Noch kein Recorder-Verlauf.</span><small>PlantRun zeichnet keine erfundenen Messwerte.</small></div>`;
+      return `<div class="chart-wrap" role="img" aria-label="Recorder-Verlauf mit ${this._historyPoints.length} Messpunkten"><svg viewBox="0 0 720 220" preserveAspectRatio="none" aria-hidden="true"><line x1="0" y1="55" x2="720" y2="55"></line><line x1="0" y1="110" x2="720" y2="110"></line><line x1="0" y1="165" x2="720" y2="165"></line><path d="${path}"></path></svg></div>`;
     },
 
-    _renderWorkspaceClimate(run, bindings) {
-      return `<section class="intelligence-block"><div class="block-head"><div><span class="eyebrow">Live from Home Assistant</span><h2>Climate & substrate</h2></div>${run.status === "ended" ? "" : `<button class="ghost" data-action="open-binding" data-run-id="${S.escapeHtml(run.id)}" type="button">${S.icon("mdi:link-variant-plus")} Bind sensor</button>`}</div><p class="hint">Values are live. Selecting a metric opens Recorder for exactly this run window; PlantRun does not draw invented trend lines.</p><div class="sensor-grid">${bindings.length ? bindings.map((binding) => this._renderSensorTile(run, binding)).join("") : `<div class="empty-inline">${S.icon("mdi:access-point")}<strong>No sensors linked</strong><span>Connect temperature, moisture, light, energy or another compatible sensor.</span></div>`}</div></section>`;
+    _renderFacts(run) {
+      const duration = run?.duration || run?.plant?.duration || run?.plant?.strain?.duration || {};
+      const light = run?.light_schedule || run?.tent?.light_schedule || this._activeTent()?.light_schedule;
+      const container = typeof run?.plant?.container === "string" ? run.plant.container : run?.plant?.container?.label || run?.container;
+      return `<section class="facts-strip"><header><span class="overline">Feste Daten</span><h2>Grundlage dieses Laufs</h2></header><dl>
+        <div><dt>Gepflanzt</dt><dd>${e(formatDate(runStart(run)))}</dd></div>
+        <div><dt>Behälter</dt><dd>${e(container || "Nicht erfasst")}</dd></div>
+        <div><dt>Substrat</dt><dd>${e(run?.plant?.substrate || run?.substrate || "Nicht erfasst")}</dd></div>
+        <div><dt>Lichtzyklus</dt><dd>${e(typeof light === "string" ? light : light?.label || "Nicht erfasst")}</dd></div>
+        <div><dt>Breeder-Angabe</dt><dd>${e(duration?.original_text || duration?.original_wording || harvestEstimate(run))}</dd></div>
+      </dl></section>`;
     },
 
-    _renderWorkspaceJournal(run, notes) {
-      return `<section class="journal-block"><div class="block-head"><div><span class="eyebrow">Journal</span><h2>Notes & moments</h2></div>${run.status === "ended" ? "" : `<button class="primary compact-button" data-action="add-note" data-run-id="${S.escapeHtml(run.id)}" type="button">${S.icon("mdi:plus")} Add note</button>`}</div><div class="note-list">${notes.slice().reverse().map((note) => `<article class="note"><span class="note-marker"></span><div class="note-copy"><small>${S.escapeHtml(S.formatDateTime(note.timestamp))}</small><p>${S.escapeHtml(note.text)}</p></div>${run.status === "ended" ? "" : `<div class="note-actions"><button class="icon-button" data-action="edit-note" data-note-id="${S.escapeHtml(note.id)}" type="button" title="Edit note">${S.icon("mdi:pencil")}</button><button class="icon-button danger" data-action="confirm-delete-note" data-note-id="${S.escapeHtml(note.id)}" type="button" title="Delete note">${S.icon("mdi:trash-can-outline")}</button></div>`}</article>`).join("") || `<div class="empty-inline">No notes yet. Add the first observation.</div>`}</div></section>`;
+    _renderJournal() {
+      const activeRuns = this._state.runs.filter((run) => !isArchived(run));
+      const linkedEntries = this._state.runs.flatMap((run) => (run.journal_entries || []).map((entry) => ({ entry, run })));
+      const tentEntries = (this._state.journal_entries || [])
+        .filter((entry) => !(entry.run_ids || []).length && !entry.run_id)
+        .map((entry) => ({ entry, run: null }));
+      const allEntries = [...linkedEntries, ...tentEntries]
+        .filter(({ entry, run }) => (!this._journalPlantFilter || run?.id === this._journalPlantFilter) && (!this._journalTypeFilter || String(entry.entry_type || "").toLowerCase() === this._journalTypeFilter))
+        .sort((a, b) => Date.parse(b.entry.occurred_at || 0) - Date.parse(a.entry.occurred_at || 0));
+      return `<section class="journal-screen"><header class="page-heading"><div><span class="overline">Verlauf zuerst</span><h1>Journal</h1><p>Chronologisch, mit dem Zeitpunkt des Ereignisses und dem damals angehängten Home-Assistant-Kontext.</p></div><button class="primary" data-action="open-journal-editor" data-run-id="${e(this._journalPlantFilter || activeRuns[0]?.id || "")}" type="button"><ha-icon icon="mdi:plus"></ha-icon> Neuer Eintrag</button></header>
+        <div class="journal-filters"><label><span>Pflanze</span><select data-journal-filter="plant"><option value="">Alle Pflanzen</option>${this._state.runs.map((run) => `<option value="${e(run.id)}" ${this._journalPlantFilter === run.id ? "selected" : ""}>${e(plantName(run))}</option>`).join("")}</select></label><label><span>Art</span><select data-journal-filter="type"><option value="">Alle Arten</option>${[["water","Gießen"],["inspect","Prüfen"],["stage_change","Phase ändern"],["harvest","Ernten"],["free_text","Freitext"]].map(([value,label]) => `<option value="${value}" ${this._journalTypeFilter === value ? "selected" : ""}>${label}</option>`).join("")}</select></label></div>
+        <div class="journal-history">${allEntries.length ? allEntries.map(({ entry, run }) => this._renderJournalEntry(entry, run)).join("") : `<section class="empty-journal"><h2>Noch keine Einträge in dieser Auswahl</h2><p>Ein ungemessener Wassereintrag ist vollständig. Mengen bleiben optional.</p></section>`}</div>
+      </section>`;
     },
 
-    _renderDetail() {
-      const run = this._runs.find((item) => item.id === this._selectedRunId) || this._selectedRun();
-      if (!run) return `<section class="empty-detail"><div class="plant-mark">${S.icon("mdi:leaf")}</div><h2>PlantRun</h2><p>Create a run to start tracking phases, notes, and sensor history.</p></section>`;
-      const days = S.daysBetween(run.planted_date || run.start_time, run.end_time || new Date());
-      const bindings = Array.isArray(run.bindings) ? run.bindings : [];
-      const notes = Array.isArray(run.notes) ? run.notes : [];
-      const plants = this._plantObjects(run);
-      const current = run.phases?.at?.(-1)?.name || "Seedling";
-      const progress = this._progress(run);
-      return `<section class="workspace-screen"><button class="back-link" data-action="show-overview" type="button">${S.icon("mdi:arrow-left")} Garden</button><div class="workspace-hero ${S.stageKey(run)}${run.image_url ? " has-image" : ""}" ${this._heroMediaStyle(run)}><img class="hero-plant-asset${run.image_url ? " photo-backed" : ""}" src="${S.escapeHtml(this._stageAsset(run))}" alt="" /><div class="hero-copy"><span class="phase-pill">${S.icon(stageIcon(current))} ${S.escapeHtml(current)}</span><h1>${S.escapeHtml(run.friendly_name || "Unnamed run")}</h1><p>${S.escapeHtml(run.cultivar?.name || "Cultivar not set")}${run.cultivar?.breeder ? ` · ${S.escapeHtml(run.cultivar.breeder)}` : ""}</p><div class="plant-chips">${(plants.length ? plants : [{ name: "Plants not named" }]).map((plant) => `<span>${S.icon("mdi:flower-tulip-outline")} ${S.escapeHtml(plant.name)}</span>`).join("")}</div></div><div class="hero-progress"><span class="progress-orbit" style="--progress:${progress}"><strong>${progress}%</strong><small>Day ${days} of ${this._targetDaysForRun(run)}</small></span></div><div class="hero-actions">${run.status === "ended" ? "" : `<button class="ghost" data-action="edit-run" data-run-id="${S.escapeHtml(run.id)}" type="button">${S.icon("mdi:tune-variant")} Details</button><button class="ghost finish-action" data-action="open-end-run" data-run-id="${S.escapeHtml(run.id)}" type="button">${S.icon("mdi:check-circle-outline")} Finish</button>`}</div></div>${run.status === "ended" ? this._renderCompletedSummary(run, days, plants) : ""}${this._renderWorkspaceNav(run)}${this._workspaceTab === "climate" ? this._renderWorkspaceClimate(run, bindings) : this._workspaceTab === "journal" ? this._renderWorkspaceJournal(run, notes) : this._renderWorkspaceOverview(run, bindings, notes, plants)}</section>`;
+    _renderJournalEntry(entry, run, compact = false) {
+      const context = entry?.sensor_snapshot || entry?.sensor_context || entry?.context || {};
+      const contextRows = Object.entries(context).filter(([key, value]) => key !== "captured_at" && value !== null && typeof value !== "object");
+      const target = run ? plantName(run) : this._activeTent()?.name || "Growzelt";
+      return `<article class="journal-entry ${compact ? "compact" : ""}"><span class="entry-time"><b>${e(formatDate(entry?.occurred_at || entry?.created_at, true))}</b><small>${e(target)}</small></span><div class="entry-copy"><span class="entry-type">${e(this._entryTypeLabel(entry?.entry_type))}</span><p>${e(entry?.text || entry?.description || "Eintrag ohne Text")}</p>${contextRows.length ? `<details><summary>${contextRows.length} Sensorwerte angehängt</summary><dl>${contextRows.map(([key, value]) => `<div><dt>${e(key)}</dt><dd>${e(value)}</dd></div>`).join("")}</dl></details>` : ""}</div>${compact ? "" : `<div class="entry-actions">${run ? `<button class="icon-button" data-action="edit-journal-entry" data-run-id="${e(run.id)}" data-entry-id="${e(entry.id)}" type="button" aria-label="Eintrag bearbeiten"><ha-icon icon="mdi:pencil-outline"></ha-icon></button>` : ""}<button class="icon-button danger" data-action="request-delete-journal-entry" data-run-id="${e(run?.id || "")}" data-entry-id="${e(entry.id)}" type="button" aria-label="Eintrag löschen"><ha-icon icon="mdi:trash-can-outline"></ha-icon></button></div>`}</article>`;
     },
 
-    _renderPersonalizeModal() {
-      if (!this._personalizeOpen) return "";
-      const options = [["show_attention", "Today signals", "Overdue watering, sensors and cycle timing"], ["show_plants", "Plant care", "Quick watering actions per plant"]];
-      return `<div class="overlay" role="dialog" aria-modal="true" aria-label="Personalize PlantRun"><button class="overlay-backdrop" data-action="close-personalize" type="button" aria-label="Close personalization"></button><section class="modal personalize-modal" data-modal-card><header><div><span class="eyebrow">Your view</span><h2>Make PlantRun yours</h2></div><button class="icon-button" data-action="close-personalize" type="button" aria-label="Close">${S.icon("mdi:close")}</button></header><div class="preference-group"><span class="field-title">Run cards</span><div class="layout-choice"><button class="${this._layout.card_layout === "grid" ? "active" : ""}" data-action="set-card-layout" data-layout="grid" type="button">${S.icon("mdi:view-grid-outline")} Grid</button><button class="${this._layout.card_layout === "list" ? "active" : ""}" data-action="set-card-layout" data-layout="list" type="button">${S.icon("mdi:view-list-outline")} List</button></div></div><div class="preference-list">${options.map(([key, title, copy]) => `<button data-action="toggle-layout-section" data-section="${key}" type="button"><span><strong>${title}</strong><small>${copy}</small></span><span class="toggle-visual ${this._layout[key] ? "on" : ""}" aria-label="${this._layout[key] ? "Shown" : "Hidden"}"><i></i></span></button>`).join("")}</div><footer><button class="primary" data-action="close-personalize" type="button">Done</button></footer></section></div>`;
-    }
+    _renderArchive() {
+      const runs = this._state.runs.filter(isArchived).sort((a, b) => Date.parse(runEnd(b) || 0) - Date.parse(runEnd(a) || 0));
+      return `<section class="archive-screen"><header class="page-heading"><div><span class="overline">Dauerhafte Historie</span><h1>Archiv</h1><p>Abgeschlossene Läufe bleiben vollständig lesbar und werden nicht automatisch entfernt.</p></div></header>${runs.length ? `<div class="archive-list">${runs.map((run) => `<article><button data-action="open-run" data-run-id="${e(run.id)}" type="button">${imageMarkup(run, "archive-photo")}<span><strong>${e(plantName(run))}</strong><small>${e(cultivarName(run))}</small></span><span><b>${daysSince(runStart(run), runEnd(run))}</b><small>Tage</small></span><span><b>${run.journal_entries?.length || 0}</b><small>Einträge</small></span><ha-icon icon="mdi:arrow-right"></ha-icon></button></article>`).join("")}</div>` : `<section class="empty-journal"><h2>Das Archiv ist noch leer</h2><p>Ein abgeschlossener Lauf erscheint hier und bleibt erhalten.</p></section>`}</section>`;
+    },
+
+    _entryTypeLabel(value) {
+      const normalized = String(value || "").toLowerCase();
+      return normalized === "water" ? "Gießen" : normalized === "stage_change" ? "Phase geändert" : normalized === "inspect" ? "Prüfung" : normalized === "harvest" ? "Ernte" : normalized === "planting" ? "Einpflanzen" : normalized === "lighting" ? "Licht" : "Freitext";
+    },
   };
 }

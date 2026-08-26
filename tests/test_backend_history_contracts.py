@@ -8,6 +8,13 @@ SENSOR_PY = ROOT / "custom_components" / "plantrun" / "sensor.py"
 
 
 class BackendHistoryContractTests(unittest.TestCase):
+    def test_backend_exposes_authenticated_atomic_v3_commands(self):
+        source = INIT_PY.read_text(encoding="utf-8")
+        self.assertIn('{"type": "plantrun/get_state"}', source)
+        self.assertIn('"type": "plantrun/command"', source)
+        self.assertIn('state = await application.execute(msg["command"]', source)
+        self.assertIn('connection.send_error(msg["id"], "invalid_command"', source)
+
     def test_backend_exposes_binding_history_context_websocket(self):
         source = INIT_PY.read_text(encoding="utf-8")
         self.assertIn('plantrun/get_run_binding_history_context', source)

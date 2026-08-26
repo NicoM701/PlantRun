@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from .const import (
     ACTIVE_RUN_STRATEGIES,
     ACTIVE_RUN_STRATEGY_ACTIVE_RUN_ID,
@@ -9,7 +11,9 @@ from .const import (
     ACTIVE_RUN_STRATEGY_LEGACY,
 )
 from .models import RunData
-from .store import PlantRunStorage
+
+if TYPE_CHECKING:
+    from .store import PlantRunStorage
 
 
 def _norm(value: str) -> str:

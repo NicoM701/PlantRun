@@ -12,7 +12,7 @@ DEFAULT_CURRENCY = "EUR"
 # Store constants
 STORE_KEY = "plantrun_store"
 STORE_VERSION = 2
-STORE_SCHEMA_VERSION = 2
+STORE_SCHEMA_VERSION = 3
 
 # Service attribute keys
 ATTR_RUN_ID = "run_id"

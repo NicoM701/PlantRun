@@ -1,373 +1,128 @@
-import { METRICS, historyWindowForRun } from "./plantrun-panel-domain.js?v=0.6.1";
+import {
+  ENTRY_TYPES,
+  METRICS,
+  bindingsFor,
+  cultivarName,
+  dateTimeLocal,
+  escapeHtml,
+  plantName,
+  runName,
+} from "./plantrun-panel-domain.js?v=0.7.0";
 
-export function createPanelDialogMethods(S) {
+const e = escapeHtml;
+
+export function createPanelDialogMethods() {
   return {
-    _renderWizard() {
-      if (!this._wizardOpen) return "";
-      return `
-        <div class="overlay">
-          <button class="overlay-backdrop" data-action="close-wizard" type="button" aria-label="Close new run dialog"></button>
-          <section class="modal wizard-modal" data-modal-card role="dialog" aria-modal="true" aria-label="Create a new run">
-            <header>
-              <div><span class="eyebrow">Guided setup</span><h2>Create a new run</h2></div>
-              <button class="icon-button" data-action="close-wizard" type="button" title="Close">${S.icon("mdi:close")}</button>
-            </header>
-            <div class="wizard-progress" aria-label="Setup progress">
-              ${[[1, "Run"], [2, "Plants"], [3, "Cultivar"], [4, "Sensors"]].map(([step, label]) => `<div class="${step === this._wizardStep ? "current" : step < this._wizardStep ? "done" : ""}"><span>${step < this._wizardStep ? S.icon("mdi:check") : step}</span><small>${label}</small></div>`).join("")}
-            </div>
-            ${this._wizardStep === 1 ? this._renderWizardBasics() : this._wizardStep === 2 ? this._renderWizardPlants() : this._wizardStep === 3 ? this._renderWizardCultivar() : this._renderWizardSensors()}
-            ${this._wizardError ? `<p class="form-error" role="alert">${S.icon("mdi:alert-circle-outline")} ${S.escapeHtml(this._wizardError)}</p>` : ""}
-            <footer>
-              <button class="ghost" data-action="wizard-back" type="button" ${this._wizardStep === 1 ? "disabled" : ""}>${S.icon("mdi:arrow-left")} Back</button>
-              <button class="primary" data-action="${this._wizardStep === 4 ? "create-run" : "wizard-next"}" type="button">${this._wizardStep === 4 ? `${S.icon("mdi:sprout")} Create run` : `Continue ${S.icon("mdi:arrow-right")}`}</button>
-            </footer>
-          </section>
-        </div>
-      `;
+    _renderDialogs() {
+      return [
+        this._renderCreateDialog(),
+        this._renderJournalDrawer(),
+        this._renderStageDialog(),
+        this._renderBindingDialog(),
+        this._renderArchiveDialog(),
+        this._renderDeleteRunDialog(),
+        this._renderDeleteJournalDialog(),
+      ].join("");
     },
 
-    _renderWizardPlants() {
-      const plantRows = this._wizard.plants.map((plant, index) => `<div class="inline-field"><input data-wizard-plant="${index}" value="${S.escapeHtml(plant)}" placeholder="Plant ${index + 1} name (optional)" autocomplete="off" /><button class="icon-button danger" data-action="remove-wizard-plant" data-index="${index}" type="button" title="Remove plant">${S.icon("mdi:minus")}</button></div>`).join("");
-      const phases = this._wizard.phase_plan.map((phase, index) => `<span class="editable-chip">${S.icon("mdi:circle-small")} ${S.escapeHtml(phase)}<button data-action="remove-wizard-phase" data-index="${index}" type="button" title="Remove phase">${S.icon("mdi:close")}</button></span>`).join("");
-      return `<div class="step-intro"><span class="step-icon">${S.icon("mdi:flower-tulip-outline")}</span><div><strong>Shape this run</strong><p>Name one or several plants and choose the lifecycle that fits your method. Both stay editable later.</p></div></div>
-        <div class="setup-columns"><section><span class="field-title">Plants</span><div class="stacked-fields">${plantRows}</div><button class="ghost" data-action="add-wizard-plant" type="button">${S.icon("mdi:plus")} Add plant</button></section><section><span class="field-title">Phase plan</span><div class="editable-chips">${phases}</div><div class="inline-field"><input data-wizard-new-phase placeholder="Add Drying, Curing…" autocomplete="off" /><button class="ghost" data-action="add-wizard-phase" type="button">Add</button></div></section></div>`;
+    _dialogClose(label = "Dialog schließen") {
+      return `<button class="icon-button" data-action="close-dialog" type="button" aria-label="${e(label)}"><ha-icon icon="mdi:close"></ha-icon></button>`;
     },
 
-    _renderWizardBasics() {
-      return `
-        <div class="step-intro"><span class="step-icon">${S.icon("mdi:sprout-outline")}</span><div><strong>Start with the essentials</strong><p>Name the run so you can recognize it later. Today is preselected, but past starts work too.</p></div></div>
-        <div class="form-grid">
-          <label><span>Run name <em>Required</em></span><input data-wizard-field="friendly_name" value="${S.escapeHtml(this._wizard.friendly_name)}" placeholder="Amnesia · Summer 2026" autocomplete="off" /></label>
-          <label><span>Planted date</span><input data-wizard-field="planted_date" value="${S.escapeHtml(this._wizard.planted_date)}" type="date" /></label>
-        </div>
-        <p class="hint">Keep step 1 dead simple. Name it, set the plant date, move on.</p>
-      `;
+    _renderCreateDialog() {
+      if (!this._createOpen) return "";
+      const step = this._createStep;
+      return `<div class="dialog-layer"><button class="modal-backdrop" data-action="close-dialog" type="button" aria-label="Anlegen schließen"></button><section class="modal create-modal" role="dialog" aria-modal="true" aria-labelledby="create-title">
+        <header><div><span class="overline">Eine Pflanze · ein Lauf</span><h2 id="create-title">Neue Pflanze anlegen</h2></div>${this._dialogClose()}</header>
+        <ol class="create-progress">
+          <li class="${step === 1 ? "current" : step > 1 ? "done" : ""}"><b>1</b><span>1. Sorte und Pflanze</span></li>
+          <li class="${step === 2 ? "current" : step > 2 ? "done" : ""}"><b>2</b><span>2. Ablauf und Sensoren</span></li>
+          <li class="${step === 3 ? "current" : ""}"><b>3</b><span>3. Prüfen und anlegen</span></li>
+        </ol>
+        <div class="create-body">${step === 1 ? this._renderCreateIdentity() : step === 2 ? this._renderCreatePlan() : this._renderCreateReview()}</div>
+        ${this._dialogError ? `<p class="dialog-error" role="alert">${e(this._dialogError)}</p>` : ""}
+        <footer><button class="secondary" data-action="create-back" type="button" ${step === 1 ? "disabled" : ""}>Zurück</button><button class="primary" data-action="${step === 3 ? "submit-create" : "create-next"}" type="button" ${this._busy ? "disabled" : ""}>${step === 3 ? "Pflanze und Lauf anlegen" : "Weiter"}</button></footer>
+      </section></div>`;
     },
 
-    _renderWizardCultivar() {
-      const targetDays = this._wizard.target_days || this._derivedTargetDays();
-      return `
-        <div class="step-intro"><span class="step-icon">${S.icon("mdi:seed-outline")}</span><div><strong>Add cultivar details</strong><p>Optional. Pick a SeedFinder result to prefill the estimated duration, or enter your own cultivar.</p></div></div>
-        <div class="form-grid">
-          <label><span>Breeder</span><input data-wizard-field="breeder" value="${S.escapeHtml(this._wizard.breeder)}" placeholder="Breeder" autocomplete="off" /></label>
-          <label class="search-field"><span>Strain</span>
-            <input data-wizard-field="cultivar_name" data-cultivar-input value="${S.escapeHtml(this._wizard.cultivar_name)}" placeholder="Start typing to search SeedFinder" autocomplete="off" />
-            <div class="suggestions" data-suggestions>${this._suggestionMarkup()}</div>
-          </label>
-        </div>
-        <p class="hint">Estimated total run duration: <strong>${S.escapeHtml(targetDays || "Will be derived from SeedFinder when available")}</strong></p>
-      `;
+    _renderCreateIdentity() {
+      const draft = this._createDraft;
+      return `<section class="create-step"><div class="step-copy"><h3>Sorte finden</h3><p>Suche wie im Web. Ein Ergebnis füllt nur bekannte Angaben aus. Die Suche blockiert das Anlegen nie.</p></div>
+        <div class="search-row"><label class="field grow"><span>Strain</span><input data-create-field="strain" data-cultivar-search value="${e(draft.strain)}" placeholder="Zum Beispiel Tangerine Dream Auto" autocomplete="off" /></label><label class="field"><span>Breeder <small>für Suche</small></span><input data-create-field="breeder" value="${e(draft.breeder)}" placeholder="Breeder" autocomplete="off" /></label></div>
+        ${this._cultivarSearching ? `<p class="search-state">SeedFinder wird durchsucht …</p>` : ""}
+        ${this._cultivarResults.length ? `<div class="cultivar-search-results">${this._cultivarResults.map((item, index) => `<button class="${this._cultivarPreview === item ? "selected" : ""}" data-action="preview-cultivar" data-index="${index}" type="button" aria-pressed="${this._cultivarPreview === item}"><span><strong>${e(item.name || item.strain)}</strong><small>${e(item.breeder || draft.breeder || "Breeder nicht angegeben")}</small></span><ha-icon icon="mdi:arrow-right"></ha-icon></button>`).join("")}</div>` : draft.strain.length >= 2 && draft.breeder.length >= 2 && !this._cultivarSearching ? `<p class="search-state">Keine passenden Daten. <button data-action="manual-cultivar" type="button">Manuell fortfahren</button></p>` : ""}
+        ${this._cultivarPreview ? this._renderCultivarPreview() : ""}
+        <hr />
+        <div class="form-grid"><label class="field"><span>Pflanzenname</span><input data-create-field="plant_name" value="${e(draft.plant_name)}" placeholder="Name der Pflanze" autocomplete="off" /></label><label class="field"><span>Spitzname <small>optional</small></span><input data-create-field="nickname" value="${e(draft.nickname)}" placeholder="Kurzer Anzeigename" autocomplete="off" /></label><label class="field"><span>Pflanzzeitpunkt</span><input data-create-field="planted_at" type="datetime-local" value="${e(draft.planted_at)}" /></label></div>
+        <details class="optional-details"><summary>Topf, Erde und Lichtzyklus</summary><div class="form-grid"><label class="field"><span>Behälter</span><input data-create-field="container" value="${e(draft.container)}" placeholder="z. B. 7 L Endtopf" /></label><label class="field"><span>Substrat</span><input data-create-field="substrate" value="${e(draft.substrate)}" placeholder="z. B. All-Mix Erde" /></label><label class="field"><span>Lichtzyklus</span><input data-create-field="light_schedule" value="${e(draft.light_schedule)}" placeholder="z. B. 20:00 bis 14:00, 18/6" /></label></div></details>
+      </section>`;
     },
 
-    _renderWizardSensors() {
-      const rows = this._wizard.bindings
-        .map(
-          (binding, index) => `
-            <div class="binding-edit-row">
-              <select data-wizard-binding-metric="${index}">
-                ${METRICS.map(([value, label]) => `<option value="${value}" ${binding.metric_type === value ? "selected" : ""}>${label}</option>`).join("")}
-              </select>
-              ${this._haEntityPicker(binding.sensor_id, `wizard_binding_${index}`, binding.metric_type)}
-              <button class="icon-button danger" data-action="remove-wizard-binding" data-index="${index}" type="button" title="Remove">${S.icon("mdi:minus")}</button>
-            </div>`
-        )
-        .join("");
-      return `
-        <div class="step-intro"><span class="step-icon">${S.icon("mdi:access-point")}</span><div><strong>Connect live sensors</strong><p>Optional. PlantRun links to Home Assistant entities and Recorder history without copying their data.</p></div></div>
-        <div class="binding-editor">
-          ${rows}
-          <button class="ghost" data-action="add-wizard-binding" type="button">${S.icon("mdi:plus")} Add another sensor</button>
-        </div>
-      `;
+    _renderCultivarPreview() {
+      const item = this._cultivarPreview;
+      const duration = item?.duration || {};
+      const minimum = duration.min_days ?? duration.minimum_days ?? item?.min_days;
+      const maximum = duration.max_days ?? duration.maximum_days ?? item?.max_days;
+      const timing = minimum || maximum ? `${minimum ?? maximum}${maximum && maximum !== minimum ? ` bis ${maximum}` : ""} Tage` : "Nicht angegeben";
+      const meaning = duration.meaning || item?.meaning || "Nicht angegeben";
+      const startEvent = duration.start_event || item?.start_event || "Nicht angegeben";
+      const source = duration.source || item?.detail_url || item?.source || "SeedFinder";
+      const original = duration.original_text || item?.original_text || item?.original_wording || "";
+      const imported = this._createDraft.selected_cultivar === item;
+      return `<article class="cultivar-preview"><span class="overline">Vorschau der Quelle</span><strong>${e(item?.name || item?.strain || "Unbenannte Sorte")}</strong><dl><div><dt>Breeder</dt><dd>${e(item?.breeder || "Nicht angegeben")}</dd></div><div><dt>Zeitangabe</dt><dd>${e(timing)}</dd></div><div><dt>Bedeutung</dt><dd>${e(meaning)}</dd></div><div><dt>Start-Ereignis</dt><dd>${e(startEvent)}</dd></div><div><dt>Quelle</dt><dd>${e(source)}</dd></div></dl>${original ? `<p>${e(original)}</p>` : ""}${imported ? `<small>Angaben übernommen. Du kannst sie weiter bearbeiten.</small>` : `<button class="secondary" data-action="apply-cultivar" type="button">Angaben übernehmen</button>`}</article>`;
     },
 
-    _suggestionMarkup() {
-      if (this._suggestions.length === 1 && this._suggestions[0]?.name === "Refreshing results…") {
-        return `<div class="suggestion-state">Refreshing results…</div>`;
-      }
-      return this._suggestions
-        .map(
-          (item, index) => `
-            <button data-action="choose-cultivar" data-index="${index}" data-prevent-mousedown type="button">
-              <strong>${S.escapeHtml(item.name || item.strain || "Unknown cultivar")}</strong>
-              <span>${S.escapeHtml(item.breeder || this._wizard.breeder || "SeedFinder")}</span>
-            </button>`
-        )
-        .join("");
+    _renderCreatePlan() {
+      const draft = this._createDraft;
+      return `<section class="create-step"><div class="step-copy"><h3>Ablauf und Sensoren</h3><p>Germination unterstützt direkt gesäte, trockene Samen im Endtopf. Phasen lassen sich später frei wechseln.</p></div>
+        <label class="field"><span>Startphase</span><select data-create-field="initial_stage">${["Germination", ...draft.stage_plan.filter((stage) => stage !== "Germination")].map((stage) => `<option value="${e(stage)}" ${draft.initial_stage === stage ? "selected" : ""}>${e(stage)}</option>`).join("")}</select></label>
+        <fieldset class="stage-choice"><legend>Phasenplan</legend>${["Germination", "Seedling", "Vegetative", "Flowering", "Harvested"].map((stage) => `<label><input type="checkbox" data-create-stage="${e(stage)}" ${draft.stage_plan.includes(stage) ? "checked" : ""} ${stage === draft.initial_stage ? "disabled" : ""} /><span>${e(stage)}</span></label>`).join("")}</fieldset>
+        <details class="optional-details"><summary>Zeitangabe der Quelle</summary><div class="form-grid"><label class="field"><span>Minimum in Tagen</span><input data-create-duration="min_days" type="number" min="1" value="${e(draft.duration.min_days)}" /></label><label class="field"><span>Maximum in Tagen</span><input data-create-duration="max_days" type="number" min="1" value="${e(draft.duration.max_days)}" /></label><label class="field"><span>Bedeutung</span><input data-create-duration="meaning" value="${e(draft.duration.meaning)}" placeholder="Samen bis Ernte" /></label><label class="field"><span>Start-Ereignis</span><input data-create-duration="start_event" value="${e(draft.duration.start_event)}" placeholder="Nach Keimung" /></label><label class="field"><span>Quelle</span><input data-create-duration="source" value="${e(draft.duration.source)}" placeholder="Breeder-Seite" /></label><label class="field wide"><span>Originalangabe</span><input data-create-duration="original_text" value="${e(draft.duration.original_text)}" /></label></div></details>
+        <div class="sensor-create"><header><h3>Sensoren</h3><span>optional</span></header>${draft.bindings.map((binding, index) => `<div class="sensor-create-row"><select data-create-binding-metric="${index}">${METRICS.map((metric) => `<option value="${metric.key}" ${binding.metric_type === metric.key ? "selected" : ""}>${e(metric.label)}</option>`).join("")}</select><select data-create-binding-entity="${index}"><option value="">Nicht zuordnen</option>${this._sensorOptions(binding.metric_type, binding.entity_id)}</select><select data-create-binding-owner="${index}"><option value="plant" ${binding.owner_type === "plant" ? "selected" : ""}>Pflanze</option><option value="tent" ${binding.owner_type === "tent" ? "selected" : ""}>Growzelt</option></select><button class="icon-button" data-action="remove-create-binding" data-index="${index}" type="button" aria-label="Sensorzeile entfernen"><ha-icon icon="mdi:close"></ha-icon></button></div>`).join("")}<button class="quiet" data-action="add-create-binding" type="button"><ha-icon icon="mdi:plus"></ha-icon> Sensor hinzufügen</button></div>
+      </section>`;
     },
 
-    _detailSuggestionMarkup() {
-      if (this._detailDraft?.cultivar_searching) {
-        return `<div class="suggestion-state">Refreshing results…</div>`;
-      }
-      return (this._detailDraft?.suggestions || [])
-        .map(
-          (item, index) => `
-            <button data-action="choose-detail-cultivar" data-index="${index}" data-prevent-mousedown type="button">
-              <strong>${S.escapeHtml(item.name || item.strain || "Unknown cultivar")}</strong>
-              <span>${S.escapeHtml(item.breeder || this._detailDraft?.breeder || "SeedFinder")}</span>
-            </button>`
-        )
-        .join("");
+    _renderCreateReview() {
+      const draft = this._createDraft;
+      return `<section class="create-step review-step"><div class="step-copy"><h3>Prüfen und anlegen</h3><p>PlantRun speichert die Pflanze und ihren Lauf gemeinsam.</p></div><dl><div><dt>Pflanze</dt><dd>${e(draft.nickname || draft.plant_name)}</dd></div><div><dt>Sorte</dt><dd>${e(draft.strain || "Nicht angegeben")}${draft.breeder ? ` · ${e(draft.breeder)}` : ""}</dd></div><div><dt>Zelt</dt><dd>${e(this._activeTent()?.name || "Growzelt")}</dd></div><div><dt>Gepflanzt</dt><dd>${e(new Date(draft.planted_at).toLocaleString("de-DE", { dateStyle: "medium", timeStyle: "short" }))}</dd></div><div><dt>Behälter</dt><dd>${e(draft.container || "Nicht angegeben")}</dd></div><div><dt>Substrat</dt><dd>${e(draft.substrate || "Nicht angegeben")}</dd></div><div><dt>Lichtzyklus</dt><dd>${e(draft.light_schedule || "Nicht angegeben")}</dd></div><div><dt>Startphase</dt><dd>${e(draft.initial_stage)}</dd></div><div><dt>Sensoren</dt><dd>${draft.bindings.filter((binding) => binding.entity_id).length || "Keine"}</dd></div></dl></section>`;
     },
 
-    _renderBindingModal() {
-      if (!this._bindingDraft) return "";
-      return `
-        <div class="overlay">
-          <button class="overlay-backdrop" data-action="close-binding" type="button" aria-label="Close binding dialog"></button>
-          <section class="modal compact" data-modal-card role="dialog" aria-modal="true" aria-label="Edit sensor binding">
-            <header>
-              <div><span class="eyebrow">Sensor binding</span><h2>${this._bindingDraft.binding_id ? "Edit binding" : "Add binding"}</h2></div>
-              <button class="icon-button" data-action="close-binding" type="button" title="Close">${S.icon("mdi:close")}</button>
-            </header>
-            <div class="form-grid">
-              <label><span>Metric</span>
-                <select data-binding-metric>
-                  ${METRICS.map(([value, label]) => `<option value="${value}" ${this._bindingDraft.metric_type === value ? "selected" : ""}>${label}</option>`).join("")}
-                </select>
-              </label>
-              <label><span>Home Assistant sensor entity</span>${this._haEntityPicker(this._bindingDraft.sensor_id, "binding_sensor", this._bindingDraft.metric_type)}</label>
-            </div>
-            <footer>
-              <button class="ghost" data-action="close-binding" type="button">Cancel</button>
-              <button class="primary" data-action="save-binding" type="button">Save binding</button>
-            </footer>
-          </section>
-        </div>
-      `;
+    _renderJournalDrawer() {
+      if (!this._journalEditorOpen) return "";
+      const draft = this._journalDraft;
+      return `<div class="drawer-layer"><button class="modal-backdrop" data-action="close-journal-editor" type="button" aria-label="Editor schließen"></button><aside class="journal-drawer" role="dialog" aria-modal="true" aria-labelledby="journal-title"><header><div><span class="overline">Schnelle Erfassung</span><h2 id="journal-title">${draft.entry_id ? "Eintrag bearbeiten" : "Neuer Eintrag"}</h2></div><button class="icon-button" data-action="close-journal-editor" type="button" aria-label="Editor schließen"><ha-icon icon="mdi:close"></ha-icon></button></header><div class="drawer-body"><label class="field"><span>Pflanze</span><select data-journal-field="run_id">${this._state.runs.map((run) => `<option value="${e(run.id)}" ${draft.run_id === run.id ? "selected" : ""}>${e(plantName(run))}</option>`).join("")}</select></label><fieldset class="entry-types"><legend>Art</legend>${ENTRY_TYPES.map(([value,label,icon]) => `<button class="${draft.entry_type === value ? "selected" : ""}" data-action="set-journal-type" data-entry-type="${value}" type="button"><ha-icon icon="${icon}"></ha-icon>${label}</button>`).join("")}</fieldset><label class="field"><span>Was ist passiert?</span><textarea data-journal-field="text" rows="7" placeholder="Zum Beispiel: Erde angefeuchtet und den Samen leicht mit Wasser besprüht.">${e(draft.text)}</textarea></label><label class="field"><span>Zeitpunkt des Ereignisses</span><input data-journal-occurred-at data-journal-field="occurred_at" type="datetime-local" value="${e(draft.occurred_at)}" /></label><details class="sensor-context"><summary>Sensorkontext wird beim Speichern angehängt</summary><p>PlantRun übernimmt die zu diesem Zeitpunkt verfügbaren Werte. Du musst sie nicht abschreiben.</p></details>${this._dialogError ? `<p class="dialog-error" role="alert">${e(this._dialogError)}</p>` : ""}</div><footer><span>Strg + Enter speichert</span><button class="primary" data-action="save-journal-entry" type="button" ${this._busy ? "disabled" : ""}>Speichern</button></footer></aside></div>`;
     },
 
-    _renderNoteModal() {
-      if (!this._noteEditor) return "";
-      const isNew = !this._noteEditor.note_id;
-      return `
-        <div class="overlay">
-          <button class="overlay-backdrop" data-action="close-note-edit" type="button" aria-label="Close note dialog"></button>
-          <section class="modal compact" data-modal-card role="dialog" aria-modal="true" aria-label="Edit journal note">
-            <header>
-              <div><span class="eyebrow">Grow log</span><h2>${isNew ? "New note" : "Edit note"}</h2></div>
-              <button class="icon-button" data-action="close-note-edit" type="button" title="Close">${S.icon("mdi:close")}</button>
-            </header>
-            <div class="form-grid">
-              <label class="wide"><span>Note</span><textarea data-note-edit-text rows="5">${S.escapeHtml(this._noteEditor.text || "")}</textarea></label>
-            </div>
-            <footer>
-              <button class="ghost" data-action="close-note-edit" type="button">Cancel</button>
-              <button class="primary" data-action="save-note-edit" type="button">${isNew ? "Add note" : "Save note"}</button>
-            </footer>
-          </section>
-        </div>
-      `;
+    _renderStageDialog() {
+      if (!this._stageDraft) return "";
+      return `<div class="dialog-layer"><button class="modal-backdrop" data-action="close-dialog" type="button" aria-label="Phasenwechsel schließen"></button><section class="modal compact-modal" role="dialog" aria-modal="true" aria-labelledby="stage-title"><header><div><span class="overline">Direkter Wechsel</span><h2 id="stage-title">Phase wechseln</h2></div>${this._dialogClose()}</header><div class="confirm-body"><p>Ausgewählte Zielphase</p><strong class="target-stage">${e(this._stageDraft.stage)}</strong><label class="field"><span>Wechselzeitpunkt</span><input data-stage-occurred-at type="datetime-local" value="${e(this._stageDraft.occurred_at)}" /></label><small>Jede Phase ist erlaubt, auch eine frühere oder eigene. Der bestätigte Wechsel bleibt im Verlauf.</small></div>${this._dialogError ? `<p class="dialog-error" role="alert">${e(this._dialogError)}</p>` : ""}<footer><button class="secondary" data-action="close-dialog" type="button">Abbrechen</button><button class="primary" data-action="confirm-stage-change" type="button">Zu ${e(this._stageDraft.stage)} wechseln</button></footer></section></div>`;
     },
 
-    _renderDeleteNoteConfirm() {
-      if (!this._noteDeleteConfirm) return "";
-      return `
-        <div class="overlay">
-          <button class="overlay-backdrop" data-action="close-note-delete" type="button" aria-label="Close delete note dialog"></button>
-          <section class="modal compact" data-modal-card role="dialog" aria-modal="true" aria-label="Delete journal note">
-            <header>
-              <div><span class="eyebrow">Grow log</span><h2>Delete note?</h2></div>
-              <button class="icon-button" data-action="close-note-delete" type="button" title="Close">${S.icon("mdi:close")}</button>
-            </header>
-            <p class="confirm-copy">This removes the note from this run log.</p>
-            <footer>
-              <button class="ghost" data-action="close-note-delete" type="button">Cancel</button>
-              <button class="danger" data-action="delete-note" type="button">Delete</button>
-            </footer>
-          </section>
-        </div>
-      `;
+    _renderBindingDialog() {
+      if (!this._bindingEditorOpen) return "";
+      const run = this._state.runs.find((item) => item.id === this._bindingDraft.run_id);
+      const tent = this._activeTent();
+      const active = bindingsFor(run, tent).filter((binding) => !binding?.ended_at);
+      const draft = this._bindingDraft;
+      return `<div class="dialog-layer"><button class="modal-backdrop" data-action="close-dialog" type="button" aria-label="Sensoren schließen"></button><section class="modal compact-modal" role="dialog" aria-modal="true" aria-labelledby="binding-title"><header><div><span class="overline">Datiert und austauschbar</span><h2 id="binding-title">Sensoren für ${e(plantName(run))}</h2></div>${this._dialogClose()}</header><div class="confirm-body"><p>Eine neue Zuordnung beendet die bisherige für diesen Messwert. Frühere Recorder-Daten bleiben beim richtigen Lauf.</p>${active.length ? `<div class="binding-list">${active.map((binding) => `<div class="sensor-create-row"><span><strong>${e(METRICS.find((metric) => metric.key === binding.metric_type)?.label || binding.metric_type)}</strong><small>${binding.owner_type === "tent" ? "Growzelt" : "Pflanze"} · ${e(binding.entity_id || binding.sensor_id)}</small></span><button class="quiet" data-action="clear-binding" data-owner-type="${e(binding.owner_type)}" data-metric="${e(binding.metric_type)}" type="button">Zuordnung beenden</button></div>`).join("")}</div>` : `<p class="empty-copy">Noch kein Sensor zugeordnet.</p>`}<div class="sensor-create-row"><select data-binding-field="metric_type">${METRICS.map((metric) => `<option value="${metric.key}" ${draft.metric_type === metric.key ? "selected" : ""}>${e(metric.label)}</option>`).join("")}</select><select data-binding-field="entity_id"><option value="">Sensor wählen</option>${this._sensorOptions(draft.metric_type, draft.entity_id)}</select><select data-binding-field="owner_type"><option value="plant" ${draft.owner_type === "plant" ? "selected" : ""}>Pflanze</option><option value="tent" ${draft.owner_type === "tent" ? "selected" : ""}>Growzelt</option></select></div></div>${this._dialogError ? `<p class="dialog-error" role="alert">${e(this._dialogError)}</p>` : ""}<footer><button class="secondary" data-action="close-dialog" type="button">Abbrechen</button><button class="primary" data-action="save-binding" type="button" ${this._busy ? "disabled" : ""}>Zuordnen</button></footer></section></div>`;
     },
 
-    _renderEditModal() {
-      if (!this._detailDraft) return "";
-      const targetDays = this._detailDraft.target_days || this._derivedTargetDays(this._detailDraft.selected_cultivar);
-      return `
-        <div class="overlay">
-          <button class="overlay-backdrop" data-action="close-edit" type="button" aria-label="Close edit dialog"></button>
-          <section class="modal compact" data-modal-card role="dialog" aria-modal="true" aria-label="Edit run details">
-            <header>
-              <div><span class="eyebrow">Run details</span><h2>Edit run</h2></div>
-              <button class="icon-button" data-action="close-edit" type="button" title="Close">${S.icon("mdi:close")}</button>
-            </header>
-            <div class="form-grid">
-              <label><span>Name</span><input data-detail-field="friendly_name" value="${S.escapeHtml(this._detailDraft.friendly_name)}" /></label>
-              <label><span>Planted date</span><input data-detail-field="planted_date" value="${S.escapeHtml(this._detailDraft.planted_date || "")}" type="date" /></label>
-              <label><span>Breeder</span><input data-detail-field="breeder" value="${S.escapeHtml(this._detailDraft.breeder || "")}" placeholder="Breeder" autocomplete="off" /></label>
-              <label class="wide search-field"><span>Strain</span>
-                <input data-detail-field="cultivar_name" data-detail-cultivar-input value="${S.escapeHtml(this._detailDraft.cultivar_name || "")}" placeholder="Start typing to search SeedFinder" autocomplete="off" />
-                <div class="suggestions" data-detail-suggestions>${this._detailSuggestionMarkup()}</div>
-              </label>
-              <label><span>Dry yield (g)</span><input data-detail-field="dry_yield_grams" value="${S.escapeHtml(this._detailDraft.dry_yield_grams ?? "")}" type="number" min="0" step="0.1" /></label>
-              <label><span>Watering interval (days)</span><input data-detail-field="watering_interval_days" value="${S.escapeHtml(this._detailDraft.watering_interval_days || 3)}" type="number" min="1" max="30" step="1" /></label>
-              <label class="wide"><span>Plants <em>Comma separated</em></span><input data-detail-field="plants_text" value="${S.escapeHtml(this._detailDraft.plants_text || "")}" placeholder="Khaled, Bobbi, Jackie" /></label>
-              <label class="wide"><span>Phase plan <em>Comma separated</em></span><input data-detail-field="phase_plan_text" value="${S.escapeHtml(this._detailDraft.phase_plan_text || "")}" placeholder="Seedling, Vegetative, Flowering, Drying, Curing, Harvested" /></label>
-              <label class="wide"><span>Summary</span><textarea data-detail-field="notes_summary">${S.escapeHtml(this._detailDraft.notes_summary || "")}</textarea></label>
-            </div>
-            <p class="hint">Estimated total run duration: <strong>${S.escapeHtml(targetDays || "Will be derived from SeedFinder when available")}</strong></p>
-            <footer>
-              <button class="ghost" data-action="close-edit" type="button">Cancel</button>
-              <button class="primary" data-action="save-run" type="button">Save</button>
-            </footer>
-          </section>
-        </div>
-      `;
+    _renderArchiveDialog() {
+      if (!this._archiveRunId) return "";
+      const run = this._state.runs.find((item) => item.id === this._archiveRunId);
+      return `<div class="dialog-layer"><button class="modal-backdrop" data-action="close-dialog" type="button"></button><section class="modal compact-modal" role="dialog" aria-modal="true" aria-labelledby="archive-title"><header><div><span class="overline">Lauf abschließen</span><h2 id="archive-title">${e(plantName(run))} archivieren?</h2></div>${this._dialogClose()}</header><div class="confirm-body"><p>Der Recorder-Zeitraum endet jetzt. Journal und alle PlantRun-Daten bleiben erhalten und später editierbar.</p></div><footer><button class="secondary" data-action="close-dialog" type="button">Abbrechen</button><button class="primary" data-action="confirm-archive" type="button">Abschließen und archivieren</button></footer></section></div>`;
     },
 
-    _bindingHistory(run, binding) {
-      return Array.isArray(run?.sensor_history?.[binding?.metric_type]) ? run.sensor_history[binding.metric_type] : [];
+    _renderDeleteRunDialog() {
+      if (!this._deleteRunId) return "";
+      const run = this._state.runs.find((item) => item.id === this._deleteRunId);
+      const name = this._runName(run);
+      return `<div class="dialog-layer danger-layer"><button class="modal-backdrop" data-action="close-dialog" type="button"></button><section class="modal compact-modal danger-modal" role="dialog" aria-modal="true" aria-labelledby="delete-run-title"><header><div><span class="overline">Gefahrenbereich</span><h2 id="delete-run-title">Dauerhaft löschen</h2></div>${this._dialogClose()}</header><div class="confirm-body"><p>Diese Aktion kann nicht rückgängig gemacht werden.</p><p>Pflanze, Lauf, Phasen, Journal und PlantRun-Sensorzuordnungen verschwinden. Home Assistant Recorder-Daten gehören weiterhin Home Assistant und werden nicht gelöscht.</p><label class="field"><span>Tippe <b>${e(name)}</b> zur Bestätigung</span><input data-delete-confirmation autocomplete="off" value="${e(this._deleteConfirmation)}" /></label></div><footer><button class="secondary" data-action="close-dialog" type="button">Abbrechen</button><button class="danger-button" data-action="confirm-delete-run" type="button" ${this._deleteConfirmation === name ? "" : "disabled"}>Dauerhaft löschen</button></footer></section></div>`;
     },
 
-    _historyWindow(run) {
-      return historyWindowForRun(run);
+    _renderDeleteJournalDialog() {
+      if (!this._deleteJournalDraft) return "";
+      return `<div class="dialog-layer"><button class="modal-backdrop" data-action="close-dialog" type="button"></button><section class="modal compact-modal" role="dialog" aria-modal="true" aria-labelledby="delete-entry-title"><header><h2 id="delete-entry-title">Journaleintrag löschen?</h2>${this._dialogClose()}</header><div class="confirm-body"><p>Der Eintrag wird dauerhaft aus diesem Lauf entfernt.</p></div><footer><button class="secondary" data-action="close-dialog" type="button">Abbrechen</button><button class="danger-button" data-action="confirm-delete-journal-entry" type="button">Eintrag löschen</button></footer></section></div>`;
     },
-
-    _fallbackHistoryContext(run, binding, entityId) {
-      const windowInfo = this._historyWindow(run);
-      const sourceExists = !!this._hass?.states?.[entityId];
-      return {
-        binding_id: binding?.id || "",
-        entity_id: entityId,
-        metric_type: binding?.metric_type || "sensor",
-        run_id: run?.id || "",
-        run_start: windowInfo.start,
-        run_end: windowInfo.end,
-        stored_run_end: run?.end_time || null,
-        binding_status: sourceExists ? "bound" : "orphaned",
-        orphaned: !sourceExists,
-        error: sourceExists ? null : "source_entity_missing",
-      };
-    },
-
-    _historyStats(points) {
-      const values = (points || []).map((point) => Number(point.value)).filter(Number.isFinite);
-      if (!values.length) return null;
-      return {
-        min: Math.min(...values),
-        max: Math.max(...values),
-        avg: values.reduce((sum, value) => sum + value, 0) / values.length,
-        latest: values.at(-1),
-      };
-    },
-
-    _historyChartMarkup(panel) {
-      const points = Array.isArray(panel?.points) ? panel.points : [];
-      if (panel?.loading) return `<div class="chart-empty loading">${S.icon("mdi:loading")}<strong>Reading Home Assistant Recorder…</strong><span>Nothing is copied into PlantRun.</span></div>`;
-      if (!points.length) return `<div class="chart-empty">${S.icon("mdi:chart-line-variant")}<strong>No numeric Recorder samples in this window</strong><span>The entity may not have recorded numeric states yet.</span></div>`;
-      const width = 720;
-      const height = 230;
-      const padX = 16;
-      const padY = 18;
-      const values = points.map((point) => point.value);
-      const min = Math.min(...values);
-      const max = Math.max(...values);
-      const range = Math.max(max - min, Math.abs(max) * 0.02, 1);
-      const coords = points.map((point, index) => {
-        const x = padX + (index / Math.max(points.length - 1, 1)) * (width - padX * 2);
-        const y = height - padY - ((point.value - min) / range) * (height - padY * 2);
-        return [x, y];
-      });
-      const line = coords.map(([x, y], index) => `${index ? "L" : "M"}${x.toFixed(1)} ${y.toFixed(1)}`).join(" ");
-      const area = `${line} L${coords.at(-1)[0].toFixed(1)} ${height - padY} L${coords[0][0].toFixed(1)} ${height - padY} Z`;
-      return `<div class="recorder-chart"><svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Recorder history chart"><defs><linearGradient id="history-fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="currentColor" stop-opacity=".28"/><stop offset="1" stop-color="currentColor" stop-opacity="0"/></linearGradient></defs>${[.25,.5,.75].map((ratio) => `<line class="chart-gridline" x1="${padX}" x2="${width-padX}" y1="${(height*ratio).toFixed(1)}" y2="${(height*ratio).toFixed(1)}"/>`).join("")}<path class="chart-area" d="${area}"/><path class="chart-line" d="${line}"/><circle class="chart-dot" cx="${coords.at(-1)[0].toFixed(1)}" cy="${coords.at(-1)[1].toFixed(1)}" r="5"/></svg><div class="chart-axis"><span>${S.escapeHtml(S.formatDate(points[0].timestamp))}</span><span>${points.length} samples from Recorder</span><span>${S.escapeHtml(S.formatDate(points.at(-1).timestamp))}</span></div></div>`;
-    },
-
-    _renderHistoryInspector() {
-      const panel = this._historyInspector;
-      if (!panel) return "";
-      const run = this._runs.find((item) => item.id === panel.run_id);
-      const binding = run?.bindings?.find((item) => item.id === panel.binding_id || item.sensor_id === panel.entity_id);
-      const context = panel.context || this._fallbackHistoryContext(run, binding, panel.entity_id);
-      const summary = context.orphaned
-        ? "The linked sensor is no longer available in Home Assistant. Its Recorder history may still exist."
-        : "PlantRun keeps only this run window and entity link. The chart and every sensor sample stay in Home Assistant Recorder.";
-      const stats = this._historyStats(panel.points);
-      const unit = this._hass?.states?.[panel.entity_id]?.attributes?.unit_of_measurement || "";
-      const value = (number) => Number.isFinite(number) ? `${Number(number.toFixed(2))}${unit ? ` ${unit}` : ""}` : "—";
-      return `
-        <div class="overlay">
-          <button class="overlay-backdrop" data-action="close-history" type="button" aria-label="Close run window inspector"></button>
-          <section class="modal history-modal" data-modal-card role="dialog" aria-modal="true" aria-label="Recorder run chart">
-            <header>
-              <div><span class="eyebrow">Recorder · Run window</span><h2>${S.escapeHtml(this._metricLabel(context.metric_type || binding?.metric_type || "sensor"))}</h2><p>${S.escapeHtml(this._entityName(panel.entity_id))}</p></div>
-              <button class="icon-button" data-action="close-history" type="button" aria-label="Close chart">${S.icon("mdi:close")}</button>
-            </header>
-            <div class="history-window-pill"><span>${S.icon("mdi:calendar-range")} ${S.escapeHtml(S.formatDate(context.run_start))}</span><span>${S.icon("mdi:arrow-right")}</span><span>${S.escapeHtml(S.formatDate(context.run_end))}</span></div>
-            ${this._historyChartMarkup(panel)}
-            ${stats ? `<div class="chart-stats"><span><small>Latest</small><strong>${S.escapeHtml(value(stats.latest))}</strong></span><span><small>Average</small><strong>${S.escapeHtml(value(stats.avg))}</strong></span><span><small>Low</small><strong>${S.escapeHtml(value(stats.min))}</strong></span><span><small>High</small><strong>${S.escapeHtml(value(stats.max))}</strong></span></div>` : ""}
-            ${panel.error ? `<p class="hint error-text">${S.escapeHtml(panel.error)}</p>` : ""}
-            <div class="recorder-callout">${S.icon("mdi:database-clock-outline")}<div><strong>Live from Home Assistant Recorder</strong><span>${S.escapeHtml(summary)} No samples are persisted by PlantRun.</span></div></div>
-            <footer>
-              <button class="ghost" data-action="open-history-entity" data-entity-id="${S.escapeHtml(panel.entity_id)}" type="button">${S.icon("mdi:open-in-app")} Open entity details</button>
-              <button class="ghost" data-action="open-native-history" data-entity-id="${S.escapeHtml(panel.entity_id)}" type="button">${S.icon("mdi:open-in-new")} Native history</button>
-              <button class="primary" data-action="close-history" type="button">Done</button>
-            </footer>
-          </section>
-        </div>
-      `;
-    },
-
-    _brandMark() {
-      return `
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
-          <path class="sprout-stem" d="M12 21V11.5" />
-          <path class="sprout-left" d="M11.8 11.7C8.1 12 5.4 9.3 5.2 5.4c3.8-.1 6.5 2.4 6.6 6.3Z" />
-          <path class="sprout-right" d="M12.2 13c.1-4 3-6.8 6.6-6.8.2 3.8-2.2 6.9-6.2 7.1Z" />
-          <path class="sprout-leaf" d="M12 14.2c-2.3.3-4.1 2.4-4.1 5.1 2.8.1 4.6-1.7 4.8-4.4" />
-          <path class="sprout-leaf accent" d="M12.1 15.3c2.1-.2 4.2 1.3 5 3.8-2.4.9-4.5.1-5.7-2" />
-          <path d="M8 21h8" opacity=".72" />
-        </svg>
-      `;
-    },
-
-    _renderPhaseConfirmModal() {
-      const pending = this._phaseConfirm;
-      if (!pending) return "";
-      return `
-        <div class="overlay" role="dialog" aria-modal="true" aria-label="Confirm phase change">
-          <button class="overlay-backdrop" data-action="close-phase-confirm" type="button" aria-label="Close phase change confirmation"></button>
-          <section class="modal compact phase-confirm-modal">
-            <header>
-              <div><span class="eyebrow">Phase confirmation</span><h2>Move run forward?</h2></div>
-              <button class="icon-button" data-action="close-phase-confirm" type="button" title="Close">${S.icon("mdi:close")}</button>
-            </header>
-            <div class="history-summary">
-              <p><strong>${S.escapeHtml(pending.run_name)}</strong> will change from <strong>${S.escapeHtml(pending.current_phase)}</strong> to <strong>${S.escapeHtml(pending.next_phase)}</strong>.</p>
-              <p class="hint">PlantRun keeps one canonical timeline. Confirm here to move the run forward.</p>
-            </div>
-            <footer>
-              <button class="ghost" data-action="close-phase-confirm" type="button">Cancel</button>
-              <button class="primary" data-action="confirm-phase-change" type="button">Confirm phase change</button>
-            </footer>
-          </section>
-        </div>
-      `;
-    },
-
-    _renderEndRunModal() {
-      const pending = this._endRunConfirm;
-      if (!pending) return "";
-      return `
-        <div class="overlay" role="dialog" aria-modal="true" aria-label="Finish run">
-          <button class="overlay-backdrop" data-action="close-end-run" type="button" aria-label="Close finish run dialog"></button>
-          <section class="modal compact end-run-modal" data-modal-card>
-            <header>
-              <div><span class="eyebrow">Harvest & archive</span><h2>Finish ${S.escapeHtml(pending.run_name)}?</h2></div>
-              <button class="icon-button" data-action="close-end-run" type="button" title="Close">${S.icon("mdi:close")}</button>
-            </header>
-            <div class="step-intro"><span class="step-icon">${S.icon("mdi:scale-balance")}</span><div><strong>Close the run window</strong><p>The end time is saved now. Linked sensor charts will use planting through this moment.</p></div></div>
-            <div class="form-grid single-column">
-              <label><span>Dry harvest yield (g)</span><input data-end-run-yield value="${S.escapeHtml(pending.dry_yield_grams ?? "")}" type="number" min="0" step="0.1" placeholder="Optional" /></label>
-            </div>
-            <footer>
-              <button class="ghost" data-action="close-end-run" type="button">Cancel</button>
-              <button class="primary" data-action="confirm-end-run" type="button">${S.icon("mdi:archive-arrow-down-outline")} Finish & archive</button>
-            </footer>
-          </section>
-        </div>
-      `;
-    }
   };
 }

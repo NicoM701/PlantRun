@@ -7,123 +7,97 @@ class DashboardPanelInteractionRegressionTests(unittest.TestCase):
     def setUp(self):
         self.source = load_panel_source()
 
-    def test_short_tap_and_long_press_are_single_fire_paths(self):
-        assert_has_snippets(
-            self,
-            self.source,
-            [
-                "this._pressState[key].longPressTriggered = true;",
-                "this._openEntity(tile.dataset.entityId);",
-                "const wasLongPress = !!state.longPressTriggered;",
-                "if (!wasLongPress) this._openRunHistory(tile.dataset.runId, tile.dataset.entityId);",
-                "binding_id: binding?.id || \"\"",
-                'type: "plantrun/get_run_binding_history_context"',
-                "this._api.getRecorderHistory(entityId, context.run_start, context.run_end)",
-                "requestNonce !== this._historyNonce",
-                "delete this._pressState[key];",
-            ],
-        )
+    def test_delegated_events_stay_inside_shadow_root(self):
+        assert_has_snippets(self, self.source, [
+            'this.shadowRoot.addEventListener("click", this._boundClick);',
+            'const action = event.target.closest("[data-action]");',
+            "if (!action || !this.shadowRoot.contains(action)) return;",
+            'this.shadowRoot.addEventListener("keydown", this._boundKeydown);',
+        ])
 
-    def test_rapid_sensor_interactions_clear_prior_timer(self):
-        assert_has_snippets(
-            self,
-            self.source,
-            [
-                'if (event.target.closest("button, input, select, textarea, ha-selector")) return;',
-                "const current = this._pressState[key];",
-                "if (current?.timer) window.clearTimeout(current.timer);",
-                "_handlePointerCancel(event)",
-                "if (state?.timer) window.clearTimeout(state.timer);",
-            ],
-        )
+    def test_command_busy_state_and_mutation_errors_stay_recoverable(self):
+        assert_has_snippets(self, self.source, [
+            "this._busy = true;",
+            "this._busy = false;",
+            'role="alert"',
+            "const message = error?.message",
+            "this._dialogError = message;",
+            "this._toast = message;",
+        ])
+        self.assertIn('this._error = error?.message || "Home Assistant hat keinen PlantRun-Zustand geliefert.";', self.source)
 
-    def test_delegated_clicks_are_scoped_to_shadow_root_actions(self):
-        assert_has_snippets(
-            self,
-            self.source,
-            [
-                'this.shadowRoot.addEventListener("click", this._boundClick);',
-                'const target = event.target.closest("[data-action]");',
-                "if (!target || !this.shadowRoot.contains(target)) return;",
-                "event.preventDefault();",
-            ],
-        )
+    def test_create_flow_keeps_initial_stage_in_the_plan(self):
+        assert_has_snippets(self, self.source, [
+            'target.dataset.createField === "initial_stage"',
+            "this._createDraft.stage_plan.includes(target.value)",
+            "stage === draft.initial_stage ? \"disabled\" : \"\"",
+            "if (stage === this._createDraft.initial_stage && !target.checked)",
+        ])
 
-    def test_modal_backdrops_close_dialogs_without_inputs_triggering_overlay_close(self):
-        assert_has_snippets(
-            self,
-            self.source,
-            [
-                '<div class="overlay">',
-                'class="overlay-backdrop" data-action="close-wizard"',
-                'class="overlay-backdrop" data-action="close-binding"',
-                'class="overlay-backdrop" data-action="close-note-edit"',
-                'class="overlay-backdrop" data-action="close-note-delete"',
-                'class="overlay-backdrop" data-action="close-edit"',
-                'class="overlay-backdrop" data-action="close-history"',
-            ],
-        )
+    def test_cultivar_result_preview_requires_explicit_import(self):
+        assert_has_snippets(self, self.source, [
+            'data-action="preview-cultivar"',
+            'data-action="apply-cultivar"',
+            "this._previewCultivar(Number(action.dataset.index));",
+            "this._applyCultivarPreview();",
+            "_previewCultivar(index)",
+            "_applyCultivarPreview()",
+            "Angaben übernehmen",
+        ])
 
-    def test_binding_tiles_expose_explicit_edit_action_and_filtered_picker_states(self):
-        assert_has_snippets(
-            self,
-            self.source,
-            [
-                'data-action="edit-binding"',
-                'No compatible Home Assistant sensors found',
-                'This sensor no longer matches the selected metric.',
-                'this._openBinding(target.dataset.runId, target.dataset.bindingId);',
-            ],
-        )
+    def test_recorder_fetch_ignores_stale_metric_requests(self):
+        assert_has_snippets(self, self.source, [
+            "const nonce = ++this._historyNonce;",
+            "if (nonce !== this._historyNonce) return;",
+            "this._api.getRecorderHistory(",
+            "this._historyPoints = points;",
+        ])
 
-    def test_modal_overlays_are_scoped_to_panel_host(self):
-        assert_has_snippets(
-            self,
-            self.source,
-            [
-                ":host { display:block; min-height:100%;",
-                ".overlay { position:fixed; inset:0; z-index:20;",
-                ".overlay-backdrop { position:absolute; inset:0;",
-                "position:relative;",
-            ],
-        )
+    def test_dialogs_use_real_modal_semantics_and_backdrops(self):
+        assert_has_snippets(self, self.source, [
+            'role="dialog"',
+            'aria-modal="true"',
+            'class="modal-backdrop"',
+            'data-action="close-dialog"',
+            'data-action="close-journal-editor"',
+        ])
 
-    def test_decorative_stage_art_does_not_steal_pointer_input(self):
-        assert_has_snippets(
-            self,
-            self.source,
-            [
-                ".stage-glyph { position:absolute;",
-                "pointer-events:none;",
-                ".sensor-tile {",
-                "touch-action:manipulation;",
-                ".metric-badge { display:grid; place-items:center;",
-            ],
-        )
+    def test_keyboard_shortcut_saves_journal_only_in_editor(self):
+        assert_has_snippets(self, self.source, [
+            'event.key === "Enter"',
+            "event.ctrlKey || event.metaKey",
+            'this._journalEditorOpen',
+            'this._saveJournalEntry();',
+        ])
 
-    def test_sound_feedback_is_user_gated_and_disableable(self):
-        assert_has_snippets(
-            self,
-            self.source,
-            [
-                'localStorage.getItem(STORAGE.sound) === "on"',
-                'data-action="toggle-sound"',
-                "_clickSound()",
-                "if (!this._sound) return;",
-            ],
-        )
+    def test_sensor_bindings_can_be_reassigned_or_ended(self):
+        assert_has_snippets(self, self.source, [
+            'data-action="open-binding-editor"',
+            'this._command("set_binding"',
+            'this._command("clear_binding"',
+            'data-action="clear-binding"',
+        ])
 
-    def test_theme_toggle_is_binary_and_has_local_light_dark_tokens(self):
-        assert_has_snippets(
-            self,
-            self.source,
-            [
-                'this._theme = localStorage.getItem(STORAGE.theme) || (window.matchMedia?.(THEME_QUERY).matches ? "light" : "dark")',
-                'this._theme = this._resolvedTheme() === "dark" ? "light" : "dark";',
-                '.app.theme-light {',
-                '.app.theme-dark {',
-            ],
-        )
+    def test_new_journal_entry_captures_current_bound_sensor_values(self):
+        assert_has_snippets(self, self.source, [
+            "_sensorSnapshot(run)",
+            "sensor_snapshot:",
+            "snapshot.captured_at = capturedAt;",
+            "entry?.sensor_snapshot",
+        ])
+
+    def test_snapshot_capture_time_is_metadata_not_a_sensor_value(self):
+        assert_has_snippets(self, self.source, [
+            'key !== "captured_at"',
+            "contextRows.length",
+        ])
+
+    def test_delete_button_requires_exact_run_name(self):
+        assert_has_snippets(self, self.source, [
+            "confirmation !== this._runName(run)",
+            'data-action="confirm-delete-run"',
+            "confirmation_name: confirmation",
+        ])
 
 
 if __name__ == "__main__":

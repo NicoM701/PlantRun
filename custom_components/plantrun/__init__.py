@@ -18,6 +18,7 @@ from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers import entity_registry as er
 
+from .application import CommandError, PlantRunApplication
 from .const import (
     ACTIVE_RUN_STRATEGIES,
     ACTIVE_RUN_STRATEGY_LEGACY,
@@ -33,6 +34,7 @@ from .const import (
     UNSUPPORTED_BINDING_METRIC_TYPES,
 )
 from .coordinator import PlantRunCoordinator
+from .domain import DomainError
 from .history_context import build_binding_history_context
 from .models import Binding, CultivarSnapshot, Note, Phase, RunData
 from .panel import (
@@ -100,6 +102,62 @@ def _storage_for_hass(hass: HomeAssistant) -> PlantRunStorage | None:
             if isinstance(storage, PlantRunStorage):
                 return storage
     return None
+
+
+def _application_for_hass(hass: HomeAssistant) -> PlantRunApplication | None:
+    """Return the configured atomic PlantRun command module."""
+    domain_data = hass.data.get(DOMAIN, {})
+    for entry_data in domain_data.values():
+        if isinstance(entry_data, dict):
+            application = entry_data.get("application")
+            if isinstance(application, PlantRunApplication):
+                return application
+    return None
+
+
+@websocket_api.websocket_command({"type": "plantrun/get_state"})
+@websocket_api.async_response
+async def websocket_get_state(
+    hass: HomeAssistant,
+    connection: Any,
+    msg: dict[str, Any],
+) -> None:
+    """Return the complete v3 state used by the production frontend."""
+    application = _application_for_hass(hass)
+    if application is None:
+        connection.send_error(msg["id"], "not_loaded", "PlantRun is not loaded")
+        return
+    connection.send_result(msg["id"], application.state())
+
+
+@websocket_api.websocket_command(
+    {
+        "type": "plantrun/command",
+        "command": str,
+        vol.Optional("payload", default={}): dict,
+    }
+)
+@websocket_api.async_response
+async def websocket_command(
+    hass: HomeAssistant,
+    connection: Any,
+    msg: dict[str, Any],
+) -> None:
+    """Execute one authenticated, atomic PlantRun command."""
+    application = _application_for_hass(hass)
+    if application is None:
+        connection.send_error(msg["id"], "not_loaded", "PlantRun is not loaded")
+        return
+    try:
+        state = await application.execute(msg["command"], msg.get("payload", {}))
+    except (CommandError, DomainError) as err:
+        connection.send_error(msg["id"], "invalid_command", str(err))
+        return
+    except OSError as err:
+        _LOGGER.exception("Unable to persist PlantRun command %s", msg["command"])
+        connection.send_error(msg["id"], "persistence_failed", str(err))
+        return
+    connection.send_result(msg["id"], state)
 
 
 def _summary_energy_preferences_for_hass(hass: HomeAssistant) -> dict[str, Any]:
@@ -278,6 +336,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await async_register_panel(hass)
 
     if not hass.data[DOMAIN].get("_ws_registered"):
+        websocket_api.async_register_command(hass, websocket_get_state)
+        websocket_api.async_register_command(hass, websocket_command)
         websocket_api.async_register_command(hass, websocket_get_runs)
         websocket_api.async_register_command(hass, websocket_get_run)
         websocket_api.async_register_command(hass, websocket_get_run_summary)
@@ -287,6 +347,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     storage = PlantRunStorage(hass)
     await storage.async_load()
+    application = PlantRunApplication(storage)
 
     coordinator = PlantRunCoordinator(hass, storage)
     await coordinator.async_refresh()
@@ -294,6 +355,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     runtime_data = {
         "storage": storage,
         "coordinator": coordinator,
+        "application": application,
     }
     hass.data[DOMAIN][entry.entry_id] = runtime_data
     entry.runtime_data = runtime_data

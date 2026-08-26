@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.7.0
+
+- Replaced the rejected dashboard and stored run model with the accepted one-plant-per-run PlantRun application.
+- Added a persistent Tent, structured Plant and Run records, dated Stage history, sourced Strain identity, Journal Entries, and dated Tent or Plant sensor bindings.
+- Added the three-step creation flow, history-first Journal, direct Stage changes, Recorder-backed metric workspace, sensor reassignment, archive, and warned Permanent Deletion.
+- Added first-class container, soil, and light-cycle facts so the August 25 acceptance cycle can be imported without reducing those facts to prose.
+- Preserved the old v2 store in a hidden backup bucket while keeping it out of the rebuilt interface.
+- Added an atomic, idempotent import command for the acceptance ledger and compatibility handling for existing Home Assistant services.
+- Added the PlantRun favicon used by T3 Code project tabs.
+- Added domain, application, migration, websocket, and critical frontend contract tests.
+
 ## 0.6.1
 
 - Keep generated stage artwork visible alongside user and SeedFinder imagery.
