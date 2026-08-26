@@ -8,11 +8,12 @@ The first target is deliberately narrow: record the cultivation cycle that has a
 
 ## Current truth
 
-- Home Assistant currently runs the HACS release `v0.4.2`.
-- The repository branch declares `0.6.1`, but that code is the rejected earlier overhaul rather than the accepted rebuild.
-- The accepted `Clean development` workspace, guided creation flow, journal, and phase interactions exist only as disposable prototypes.
-- The live `v0.4.2` store contains two legacy runs. One of them stores multiple plants inside one run, which conflicts with the settled one-plant-per-run model.
-- The current cultivation cycle has begun. New acceptance data is real data and must survive every later update.
+- GitHub and HACS publish `v0.7.0` as the first usable rebuild.
+- Home Assistant runs `v0.7.0` with the PlantRun config entry loaded.
+- The live v3 store contains one Growzelt, the Diesel Auto and Tangerine Dream Auto Runs, and five accepted Journal Entries from August 25, 2026.
+- A second Home Assistant restart preserved the complete v3 state and the rebuilt sidebar rendered both Plants afterward.
+- The former Amnesia and Purple Cookie Kush records remain in the hidden legacy bucket and the full Home Assistant backup `Before_PlantRun_v0.7.0_rebuild_2026-08-26`. They do not appear in the rebuilt sidebar.
+- The permanent-deletion flow remains the only supported way for a user to remove a rebuilt Run.
 
 ## Working rule
 
@@ -174,6 +175,6 @@ These features stay outside the first HACS baseline unless real use proves one i
 
 ## Execution order
 
-The next implementation work starts with Phase 0 and Phase 1. Remaining prototype review must not block them because the selected creation, Journal, phase, and plant-workspace directions already define the first usable paths. Review of archive, comparison, settings, and later states can continue while the capture slice is built.
+Phase 0 is complete. The first live Phase 1 data and persistence gates pass on Home Assistant. The next work should come from actual use of the current cycle: finish the remaining Journal interaction checks, add custom Stage editing, and build the richer harvest and completed-Run correction flow before expanding into reminders, comparison, or appearance settings.
 
 No phase is complete because its files exist or its tests pass. A phase ends only after the listed Home Assistant live gate passes with the current cultivation data.
