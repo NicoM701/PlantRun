@@ -1,15 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
   <title>PlantRun</title>
-  <rect width="64" height="64" rx="16" fill="#151c17"/>
-  <path
-    d="M50 14C30 14 18 24 18 39c0 6.6 5.4 12 12 12 15 0 20-17 20-37Z"
-    fill="#79c84f"
-  />
-  <path
-    d="M14 54c6-14 14-23 28-31"
-    fill="none"
-    stroke="#f1f5f0"
-    stroke-linecap="round"
-    stroke-width="4"
-  />
+  <rect x="7" y="7" width="50" height="50" rx="18" fill="#9bcfae"/>
+  <g fill="none" stroke="#07150e" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M32 42V31" stroke-width="3.4"/>
+    <path d="M31.7 34.2C25.3 34.2 21.1 30.7 20.4 25.2c5.7-.2 10.3 2 11.3 9Z" fill="#07150e" stroke-width="1.7"/>
+    <path d="M32.3 33.3c.6-6.1 4.7-9.7 11.3-9.5-.1 5.9-4.3 10-11.3 9.5Z" fill="#07150e" stroke-width="1.7"/>
+    <path d="M24 42h16" stroke-width="3.4"/>
+  </g>
 </svg>

@@ -12,6 +12,8 @@ The first target is deliberately narrow: record the cultivation cycle that has a
 - Home Assistant runs `v0.7.0` with the PlantRun config entry loaded.
 - The live v3 store contains one Growzelt, the Diesel Auto and Tangerine Dream Auto Runs, and five accepted Journal Entries from August 25, 2026.
 - A second Home Assistant restart preserved the complete v3 state and the rebuilt sidebar rendered both Plants afterward.
+- The authenticated live SeedFinder search returns matching results for Diesel Automatic by Royal Queen Seeds and Tangerine Dream Automatic by Zamnesia. The current live responses do not yet include a duration or image, and the imported acceptance Runs do not prove the full create-flow interaction.
+- Home Assistant currently exposes the Growzelt light through an enabled 20:00 on automation, an enabled 14:00 off automation, the SmartPlug switch, a power sensor in W, and an accumulated energy sensor in kWh. The former 16:00 off automation still exists but is disabled.
 - The former Amnesia and Purple Cookie Kush records remain in the hidden legacy bucket and the full Home Assistant backup `Before_PlantRun_v0.7.0_rebuild_2026-08-26`. They do not appear in the rebuilt sidebar.
 - The permanent-deletion flow remains the only supported way for a user to remove a rebuilt Run.
 
@@ -90,7 +92,11 @@ Scope:
 - a Tent overview that supports multiple active one-plant Runs at unrelated Stages;
 - direct Stage selection with an editable timestamp;
 - custom Stage creation and display reordering without transition restrictions;
-- plant photos and honest image fallbacks;
+- one or more photo attachments on a Journal Entry, with capture time, optional caption, visible source, and a clear upload state;
+- an explicit `Als Pflanzenbild verwenden` action for a Journal photo instead of silently replacing the current image;
+- a Plant Cover fallback order of selected Journal photo, sourced Strain image, then the neutral sprout placeholder;
+- a chronological photo timeline that shows visible development without separating photos from their Journal context;
+- media retention rules: archival keeps PlantRun-owned photos, Permanent Deletion names them in its warning, and externally owned Home Assistant media is never deleted by PlantRun;
 - separate Tent and Plant sensor ownership;
 - fast capture from the Tent overview and plant workspace;
 - clear empty, offline, loading, and error states.
@@ -100,9 +106,10 @@ Gate:
 - Log real entries for more than one Plant without target ambiguity.
 - Move a Run to another Stage, including a backward or custom Stage, without rewriting its history.
 - Reassign a Plant Sensor while retaining the earlier binding period.
+- Add a photo to a real Journal Entry, select it as the Plant Cover, and verify both survive a Home Assistant restart and remain visible in the Archive.
 - Validate the full daily loop on desktop and mobile.
 
-## Phase 3: Recorder and environmental context
+## Phase 3: smart environmental context
 
 Goal: make Home Assistant history a reason to use PlantRun instead of a separate journal.
 
@@ -114,7 +121,14 @@ Scope:
 - dated Sensor Bindings for the Tent and individual Runs;
 - compatibility checks for metric units and long-term statistics;
 - exact Run-window history navigation;
-- correction of the current power-versus-energy binding warning.
+- strict separation of the light control source, actual switch state, current power in W, and accumulated energy in kWh;
+- guided discovery of Home Assistant entities and enabled automations that target the selected light switch, without installation-specific entity IDs in PlantRun code;
+- support for deterministic time automations and Home Assistant Schedule helpers as Lighting Sources;
+- an honest `dynamische Regel` state for sun, template, event, or conditional automations whose future cycle cannot be reduced to fixed on and off times;
+- a planned-versus-actual light view that shows the source, last evaluation time, and any gap inferred from switch or power history;
+- visible light exceptions when the planned switch event and the measured switch or power history disagree, with a direct path to record the incident in the Journal;
+- Run-window energy consumption and optional cost derived from Recorder statistics rather than copied counter readings;
+- small factual summaries such as minimum, maximum, trend, missing data, and time outside a configured target range. Every derived value names its source and window.
 
 Gate:
 
@@ -122,6 +136,9 @@ Gate:
 - A Plant Sensor reassignment shows the correct entity for each historical period.
 - A completed Run retains its long-term view after raw Recorder data expires.
 - Unit mismatches fail visibly and never present power as accumulated energy.
+- Selecting the Growzelt SmartPlug discovers the enabled 14:00 off and 20:00 on automations, ignores the disabled 16:00 rule, and displays the resulting 18/6 plan without storing those times as installation-specific defaults.
+- Changing or disabling a linked automation updates the displayed plan and preserves the earlier Lighting Source period for historical Runs.
+- A rule that PlantRun cannot resolve shows its actual Home Assistant source and never invents a fixed light cycle.
 
 ## Phase 4: finish and revisit a cycle
 
@@ -134,6 +151,7 @@ Scope:
 - post-harvest Journal Entries without extending the cultivation sensor window;
 - browsable and editable completed Runs;
 - archive filtering and a useful completed-Run summary;
+- an exportable Run report containing identity, Stages, Journal Entries, selected photos, harvest facts, and sourced environmental summaries;
 - full retention of Stages, Journal Entries, Sensor Bindings, images, sourced Strain data, and harvest details after archival;
 - a separate danger area for Permanent Deletion that explains the lost PlantRun data, requires the exact Run name, and has no in-app undo;
 - replacement Lovelace card using native Home Assistant styling.
@@ -143,6 +161,7 @@ Gate:
 - Complete a real or rehearsed Run and reopen it after a Home Assistant restart.
 - Verify the Recorder window ends at harvest while later Journal Entries remain visible.
 - Correct a completed Run and confirm the updated values everywhere they are shown.
+- Export a completed Run and verify that the report remains readable without access to the PlantRun frontend.
 
 ## Phase 5: HACS baseline release
 
@@ -169,12 +188,23 @@ These features stay outside the first HACS baseline unless real use proves one i
 - automation-originated Journal Entries and cultivation events;
 - Run comparison;
 - global all-Breeder Strain search and richer provider adapters;
-- camera snapshots;
+- optional Home Assistant camera-entity linkage at Tent level;
+- manual camera snapshots as Journal Attachments, with the same caption, cover, retention, and deletion rules as uploaded photos;
+- live camera preview and opt-in time-lapse generation only after fixture-based tests and a real-camera validation are possible. PlantRun does not copy or delete an external camera stream or recording;
 - voice, Assist, NFC, and physical-button capture;
 - optional sound and deeper appearance customization.
 
 ## Execution order
 
-Phase 0 is complete. The first live Phase 1 data and persistence gates pass on Home Assistant. The next work should come from actual use of the current cycle: finish the remaining Journal interaction checks, add custom Stage editing, and build the richer harvest and completed-Run correction flow before expanding into reminders, comparison, or appearance settings.
+Phase 0 is complete. The first live Phase 1 data and persistence gates pass on Home Assistant. The next release should follow the owner's real daily loop:
+
+1. finish the remaining Journal interaction checks and make multi-Plant targeting unambiguous;
+2. add Journal photo attachments and Plant Cover selection;
+3. run one harmless end-to-end creation rehearsal with the live SeedFinder search, then remove the rehearsal Run through the confirmed Permanent Deletion flow;
+4. add custom Stage editing;
+5. introduce Lighting Source discovery and the planned-versus-actual light view;
+6. build the richer harvest and completed-Run correction flow.
+
+Camera linkage follows the same attachment model after photo storage is proven. Reminders, comparison, live video, and appearance settings stay behind the daily capture and environmental-context work.
 
 No phase is complete because its files exist or its tests pass. A phase ends only after the listed Home Assistant live gate passes with the current cultivation data.

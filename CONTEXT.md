@@ -40,6 +40,14 @@ The organization associated with producing or distributing a strain.
 A dated account of an action, observation, measurement, lifecycle change, or plan. It belongs to a tent and may link to one or more runs; free text is primary and structured details are optional.
 _Avoid_: Note
 
+**Journal Attachment**:
+A photo or camera snapshot kept with one Journal Entry. It retains its capture time and source and may also be chosen as a Plant Cover.
+_Avoid_: Breeder image, camera stream
+
+**Plant Cover**:
+The image chosen to represent one Plant and Run. It may use a Journal Attachment or a sourced Strain image without changing or erasing either source.
+_Avoid_: Latest image, Breeder image
+
 **Sensor Binding**:
 A dated association between a Home Assistant entity and either one run or its tent. Reassigning a sensor does not change which run owned earlier readings.
 
@@ -49,6 +57,10 @@ _Avoid_: Plant sensor
 
 **Plant Sensor**:
 A sensor assigned to one run because it measures that individual plant or its growing medium, such as soil moisture or conductivity.
+
+**Lighting Source**:
+A dated association between a Tent and the Home Assistant entities that plan, switch, or measure its grow light. Planned times, actual switch state, current power, and accumulated energy remain distinct facts.
+_Avoid_: Light schedule text, Plant light
 
 **Harvest Window**:
 An editable date range estimating when one run may reach harvest. It derives from the planting date and a sourced strain-duration range without replacing either value.
