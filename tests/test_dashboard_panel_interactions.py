@@ -15,6 +15,17 @@ class DashboardPanelInteractionRegressionTests(unittest.TestCase):
             'this.shadowRoot.addEventListener("keydown", this._boundKeydown);',
         ])
 
+    def test_logo_version_peek_uses_context_menu_and_ends_on_pointer_exit(self):
+        assert_has_snippets(self, self.source, [
+            'this.shadowRoot.addEventListener("contextmenu", this._boundContextMenu);',
+            'this.shadowRoot.addEventListener("pointerout", this._boundPointerOut);',
+            "event.preventDefault();",
+            'brand.classList.add("version-peek");',
+            'brand.classList.remove("version-peek");',
+            'const [moduleVersion, ...buildParts] = MODULE_CACHE_KEY.split("-");',
+            'class="rail-brand ${this._versionPeek ? "version-peek" : ""}"',
+        ])
+
     def test_command_busy_state_and_mutation_errors_stay_recoverable(self):
         assert_has_snippets(self, self.source, [
             "this._busy = true;",

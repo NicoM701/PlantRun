@@ -70,6 +70,11 @@ export const panelStyles = `
   .rail-brand { display:grid; justify-items:center; gap:8px; padding:4px 0 30px; font-size:12px; font-weight:750; letter-spacing:.02em; }
   .brand-leaf { width:44px; height:44px; display:grid; place-items:center; border-radius:16px; background:var(--accent); color:var(--accent-ink); }
   .brand-leaf ha-icon { --mdc-icon-size:25px; }
+  .brand-version { display:none; min-height:44px; min-width:92px; align-content:center; gap:3px; text-align:center; color:var(--accent-strong); }
+  .brand-version b { font-size:13px; letter-spacing:.03em; }
+  .brand-version small { color:var(--muted); font-size:8px; letter-spacing:.08em; text-transform:uppercase; }
+  .rail-brand.version-peek .brand-leaf,.rail-brand.version-peek .brand-name { display:none; }
+  .rail-brand.version-peek .brand-version { display:grid; }
   .desktop-rail nav { display:grid; gap:8px; }
   .nav-button { min-height:70px; padding:10px 5px; border-radius:16px; color:var(--muted); display:grid; place-items:center; gap:5px; font-size:11px; }
   .nav-button ha-icon { --mdc-icon-size:23px; }

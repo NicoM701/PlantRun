@@ -40,6 +40,13 @@ class DashboardJsContractsTests(unittest.TestCase):
         self.assertNotIn("Tangerine Dream Auto", source)
         self.assertNotIn("Diesel Auto", source)
 
+    def test_logo_contains_the_development_version_peek(self):
+        source = PANEL_ENTRY_JS.read_text(encoding="utf-8")
+        views = PANEL_VIEWS_JS.read_text(encoding="utf-8")
+        self.assertIn('new URL(import.meta.url).searchParams.get("v")', source)
+        self.assertIn('class="brand-version"', views)
+        self.assertIn('class="rail-brand ${this._versionPeek ? "version-peek" : ""}"', views)
+
     def test_state_normalizer_supports_first_class_and_embedded_records(self):
         source = PANEL_DOMAIN_JS.read_text(encoding="utf-8")
         self.assertIn("export function normalizeState(payload)", source)

@@ -43,6 +43,7 @@ The rebuilt sidebar currently provides:
 - direct, timestamped Stage changes without forced transition rules
 - chronological Journal capture, filtering, editing, deletion, and attached sensor context
 - Journal-Fotos mit optionaler Bildunterschrift, sichtbarer Quelle und Auswahl als Pflanzenbild
+- Entwicklungshelfer: Rechtsklick auf das PlantRun-Logo zeigt Version und Frontend-Build bis zum Verlassen des Logos
 - dated Tent or Plant sensor assignment with reassignment history
 - completion into a durable Archive
 - separate Permanent Deletion with an exact-name warning gate

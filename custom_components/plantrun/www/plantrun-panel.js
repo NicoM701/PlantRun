@@ -21,6 +21,7 @@ import { createPanelViewMethods } from "./plantrun-panel-views.js?v=0.7.0";
 (() => {
   const TAG = "plantrun-dashboard-panel";
   const THEME_KEY = "plantrun.theme.v3";
+  const MODULE_CACHE_KEY = new URL(import.meta.url).searchParams.get("v") || "";
   customElements.get("ha-panel-lovelace");
   if (customElements.get(TAG)) return;
 
@@ -55,6 +56,7 @@ import { createPanelViewMethods } from "./plantrun-panel-views.js?v=0.7.0";
       this._journalEditorOpen = false;
       this._journalDraft = this._blankJournalDraft();
       this._journalFileBusy = false;
+      this._versionPeek = false;
       this._journalPlantFilter = "";
       this._journalTypeFilter = "";
       this._stageDraft = null;
@@ -68,6 +70,8 @@ import { createPanelViewMethods } from "./plantrun-panel-views.js?v=0.7.0";
       this._boundInput = (event) => this._handleInput(event);
       this._boundChange = (event) => this._handleChange(event);
       this._boundKeydown = (event) => this._handleKeydown(event);
+      this._boundContextMenu = (event) => this._handleContextMenu(event);
+      this._boundPointerOut = (event) => this._handlePointerOut(event);
     }
 
     set hass(value) {
@@ -86,6 +90,8 @@ import { createPanelViewMethods } from "./plantrun-panel-views.js?v=0.7.0";
       this.shadowRoot.addEventListener("input", this._boundInput);
       this.shadowRoot.addEventListener("change", this._boundChange);
       this.shadowRoot.addEventListener("keydown", this._boundKeydown);
+      this.shadowRoot.addEventListener("contextmenu", this._boundContextMenu);
+      this.shadowRoot.addEventListener("pointerout", this._boundPointerOut);
       this.render();
     }
 
@@ -94,6 +100,8 @@ import { createPanelViewMethods } from "./plantrun-panel-views.js?v=0.7.0";
       this.shadowRoot.removeEventListener("input", this._boundInput);
       this.shadowRoot.removeEventListener("change", this._boundChange);
       this.shadowRoot.removeEventListener("keydown", this._boundKeydown);
+      this.shadowRoot.removeEventListener("contextmenu", this._boundContextMenu);
+      this.shadowRoot.removeEventListener("pointerout", this._boundPointerOut);
       window.clearTimeout(this._searchTimer);
     }
 
@@ -129,6 +137,49 @@ import { createPanelViewMethods } from "./plantrun-panel-views.js?v=0.7.0";
 
     _selectedRun() {
       return this._state.runs.find((run) => String(run.id) === String(this._selectedRunId)) || null;
+    }
+
+    _brandFromEvent(event) {
+      return event.composedPath?.().find((node) => node?.classList?.contains("rail-brand")) || null;
+    }
+
+    _versionInfo() {
+      const [moduleVersion, ...buildParts] = MODULE_CACHE_KEY.split("-");
+      return {
+        version: String(this._state?.version || moduleVersion || "dev"),
+        build: buildParts.join("-"),
+      };
+    }
+
+    _versionLabel() {
+      return `v${this._versionInfo().version}`;
+    }
+
+    _versionBuildLabel() {
+      const build = this._versionInfo().build;
+      return build ? `Build ${build.slice(0, 8)}` : "Entwicklungsstand";
+    }
+
+    _handleContextMenu(event) {
+      const brand = this._brandFromEvent(event);
+      if (!brand) return;
+      event.preventDefault();
+      this._versionPeek = true;
+      brand.classList.add("version-peek");
+      brand.setAttribute("aria-label", `PlantRun ${this._versionLabel()}`);
+      brand.querySelector(".brand-version")?.setAttribute("aria-hidden", "false");
+    }
+
+    _handlePointerOut(event) {
+      if (!this._versionPeek) return;
+      const brand = this._brandFromEvent(event);
+      if (!brand) return;
+      const relatedTarget = event.relatedTarget;
+      if (relatedTarget && brand.contains?.(relatedTarget)) return;
+      this._versionPeek = false;
+      brand.classList.remove("version-peek");
+      brand.setAttribute("aria-label", "PlantRun Startseite");
+      brand.querySelector(".brand-version")?.setAttribute("aria-hidden", "true");
     }
 
     _runName(run) {

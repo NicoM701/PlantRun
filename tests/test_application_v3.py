@@ -1,5 +1,6 @@
 import asyncio
 import importlib.util
+import json
 import sys
 import types
 import unittest
@@ -88,6 +89,10 @@ class TestPlantRunApplication(unittest.TestCase):
 
         self.assertEqual(len(storage.commits), 1)
         self.assertEqual(state["schema_version"], 3)
+        manifest_version = json.loads(
+            (PLANTRUN_DIR / "manifest.json").read_text(encoding="utf-8")
+        )["version"]
+        self.assertEqual(state["version"], manifest_version)
         self.assertEqual(state["tents"][0]["name"], "Growzelt")
         self.assertEqual(state["plants"][0]["name"], "Diesel Auto")
         self.assertEqual(state["plants"][0]["container"], "7 L final container")

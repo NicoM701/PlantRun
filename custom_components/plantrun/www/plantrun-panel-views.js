@@ -61,8 +61,8 @@ export function createPanelViewMethods() {
       const active = this._state.runs.filter((run) => !isArchived(run));
       return `<div class="app theme-${e(this._theme)}">
         <aside class="desktop-rail" aria-label="PlantRun Navigation">
-          <button class="rail-brand" data-action="navigate" data-screen="overview" type="button" aria-label="PlantRun Startseite">
-            <span class="brand-leaf"><ha-icon icon="mdi:sprout"></ha-icon></span><span>PlantRun</span>
+          <button class="rail-brand ${this._versionPeek ? "version-peek" : ""}" data-action="navigate" data-screen="overview" type="button" aria-label="${e(this._versionPeek ? `PlantRun ${this._versionLabel()}` : "PlantRun Startseite")}">
+            <span class="brand-leaf"><ha-icon icon="mdi:sprout"></ha-icon></span><span class="brand-name">PlantRun</span><span class="brand-version" aria-hidden="${this._versionPeek ? "false" : "true"}"><b>${e(this._versionLabel())}</b><small>${e(this._versionBuildLabel())}</small></span>
           </button>
           <nav>
             ${this._navButton("overview", "mdi:greenhouse", tentName)}

@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Mapping, Protocol
 
 from .domain import (
@@ -18,6 +20,9 @@ from .domain import (
 
 
 SCHEMA_VERSION = 3
+_MANIFEST_VERSION = json.loads(
+    (Path(__file__).parent / "manifest.json").read_text(encoding="utf-8")
+)["version"]
 DEFAULT_STAGE_PLAN = (
     "Germination",
     "Seedling",
@@ -95,6 +100,7 @@ class PlantRunApplication:
         tents = state.get("tents", [])
         return {
             "schema_version": SCHEMA_VERSION,
+            "version": _MANIFEST_VERSION,
             **state,
             "active_tent_id": tents[0]["id"] if tents else None,
         }
