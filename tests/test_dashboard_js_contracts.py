@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 import unittest
 
@@ -34,8 +35,11 @@ class DashboardJsContractsTests(unittest.TestCase):
 
     def test_panel_uses_production_modules_and_no_prototype_fixtures(self):
         source = PANEL_ENTRY_JS.read_text(encoding="utf-8")
+        manifest_version = json.loads(
+            (ROOT / "custom_components" / "plantrun" / "manifest.json").read_text(encoding="utf-8")
+        )["version"]
         for module in ("api", "dialogs", "domain", "styles", "views"):
-            self.assertIn(f'from "./plantrun-panel-{module}.js?v=0.7.0"', source)
+            self.assertIn(f'from "./plantrun-panel-{module}.js?v={manifest_version}"', source)
         self.assertNotIn('from "./prototype/', source.lower())
         self.assertNotIn("Tangerine Dream Auto", source)
         self.assertNotIn("Diesel Auto", source)

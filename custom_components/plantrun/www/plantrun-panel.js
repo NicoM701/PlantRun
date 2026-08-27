@@ -1,5 +1,5 @@
-import { PlantRunApi } from "./plantrun-panel-api.js?v=0.7.0";
-import { createPanelDialogMethods } from "./plantrun-panel-dialogs.js?v=0.7.0";
+import { PlantRunApi } from "./plantrun-panel-api.js?v=0.8.0";
+import { createPanelDialogMethods } from "./plantrun-panel-dialogs.js?v=0.8.0";
 import {
   bindingForMetric,
   bindingsFor,
@@ -14,9 +14,9 @@ import {
   runStart,
   stagePlan,
   toIso,
-} from "./plantrun-panel-domain.js?v=0.7.0";
-import { panelStyles } from "./plantrun-panel-styles.js?v=0.7.0";
-import { createPanelViewMethods } from "./plantrun-panel-views.js?v=0.7.0";
+} from "./plantrun-panel-domain.js?v=0.8.0";
+import { panelStyles } from "./plantrun-panel-styles.js?v=0.8.0";
+import { createPanelViewMethods } from "./plantrun-panel-views.js?v=0.8.0";
 
 (() => {
   const TAG = "plantrun-dashboard-panel";

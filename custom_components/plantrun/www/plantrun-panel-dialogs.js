@@ -7,7 +7,7 @@ import {
   escapeHtml,
   plantName,
   runName,
-} from "./plantrun-panel-domain.js?v=0.7.0";
+} from "./plantrun-panel-domain.js?v=0.8.0";
 
 const e = escapeHtml;
 
