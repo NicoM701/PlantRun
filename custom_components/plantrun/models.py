@@ -25,6 +25,7 @@ class Note:
     text: str
     timestamp: str
     id: str = field(default_factory=default_id)
+    attachments: list[dict[str, Any]] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

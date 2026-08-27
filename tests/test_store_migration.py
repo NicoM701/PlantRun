@@ -233,6 +233,42 @@ class TestStoreMigration(unittest.TestCase):
         self.assertEqual(state["runs"][0]["current_stage"], "Seedling")
         self.assertEqual(state["journal_entries"][0]["text"], "First leaves visible.")
 
+    def test_legacy_projection_round_trip_updates_attachment_metadata(self) -> None:
+        import asyncio
+
+        models = sys.modules["custom_components.plantrun.models"]
+        storage = PlantRunStorage(object())
+        run = models.RunData(
+            friendly_name="Photo Run",
+            start_time="2026-08-25T16:00:00+02:00",
+            planted_date="2026-08-25T16:00:00+02:00",
+            phases=[models.Phase(name="Germination", start_time="2026-08-25T16:00:00+02:00")],
+            notes=[
+                models.Note(
+                    text="Seed photographed.",
+                    timestamp="2026-08-25T16:10:00+02:00",
+                    attachments=[
+                        {
+                            "id": "photo-1",
+                            "url": "/local/plantrun_uploads/photo.jpg",
+                            "captured_at": "2026-08-25T16:10:00+02:00",
+                            "caption": "Original caption",
+                            "owned_by_plantrun": True,
+                        }
+                    ],
+                )
+            ],
+        )
+        asyncio.run(storage.async_add_run(run))
+
+        projected = storage.get_run(run.id)
+        assert projected is not None
+        projected.notes[0].attachments[0]["caption"] = "Updated caption"
+        asyncio.run(storage.async_update_run(projected))
+
+        attachment = storage.public_state()["journal_entries"][0]["attachments"][0]
+        self.assertEqual(attachment["caption"], "Updated caption")
+
     def test_domain_commit_preserves_an_explicit_active_run_selection(self) -> None:
         import asyncio
         from datetime import datetime, timezone

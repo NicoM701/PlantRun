@@ -54,6 +54,7 @@ import { createPanelViewMethods } from "./plantrun-panel-views.js?v=0.7.0";
       this._searchTimer = 0;
       this._journalEditorOpen = false;
       this._journalDraft = this._blankJournalDraft();
+      this._journalFileBusy = false;
       this._journalPlantFilter = "";
       this._journalTypeFilter = "";
       this._stageDraft = null;
@@ -115,7 +116,7 @@ import { createPanelViewMethods } from "./plantrun-panel-views.js?v=0.7.0";
     }
 
     _blankJournalDraft(runId = "") {
-      return { entry_id: "", run_id: runId, entry_type: "free_text", text: "", occurred_at: dateTimeLocal(), details: {}, sensor_snapshot: {} };
+      return { entry_id: "", run_id: runId, entry_type: "free_text", text: "", occurred_at: dateTimeLocal(), details: {}, sensor_snapshot: {}, attachments: [] };
     }
 
     _blankBindingDraft(runId = "") {
@@ -272,6 +273,7 @@ import { createPanelViewMethods } from "./plantrun-panel-views.js?v=0.7.0";
         occurred_at: dateTimeLocal(entry.occurred_at || entry.created_at),
         details: entry.details || {},
         sensor_snapshot: entry.sensor_snapshot || {},
+        attachments: Array.isArray(entry.attachments) ? entry.attachments.map((attachment) => ({ ...attachment })) : [],
       } : this._blankJournalDraft(fallbackRunId);
       this._journalEditorOpen = true;
       this.render();
@@ -350,6 +352,16 @@ import { createPanelViewMethods } from "./plantrun-panel-views.js?v=0.7.0";
       } else if (name === "set-journal-type") {
         this._journalDraft.entry_type = action.dataset.entryType;
         this.render();
+      } else if (name === "remove-journal-attachment") {
+        const index = Number(action.dataset.index);
+        if (Number.isInteger(index) && index >= 0) {
+          this._journalDraft.attachments.splice(index, 1);
+          this.render();
+        }
+      } else if (name === "set-plant-cover") {
+        this._setPlantCover(action.dataset.runId, action.dataset.attachmentId);
+      } else if (name === "clear-plant-cover") {
+        this._setPlantCover(action.dataset.runId, null);
       } else if (name === "save-journal-entry") {
         this._saveJournalEntry();
       } else if (name === "edit-journal-entry") {
@@ -406,6 +418,9 @@ import { createPanelViewMethods } from "./plantrun-panel-views.js?v=0.7.0";
         this._createDraft.duration[target.dataset.createDuration] = target.value;
       } else if (target.dataset.journalField) {
         this._journalDraft[target.dataset.journalField] = target.value;
+      } else if (target.dataset.journalAttachmentCaption !== undefined) {
+        const index = Number(target.dataset.journalAttachmentCaption);
+        if (this._journalDraft.attachments[index]) this._journalDraft.attachments[index].caption = target.value;
       } else if (target.matches("[data-stage-occurred-at]")) {
         this._stageDraft.occurred_at = target.value;
       } else if (target.matches("[data-delete-confirmation]")) {
@@ -447,6 +462,10 @@ import { createPanelViewMethods } from "./plantrun-panel-views.js?v=0.7.0";
       } else if (target.dataset.journalFilter === "type") {
         this._journalTypeFilter = target.value;
         this.render();
+      } else if (target.matches("[data-journal-files]")) {
+        const files = Array.from(target.files || []);
+        target.value = "";
+        this._handleJournalFiles(files);
       }
     }
 
@@ -573,6 +592,7 @@ import { createPanelViewMethods } from "./plantrun-panel-views.js?v=0.7.0";
     }
 
     async _saveJournalEntry() {
+      if (this._journalFileBusy) return;
       const draft = this._journalDraft;
       if (!draft.run_id || !draft.text.trim()) {
         this._dialogError = "Wähle eine Pflanze und beschreibe kurz, was passiert ist.";
@@ -590,11 +610,97 @@ import { createPanelViewMethods } from "./plantrun-panel-views.js?v=0.7.0";
         occurred_at: toIso(draft.occurred_at),
         details: draft.details || {},
         sensor_snapshot: draft.entry_id ? draft.sensor_snapshot : this._sensorSnapshot(run),
+        attachments: (draft.attachments || []).map(({ preview, data, ...attachment }) => ({
+          ...attachment,
+          ...(data ? { data } : {}),
+        })),
       }, draft.entry_id ? "Eintrag aktualisiert" : "Eintrag gespeichert");
       if (!response) return;
       this._journalEditorOpen = false;
       this._screen = "journal";
       this.render();
+    }
+
+    async _handleJournalFiles(files) {
+      if (!files.length || this._journalFileBusy) return;
+      this._journalFileBusy = true;
+      this._dialogError = "";
+      this.render();
+      try {
+        for (const file of files) {
+          if (!String(file.type || "").startsWith("image/")) {
+            throw new Error("Bitte nur Bilddateien auswählen.");
+          }
+          const image = await this._readJournalFile(file);
+          this._journalDraft.attachments.push({
+            ...image,
+            captured_at: toIso(this._journalDraft.occurred_at),
+            kind: "photo",
+            source: "upload",
+            caption: "",
+          });
+        }
+      } catch (error) {
+        this._dialogError = error?.message || "Das Foto konnte nicht vorbereitet werden.";
+      } finally {
+        this._journalFileBusy = false;
+        this.render();
+      }
+    }
+
+    async _readJournalFile(file) {
+      const source = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ""));
+        reader.onerror = () => reject(new Error("Das Foto konnte nicht gelesen werden."));
+        reader.readAsDataURL(file);
+      });
+      const image = await new Promise((resolve, reject) => {
+        const element = new Image();
+        element.onload = () => resolve(element);
+        element.onerror = () => reject(new Error("Das Foto ist kein lesbares Bild."));
+        element.src = source;
+      });
+      const maxEdge = 1800;
+      const scale = Math.min(1, maxEdge / image.naturalWidth, maxEdge / image.naturalHeight);
+      const width = Math.max(1, Math.round(image.naturalWidth * scale));
+      const height = Math.max(1, Math.round(image.naturalHeight * scale));
+      const canvas = document.createElement("canvas");
+      const context = canvas.getContext("2d");
+      if (!context) throw new Error("Das Foto kann im Browser nicht verarbeitet werden.");
+      let currentWidth = width;
+      let currentHeight = height;
+      let quality = 0.84;
+      for (let attempt = 0; attempt < 4; attempt += 1) {
+        canvas.width = currentWidth;
+        canvas.height = currentHeight;
+        context.drawImage(image, 0, 0, currentWidth, currentHeight);
+        const blob = await new Promise((resolve, reject) => {
+          canvas.toBlob((value) => value ? resolve(value) : reject(new Error("Das Foto konnte nicht komprimiert werden.")), "image/jpeg", quality);
+        });
+        if (blob.size <= 2_400_000 || attempt === 3) {
+          if (blob.size > 2_400_000) throw new Error("Das Foto ist zu groß. Bitte ein kleineres Bild wählen.");
+          const compressed = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(String(reader.result || ""));
+            reader.onerror = () => reject(new Error("Das Foto konnte nicht vorbereitet werden."));
+            reader.readAsDataURL(blob);
+          });
+          const originalName = String(file.name || "photo").replace(/\.[^.]+$/, "").replace(/[^a-z0-9._-]+/gi, "_");
+          return { data: compressed, preview: compressed, file_name: `${originalName || "photo"}.jpg` };
+        }
+        currentWidth = Math.max(640, Math.round(currentWidth * 0.8));
+        currentHeight = Math.max(640, Math.round(currentHeight * 0.8));
+        quality = Math.max(0.58, quality - 0.08);
+      }
+      throw new Error("Das Foto konnte nicht vorbereitet werden.");
+    }
+
+    async _setPlantCover(runId, attachmentId = null) {
+      await this._command("set_plant_cover", {
+        run_id: runId,
+        attachment_id: attachmentId,
+      }, "Pflanzenbild aktualisiert");
     }
 
     _sensorSnapshot(run) {

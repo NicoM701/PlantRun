@@ -17,6 +17,7 @@ DOMAIN = module_from_spec(SPEC)
 SPEC.loader.exec_module(DOMAIN)
 
 BindingDraft = DOMAIN.BindingDraft
+JournalAttachmentDraft = DOMAIN.JournalAttachmentDraft
 JournalDraft = DOMAIN.JournalDraft
 PlantRunDomain = DOMAIN.PlantRunDomain
 RunDraft = DOMAIN.RunDraft
@@ -236,6 +237,199 @@ class TestJournal(unittest.TestCase):
         self.assertEqual(replacement.details, {"follow_up": "tomorrow"})
         self.assertEqual(domain.delete_journal_entry(entry.id), replacement)
         self.assertEqual(domain.snapshot().journal_entries, ())
+
+    def test_photo_attachment_can_be_selected_as_cover_and_round_tripped(self) -> None:
+        domain = make_domain()
+        run = create_minimal_run(domain)
+        attachment = JournalAttachmentDraft(
+            id="photo-1",
+            url="/local/plantrun_uploads/journal_photo-1.jpg",
+            captured_at=PLANTED_AT,
+            caption="Keimling im Endtopf",
+            owned_by_plantrun=True,
+            file_name="keimling.jpg",
+        )
+
+        entry = domain.add_journal_entry(
+            JournalDraft(
+                tent_id=run.tent_id,
+                run_ids=(run.id,),
+                text="Direkt ausgesät.",
+                occurred_at=PLANTED_AT,
+                attachments=(attachment,),
+            )
+        )
+        domain.set_plant_cover(run.id, entry.attachments[0].id)
+
+        restored = PlantRunDomain.from_state(
+            json.loads(json.dumps(domain.export_state())),
+            clock=lambda: NOW,
+            id_factory=PrefixIds(),
+        )
+        plant = restored.snapshot().plants[0]
+        restored_attachment = restored.snapshot().journal_entries[0].attachments[0]
+        self.assertEqual(plant.cover_attachment_id, "photo-1")
+        self.assertEqual(restored_attachment.caption, "Keimling im Endtopf")
+        self.assertTrue(restored_attachment.owned_by_plantrun)
+
+    def test_removing_or_deleting_cover_attachment_clears_cover(self) -> None:
+        domain = make_domain()
+        run = create_minimal_run(domain)
+        entry = domain.add_journal_entry(
+            JournalDraft(
+                tent_id=run.tent_id,
+                run_ids=(run.id,),
+                text="Photo attached.",
+                occurred_at=PLANTED_AT,
+                attachments=(
+                    JournalAttachmentDraft(
+                        id="photo-1",
+                        url="/local/plantrun_uploads/photo.jpg",
+                        captured_at=PLANTED_AT,
+                        owned_by_plantrun=True,
+                    ),
+                ),
+            )
+        )
+        domain.set_plant_cover(run.id, "photo-1")
+        domain.edit_journal_entry(
+            entry.id,
+            JournalDraft(
+                tent_id=run.tent_id,
+                run_ids=(run.id,),
+                text=entry.text,
+                occurred_at=entry.occurred_at,
+                attachments=(),
+            ),
+        )
+        self.assertIsNone(domain.snapshot().plants[0].cover_attachment_id)
+
+        replacement = domain.add_journal_entry(
+            JournalDraft(
+                tent_id=run.tent_id,
+                run_ids=(run.id,),
+                text="Another photo.",
+                occurred_at=PLANTED_AT,
+                attachments=(
+                    JournalAttachmentDraft(
+                        id="photo-2",
+                        url="/local/plantrun_uploads/photo-2.jpg",
+                        captured_at=PLANTED_AT,
+                        owned_by_plantrun=True,
+                    ),
+                ),
+            )
+        )
+        domain.set_plant_cover(run.id, replacement.attachments[0].id)
+        domain.delete_journal_entry(replacement.id)
+        self.assertIsNone(domain.snapshot().plants[0].cover_attachment_id)
+
+    def test_relinking_a_cover_entry_clears_the_old_plants_cover(self) -> None:
+        domain = make_domain()
+        first = create_minimal_run(domain)
+        second = create_minimal_run(domain, "Tangerine Dream Auto Zamnesia")
+        entry = domain.add_journal_entry(
+            JournalDraft(
+                tent_id=first.tent_id,
+                run_ids=(first.id,),
+                text="Shared photo.",
+                occurred_at=PLANTED_AT,
+                attachments=(
+                    JournalAttachmentDraft(
+                        id="photo-1",
+                        url="/local/plantrun_uploads/photo.jpg",
+                        captured_at=PLANTED_AT,
+                        owned_by_plantrun=True,
+                    ),
+                ),
+            )
+        )
+        domain.set_plant_cover(first.id, "photo-1")
+        domain.edit_journal_entry(
+            entry.id,
+            JournalDraft(
+                tent_id=second.tent_id,
+                run_ids=(second.id,),
+                text=entry.text,
+                occurred_at=entry.occurred_at,
+                attachments=entry.attachments,
+            ),
+        )
+        self.assertIsNone(domain.snapshot().plants[0].cover_attachment_id)
+
+    def test_editing_attachment_metadata_preserves_attachment_creation_time(self) -> None:
+        moments = iter((NOW, NOW, NOW + timedelta(hours=1)))
+        domain = PlantRunDomain(clock=lambda: next(moments), id_factory=PrefixIds())
+        run = create_minimal_run(domain)
+        entry = domain.add_journal_entry(
+            JournalDraft(
+                tent_id=run.tent_id,
+                run_ids=(run.id,),
+                text="Photo.",
+                occurred_at=PLANTED_AT,
+                attachments=(
+                    JournalAttachmentDraft(
+                        id="photo-1",
+                        url="/local/plantrun_uploads/photo.jpg",
+                        captured_at=PLANTED_AT,
+                        owned_by_plantrun=True,
+                        caption="Before",
+                    ),
+                ),
+            )
+        )
+        edited = domain.edit_journal_entry(
+            entry.id,
+            JournalDraft(
+                tent_id=run.tent_id,
+                run_ids=(run.id,),
+                text=entry.text,
+                occurred_at=entry.occurred_at,
+                attachments=(
+                    JournalAttachmentDraft(
+                        id="photo-1",
+                        url=entry.attachments[0].url,
+                        captured_at=entry.attachments[0].captured_at,
+                        owned_by_plantrun=True,
+                        caption="After",
+                    ),
+                ),
+            ),
+        )
+        self.assertEqual(edited.attachments[0].created_at, entry.attachments[0].created_at)
+        self.assertEqual(edited.attachments[0].caption, "After")
+
+    def test_attachment_invariants_reject_foreign_cover_and_duplicate_ids(self) -> None:
+        domain = make_domain()
+        first = create_minimal_run(domain)
+        second = create_minimal_run(domain, "Tangerine Dream Auto Zamnesia")
+        photo = JournalAttachmentDraft(
+            id="photo-1",
+            url="/local/plantrun_uploads/photo.jpg",
+            captured_at=PLANTED_AT,
+            owned_by_plantrun=True,
+        )
+        domain.add_journal_entry(
+            JournalDraft(
+                tent_id=first.tent_id,
+                run_ids=(first.id,),
+                text="Photo.",
+                occurred_at=PLANTED_AT,
+                attachments=(photo,),
+            )
+        )
+        with self.assertRaisesRegex(DOMAIN.NotFoundError, "not found"):
+            domain.set_plant_cover(second.id, "photo-1")
+        with self.assertRaisesRegex(DOMAIN.ValidationError, "duplicate"):
+            domain.add_journal_entry(
+                JournalDraft(
+                    tent_id=first.tent_id,
+                    run_ids=(first.id,),
+                    text="Duplicate.",
+                    occurred_at=PLANTED_AT,
+                    attachments=(photo,),
+                )
+            )
 
 
 class TestStages(unittest.TestCase):
@@ -549,6 +743,18 @@ class TestPersistence(unittest.TestCase):
         self.assertEqual(restored.snapshot().plants[0].container, "7 L final container")
         self.assertEqual(restored.snapshot().plants[0].substrate, "All-Mix soil")
         self.assertEqual(restored.snapshot().tents[0].light_schedule, "20:00 to 14:00, 18/6")
+
+    def test_old_v3_state_without_media_fields_still_loads(self) -> None:
+        domain = make_domain()
+        create_minimal_run(domain)
+        legacy = json.loads(json.dumps(domain.export_state()))
+        for plant in legacy["plants"]:
+            plant.pop("cover_attachment_id", None)
+        for entry in legacy["journal_entries"]:
+            entry.pop("attachments", None)
+
+        restored = PlantRunDomain.from_state(legacy, clock=lambda: NOW, id_factory=PrefixIds())
+        self.assertEqual(restored.snapshot(), domain.snapshot())
 
 
 if __name__ == "__main__":

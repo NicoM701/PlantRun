@@ -1,12 +1,14 @@
 """The PlantRun integration."""
 import base64
 import binascii
+import copy
 import logging
 import re
 from datetime import datetime, timezone
 from functools import partial
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 import voluptuous as vol
 
@@ -93,6 +95,160 @@ def _write_uploaded_image(output_dir: Path, output_name: str, raw: bytes) -> Non
     (output_dir / output_name).write_bytes(raw)
 
 
+# Keep the raw file below Home Assistant's default ~4 MiB websocket frame
+# limit after Base64 and command JSON overhead are added.
+JOURNAL_ATTACHMENT_MAX_BYTES = 2_500_000
+JOURNAL_ATTACHMENT_MAX_TOTAL_BYTES = 2_500_000
+_JOURNAL_IMAGE_SIGNATURES: tuple[tuple[bytes, str, str], ...] = (
+    (b"\xff\xd8\xff", "image/jpeg", ".jpg"),
+    (b"\x89PNG\r\n\x1a\n", "image/png", ".png"),
+)
+
+
+def _decode_journal_image(data: str) -> tuple[bytes, str, str]:
+    """Decode one data URL and identify its image type from the file bytes."""
+    payload = data
+    declared_type = ""
+    if payload.startswith("data:"):
+        header, separator, payload = payload.partition(",")
+        if not separator or ";base64" not in header:
+            raise CommandError("Journalfoto muss als Base64-Daten vorliegen.")
+        declared_type = header[5:].split(";", 1)[0].lower()
+    if not payload or len(payload) > (JOURNAL_ATTACHMENT_MAX_BYTES * 4 // 3 + 4096):
+        raise CommandError("Journalfoto ist zu groß. Das Limit beträgt 2,5 MB.")
+    try:
+        raw = base64.b64decode(payload, validate=True)
+    except (binascii.Error, ValueError) as err:
+        raise CommandError("Journalfoto enthält keine gültigen Bilddaten.") from err
+    if len(raw) > JOURNAL_ATTACHMENT_MAX_BYTES:
+        raise CommandError("Journalfoto ist zu groß. Das Limit beträgt 2,5 MB.")
+
+    for signature, media_type, suffix in _JOURNAL_IMAGE_SIGNATURES:
+        if raw.startswith(signature):
+            if declared_type and declared_type not in (media_type, "image/jpg"):
+                raise CommandError("Der deklarierte Bildtyp passt nicht zur Datei.")
+            return raw, media_type, suffix
+    if raw.startswith(b"RIFF") and raw[8:12] == b"WEBP":
+        if declared_type and declared_type != "image/webp":
+            raise CommandError("Der deklarierte Bildtyp passt nicht zur Datei.")
+        return raw, "image/webp", ".webp"
+    raise CommandError("Journalfoto muss JPEG, PNG oder WebP sein.")
+
+
+async def _prepare_journal_attachments(
+    hass: HomeAssistant,
+    payload: dict[str, Any],
+) -> tuple[dict[str, Any], list[Path]]:
+    """Write new journal images and replace their inline data with local URLs."""
+    raw_attachments = payload.get("attachments")
+    if not isinstance(raw_attachments, list):
+        return payload, []
+
+    prepared = copy.deepcopy(payload)
+    output_dir = Path(hass.config.path("www", UPLOADS_SUBDIR))
+    created_paths: list[Path] = []
+    normalized: list[dict[str, Any]] = []
+    total_bytes = 0
+    try:
+        for raw_attachment in raw_attachments:
+            if not isinstance(raw_attachment, dict):
+                raise CommandError("attachment must be an object")
+            attachment = dict(raw_attachment)
+            data = attachment.pop("data", None)
+            if data is None:
+                normalized.append(attachment)
+                continue
+            if not isinstance(data, str):
+                raise CommandError("attachment.data must be a Base64 string")
+            if attachment.get("id"):
+                raise CommandError("a new journal upload cannot reuse an attachment id")
+            raw, media_type, suffix = _decode_journal_image(data)
+            total_bytes += len(raw)
+            if total_bytes > JOURNAL_ATTACHMENT_MAX_TOTAL_BYTES:
+                raise CommandError("Die Fotos sind zusammen zu groß. Bitte weniger oder kleinere Bilder wählen.")
+            token = uuid4().hex
+            output_path = output_dir / f"journal_{token}{suffix}"
+            await hass.async_add_executor_job(
+                partial(_write_uploaded_image, output_dir, output_path.name, raw)
+            )
+            created_paths.append(output_path)
+            attachment.update(
+                {
+                    "url": f"/local/{UPLOADS_SUBDIR}/{output_path.name}",
+                    "captured_at": attachment.get("captured_at")
+                    or datetime.now(timezone.utc).isoformat(),
+                    "kind": "photo",
+                    "media_type": media_type,
+                    "source": "upload",
+                    "owned_by_plantrun": True,
+                }
+            )
+            file_name = attachment.get("file_name")
+            if not isinstance(file_name, str) or not file_name.strip():
+                attachment["file_name"] = Path(str(raw_attachment.get("file_name") or "photo")).name
+            else:
+                attachment["file_name"] = Path(file_name).name
+            normalized.append(attachment)
+        prepared["attachments"] = normalized
+        return prepared, created_paths
+    except Exception:
+        await _remove_paths(hass, created_paths)
+        raise
+
+
+def _media_path_for_url(hass: HomeAssistant, url: str) -> Path | None:
+    """Resolve only PlantRun-owned local media URLs inside the upload directory."""
+    prefix = f"/local/{UPLOADS_SUBDIR}/"
+    if not url.startswith(prefix):
+        return None
+    root = Path(hass.config.path("www", UPLOADS_SUBDIR)).resolve()
+    candidate = (root / url[len(prefix) :]).resolve()
+    try:
+        candidate.relative_to(root)
+    except ValueError:
+        return None
+    return candidate
+
+
+def _journal_media_urls(state: dict[str, Any]) -> set[str]:
+    urls: set[str] = set()
+    for entry in state.get("journal_entries", []):
+        if not isinstance(entry, dict):
+            continue
+        for attachment in entry.get("attachments", []):
+            if not isinstance(attachment, dict):
+                continue
+            if attachment.get("owned_by_plantrun") and isinstance(attachment.get("url"), str):
+                urls.add(attachment["url"])
+    return urls
+
+
+async def _remove_paths(hass: HomeAssistant, paths: list[Path]) -> None:
+    """Remove newly written files after a failed command."""
+    if not paths:
+        return
+
+    def remove() -> None:
+        for path in paths:
+            try:
+                path.unlink(missing_ok=True)
+            except OSError:
+                _LOGGER.warning("Unable to remove abandoned PlantRun media %s", path)
+
+    await hass.async_add_executor_job(remove)
+
+
+async def _cleanup_removed_journal_media(
+    hass: HomeAssistant,
+    before: dict[str, Any],
+    after: dict[str, Any],
+) -> None:
+    """Delete only PlantRun-owned files no longer referenced by committed state."""
+    removed_urls = _journal_media_urls(before) - _journal_media_urls(after)
+    paths = [path for url in removed_urls if (path := _media_path_for_url(hass, url)) is not None]
+    await _remove_paths(hass, paths)
+
+
 def _storage_for_hass(hass: HomeAssistant) -> PlantRunStorage | None:
     """Return the first configured PlantRun storage instance."""
     domain_data = hass.data.get(DOMAIN, {})
@@ -148,15 +304,33 @@ async def websocket_command(
     if application is None:
         connection.send_error(msg["id"], "not_loaded", "PlantRun is not loaded")
         return
+    created_paths: list[Path] = []
     try:
-        state = await application.execute(msg["command"], msg.get("payload", {}))
+        payload = msg.get("payload", {})
+        if not isinstance(payload, dict):
+            raise CommandError("payload must be an object")
+        prepared_payload = payload
+        if msg["command"] in {"create_journal_entry", "update_journal_entry"}:
+            prepared_payload, created_paths = await _prepare_journal_attachments(hass, payload)
+        before_state, state = await application.execute_with_previous(
+            msg["command"], prepared_payload
+        )
     except (CommandError, DomainError) as err:
+        await _remove_paths(hass, created_paths)
         connection.send_error(msg["id"], "invalid_command", str(err))
         return
     except OSError as err:
+        await _remove_paths(hass, created_paths)
         _LOGGER.exception("Unable to persist PlantRun command %s", msg["command"])
         connection.send_error(msg["id"], "persistence_failed", str(err))
         return
+    except Exception:
+        await _remove_paths(hass, created_paths)
+        _LOGGER.exception("Unexpected PlantRun command failure: %s", msg["command"])
+        connection.send_error(msg["id"], "command_failed", "PlantRun konnte den Befehl nicht ausführen")
+        return
+
+    await _cleanup_removed_journal_media(hass, before_state, state)
     connection.send_result(msg["id"], state)
 
 

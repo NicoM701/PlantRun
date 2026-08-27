@@ -161,6 +161,88 @@ class TestPlantRunApplication(unittest.TestCase):
         self.assertEqual(entry["details"], {"amount": None, "measured": False})
         self.assertEqual(entry["run_ids"], [run_id])
 
+    def test_journal_photo_can_be_selected_as_cover_and_update_preserves_it_when_omitted(self) -> None:
+        storage = RecordingStorage()
+        app = PlantRunApplication(storage)
+        created = asyncio.run(
+            app.execute(
+                "create_run",
+                {
+                    "run_name": "Diesel Auto RQS",
+                    "tent_name": "Growzelt",
+                    "plant_name": "Diesel Auto",
+                    "planted_at": "2026-08-25T16:00:00+02:00",
+                    "initial_stage": "Germination",
+                    "stage_plan": ["Germination", "Harvested"],
+                    "image": "https://example.test/seedfinder.jpg",
+                },
+            )
+        )
+        run_id = created["runs"][0]["id"]
+        tent_id = created["tents"][0]["id"]
+        state = asyncio.run(
+            app.execute(
+                "create_journal_entry",
+                {
+                    "tent_id": tent_id,
+                    "run_ids": [run_id],
+                    "entry_type": "Inspect",
+                    "text": "Seedling photographed.",
+                    "occurred_at": "2026-08-25T16:10:00+02:00",
+                    "attachments": [
+                        {
+                            "id": "photo-1",
+                            "url": "/local/plantrun_uploads/photo.jpg",
+                            "captured_at": "2026-08-25T16:10:00+02:00",
+                            "caption": "First look",
+                            "owned_by_plantrun": True,
+                        }
+                    ],
+                },
+            )
+        )
+        entry_id = state["journal_entries"][0]["id"]
+        state = asyncio.run(
+            app.execute(
+                "set_plant_cover",
+                {"run_id": run_id, "attachment_id": "photo-1"},
+            )
+        )
+        self.assertEqual(state["plants"][0]["cover_attachment_id"], "photo-1")
+
+        edited = asyncio.run(
+            app.execute(
+                "update_journal_entry",
+                {
+                    "entry_id": entry_id,
+                    "tent_id": tent_id,
+                    "run_ids": [run_id],
+                    "entry_type": "Inspect",
+                    "text": "Seedling photographed and checked.",
+                    "occurred_at": "2026-08-25T16:10:00+02:00",
+                },
+            )
+        )
+        self.assertEqual(edited["journal_entries"][0]["attachments"][0]["id"], "photo-1")
+        self.assertEqual(edited["plants"][0]["cover_attachment_id"], "photo-1")
+
+        cleared = asyncio.run(
+            app.execute(
+                "update_journal_entry",
+                {
+                    "entry_id": entry_id,
+                    "tent_id": tent_id,
+                    "run_ids": [run_id],
+                    "entry_type": "Inspect",
+                    "text": "No photo remains.",
+                    "occurred_at": "2026-08-25T16:10:00+02:00",
+                    "attachments": [],
+                },
+            )
+        )
+        self.assertEqual(cleared["journal_entries"][0]["attachments"], [])
+        self.assertIsNone(cleared["plants"][0]["cover_attachment_id"])
+
     def test_unknown_command_is_rejected_without_persistence(self) -> None:
         storage = RecordingStorage()
         app = PlantRunApplication(storage)

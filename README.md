@@ -42,6 +42,7 @@ The rebuilt sidebar currently provides:
 - manual Strain entry plus authenticated SeedFinder suggestions when a Breeder is supplied
 - direct, timestamped Stage changes without forced transition rules
 - chronological Journal capture, filtering, editing, deletion, and attached sensor context
+- Journal-Fotos mit optionaler Bildunterschrift, sichtbarer Quelle und Auswahl als Pflanzenbild
 - dated Tent or Plant sensor assignment with reassignment history
 - completion into a durable Archive
 - separate Permanent Deletion with an exact-name warning gate
@@ -65,6 +66,7 @@ a frontend build toolchain.
 ### Persistence
 - local store-backed run history
 - an atomic v3 domain store with the former v2 records retained in a hidden backup bucket
+- additive Journal Attachment metadata; older v3 records load without changes
 - an idempotent acceptance-ledger import command
 
 The owner's acceptance cycle began on August 25, 2026. The rebuild imports that

@@ -66,6 +66,22 @@ class BindingDraft:
 
 
 @dataclass(frozen=True)
+class JournalAttachmentDraft:
+    """Metadata for a photo that is ready to be attached to a Journal Entry."""
+
+    url: str
+    captured_at: datetime
+    id: str | None = None
+    kind: str = "photo"
+    media_type: str = "image/jpeg"
+    caption: str | None = None
+    source: str = "upload"
+    source_entity_id: str | None = None
+    owned_by_plantrun: bool = False
+    file_name: str | None = None
+
+
+@dataclass(frozen=True)
 class RunDraft:
     run_name: str
     tent_name: str
@@ -91,6 +107,7 @@ class JournalDraft:
     entry_type: str | None = None
     details: Mapping[str, object] = field(default_factory=dict)
     sensor_snapshot: Mapping[str, object] = field(default_factory=dict)
+    attachments: tuple[JournalAttachmentDraft, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -110,6 +127,7 @@ class Plant:
     image: str | None = None
     container: str | None = None
     substrate: str | None = None
+    cover_attachment_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -149,6 +167,21 @@ class SensorBinding:
 
 
 @dataclass(frozen=True)
+class JournalAttachment:
+    id: str
+    url: str
+    captured_at: datetime
+    created_at: datetime
+    kind: str = "photo"
+    media_type: str = "image/jpeg"
+    caption: str | None = None
+    source: str = "upload"
+    source_entity_id: str | None = None
+    owned_by_plantrun: bool = False
+    file_name: str | None = None
+
+
+@dataclass(frozen=True)
 class JournalEntry:
     id: str
     tent_id: str
@@ -160,6 +193,7 @@ class JournalEntry:
     entry_type: str | None = None
     details: Mapping[str, object] = field(default_factory=dict)
     sensor_snapshot: Mapping[str, object] = field(default_factory=dict)
+    attachments: tuple[JournalAttachment, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -394,6 +428,7 @@ class PlantRunDomain:
 
         self._validate_journal_draft(draft)
         now = self._aware_time(self._clock(), "clock")
+        attachments = self._normalize_attachments(draft.attachments, now)
         entry = JournalEntry(
             id=self._id_factory("journal_entry"),
             tent_id=draft.tent_id,
@@ -408,6 +443,7 @@ class PlantRunDomain:
                 draft.sensor_snapshot,
                 "journal.sensor_snapshot",
             ),
+            attachments=attachments,
         )
         self._journal_entries[entry.id] = entry
         return deepcopy(entry)
@@ -419,6 +455,30 @@ class PlantRunDomain:
         if current is None:
             raise NotFoundError("journal entry not found")
         self._validate_journal_draft(draft)
+        now = self._aware_time(self._clock(), "clock")
+        attachments = self._normalize_attachments(
+            draft.attachments,
+            now,
+            current_entry_id=current.id,
+        )
+        if current.tent_id != draft.tent_id or current.run_ids != tuple(draft.run_ids):
+            current_attachment_ids = {attachment.id for attachment in current.attachments}
+            new_run_ids = set(draft.run_ids)
+            for plant_id, plant in self._plants.items():
+                if plant.cover_attachment_id not in current_attachment_ids:
+                    continue
+                linked_to_new_run = any(
+                    run.plant_id == plant.id
+                    and run.id in new_run_ids
+                    and plant.tent_id == draft.tent_id
+                    for run in self._runs.values()
+                )
+                if not linked_to_new_run:
+                    self._plants[plant_id] = replace(plant, cover_attachment_id=None)
+        removed_attachment_ids = {
+            attachment.id for attachment in current.attachments
+        } - {attachment.id for attachment in attachments}
+        self._clear_covers_for_attachments(removed_attachment_ids)
         replacement = JournalEntry(
             id=current.id,
             tent_id=draft.tent_id,
@@ -427,12 +487,13 @@ class PlantRunDomain:
             text=draft.text.strip(),
             occurred_at=draft.occurred_at,
             created_at=current.created_at,
-            updated_at=self._aware_time(self._clock(), "clock"),
+            updated_at=now,
             details=self._structured_mapping(draft.details, "journal.details"),
             sensor_snapshot=self._structured_mapping(
                 draft.sensor_snapshot,
                 "journal.sensor_snapshot",
             ),
+            attachments=attachments,
         )
         self._journal_entries[entry_id] = replacement
         return deepcopy(replacement)
@@ -441,9 +502,32 @@ class PlantRunDomain:
         """Delete one Journal Entry and return the removed record."""
 
         try:
-            return deepcopy(self._journal_entries.pop(entry_id))
+            entry = self._journal_entries.pop(entry_id)
         except KeyError as err:
             raise NotFoundError("journal entry not found") from err
+        self._clear_covers_for_attachments({item.id for item in entry.attachments})
+        return deepcopy(entry)
+
+    def set_plant_cover(self, run_id: str, attachment_id: str | None) -> str | None:
+        """Choose one Journal Attachment as the Plant Cover, or clear it."""
+
+        run = self._run(run_id)
+        plant = self._plants[run.plant_id]
+        if attachment_id is None or not str(attachment_id).strip():
+            self._plants[plant.id] = replace(plant, cover_attachment_id=None)
+            return None
+
+        wanted = str(attachment_id).strip()
+        found = any(
+            wanted == attachment.id
+            for entry in self._journal_entries.values()
+            if entry.tent_id == run.tent_id and run.id in entry.run_ids
+            for attachment in entry.attachments
+        )
+        if not found:
+            raise NotFoundError("journal attachment not found for run")
+        self._plants[plant.id] = replace(plant, cover_attachment_id=wanted)
+        return wanted
 
     def change_stage(self, run_id: str, target_stage: str, occurred_at: datetime) -> Run:
         """Switch directly to any planned Stage and append permanent history."""
@@ -679,6 +763,21 @@ class PlantRunDomain:
                 "duration": duration_data(value.duration),
             }
 
+        def attachment_data(value: JournalAttachment) -> dict[str, object]:
+            return {
+                "id": value.id,
+                "url": value.url,
+                "captured_at": value.captured_at.isoformat(),
+                "created_at": value.created_at.isoformat(),
+                "kind": value.kind,
+                "media_type": value.media_type,
+                "caption": value.caption,
+                "source": value.source,
+                "source_entity_id": value.source_entity_id,
+                "owned_by_plantrun": value.owned_by_plantrun,
+                "file_name": value.file_name,
+            }
+
         state: dict[str, object] = {
             "tents": [
                 {
@@ -698,6 +797,7 @@ class PlantRunDomain:
                     "image": item.image,
                     "container": item.container,
                     "substrate": item.substrate,
+                    "cover_attachment_id": item.cover_attachment_id,
                 }
                 for item in self._plants.values()
             ],
@@ -739,6 +839,7 @@ class PlantRunDomain:
                     "updated_at": item.updated_at.isoformat(),
                     "details": deepcopy(dict(item.details)),
                     "sensor_snapshot": deepcopy(dict(item.sensor_snapshot)),
+                    "attachments": [attachment_data(attachment) for attachment in item.attachments],
                 }
                 for item in self._journal_entries.values()
             ],
@@ -857,6 +958,7 @@ class PlantRunDomain:
                 image=optional_text(raw, "image"),
                 container=optional_text(raw, "container"),
                 substrate=optional_text(raw, "substrate"),
+                cover_attachment_id=optional_text(raw, "cover_attachment_id"),
             )
             if plant.tent_id not in domain._tents:
                 raise ValidationError("plant references an unknown tent")
@@ -927,6 +1029,11 @@ class PlantRunDomain:
             run_ids_raw = raw.get("run_ids", [])
             if not isinstance(run_ids_raw, list) or not all(isinstance(item, str) for item in run_ids_raw):
                 raise ValidationError("journal run_ids must be a list of ids")
+            attachments_raw = raw.get("attachments", [])
+            if not isinstance(attachments_raw, list) or not all(
+                isinstance(item, Mapping) for item in attachments_raw
+            ):
+                raise ValidationError("journal attachments must be a list of records")
             entry = JournalEntry(
                 id=text_value(raw, "id"),
                 tent_id=text_value(raw, "tent_id"),
@@ -938,6 +1045,7 @@ class PlantRunDomain:
                 updated_at=time_value(raw, "updated_at"),
                 details=mapping_value(raw, "details"),
                 sensor_snapshot=mapping_value(raw, "sensor_snapshot"),
+                attachments=tuple(domain._attachment_from_state(item) for item in attachments_raw),
             )
             domain._validate_journal_draft(
                 JournalDraft(
@@ -948,9 +1056,46 @@ class PlantRunDomain:
                     occurred_at=entry.occurred_at,
                     details=entry.details,
                     sensor_snapshot=entry.sensor_snapshot,
+                    attachments=tuple(
+                        JournalAttachmentDraft(
+                            id=item.id,
+                            url=item.url,
+                            captured_at=item.captured_at,
+                            kind=item.kind,
+                            media_type=item.media_type,
+                            caption=item.caption,
+                            source=item.source,
+                            source_entity_id=item.source_entity_id,
+                            owned_by_plantrun=item.owned_by_plantrun,
+                            file_name=item.file_name,
+                        )
+                        for item in entry.attachments
+                    ),
                 )
             )
             put_unique(domain._journal_entries, entry.id, entry)
+
+        attachment_ids: set[str] = set()
+        for entry in domain._journal_entries.values():
+            for attachment in entry.attachments:
+                if attachment.id in attachment_ids:
+                    raise ValidationError(f"duplicate attachment id: {attachment.id}")
+                attachment_ids.add(attachment.id)
+
+        for plant in domain._plants.values():
+            if plant.cover_attachment_id is None:
+                continue
+            matching_run = next(
+                (run for run in domain._runs.values() if run.plant_id == plant.id),
+                None,
+            )
+            if matching_run is None or not any(
+                plant.cover_attachment_id == attachment.id
+                for entry in domain._journal_entries.values()
+                if entry.tent_id == plant.tent_id and matching_run.id in entry.run_ids
+                for attachment in entry.attachments
+            ):
+                raise ValidationError("plant cover must reference an attachment on its run")
 
         active_binding_keys: set[tuple[str, str, str]] = set()
         for raw in records("sensor_bindings"):
@@ -985,6 +1130,154 @@ class PlantRunDomain:
             return self._runs[run_id]
         except KeyError as err:
             raise NotFoundError("run not found") from err
+
+    def _attachment_from_state(self, raw: Mapping[str, object]) -> JournalAttachment:
+        """Restore one attachment and validate its persisted metadata."""
+
+        def state_time(key: str) -> datetime:
+            value = raw.get(key)
+            if not isinstance(value, str):
+                raise ValidationError(f"journal attachment {key} must be an ISO timestamp")
+            try:
+                parsed = datetime.fromisoformat(value)
+            except ValueError as err:
+                raise ValidationError(
+                    f"journal attachment {key} must be an ISO timestamp"
+                ) from err
+            return self._aware_time(parsed, f"journal attachment {key}")
+
+        owned_by_plantrun = raw.get("owned_by_plantrun", False)
+        if not isinstance(owned_by_plantrun, bool):
+            raise ValidationError("journal attachment.owned_by_plantrun must be a boolean")
+        attachment = JournalAttachment(
+            id=self._required_text(raw.get("id"), "journal attachment.id"),  # type: ignore[arg-type]
+            url=self._required_text(raw.get("url"), "journal attachment.url"),  # type: ignore[arg-type]
+            captured_at=state_time("captured_at"),
+            created_at=state_time("created_at"),
+            kind=str(raw.get("kind", "photo")),
+            media_type=str(raw.get("media_type", "image/jpeg")),
+            caption=self._optional_text(raw.get("caption"), "journal attachment.caption"),  # type: ignore[arg-type]
+            source=self._required_text(raw.get("source", "upload"), "journal attachment.source"),  # type: ignore[arg-type]
+            source_entity_id=self._optional_text(
+                raw.get("source_entity_id"), "journal attachment.source_entity_id"  # type: ignore[arg-type]
+            ),
+            owned_by_plantrun=owned_by_plantrun,
+            file_name=self._optional_text(
+                raw.get("file_name"), "journal attachment.file_name"  # type: ignore[arg-type]
+            ),
+        )
+        self._validate_attachment(
+            JournalAttachmentDraft(
+                id=attachment.id,
+                url=attachment.url,
+                captured_at=attachment.captured_at,
+                kind=attachment.kind,
+                media_type=attachment.media_type,
+                caption=attachment.caption,
+                source=attachment.source,
+                source_entity_id=attachment.source_entity_id,
+                owned_by_plantrun=attachment.owned_by_plantrun,
+                file_name=attachment.file_name,
+            )
+        )
+        return attachment
+
+    def _normalize_attachments(
+        self,
+        drafts: tuple[JournalAttachmentDraft, ...],
+        created_at: datetime,
+        *,
+        current_entry_id: str | None = None,
+    ) -> tuple[JournalAttachment, ...]:
+        if len(drafts) > 20:
+            raise ValidationError("a journal entry may contain at most 20 attachments")
+        existing_ids = {
+            attachment.id
+            for entry in self._journal_entries.values()
+            if entry.id != current_entry_id
+            for attachment in entry.attachments
+        }
+        current_attachments = {
+            attachment.id: attachment
+            for entry in self._journal_entries.values()
+            if entry.id == current_entry_id
+            for attachment in entry.attachments
+        }
+        seen: set[str] = set()
+        normalized: list[JournalAttachment] = []
+        for draft in drafts:
+            self._validate_attachment(draft)
+            attachment_id = (
+                self._required_text(draft.id, "journal attachment.id")
+                if draft.id is not None
+                else self._id_factory("attachment")
+            )
+            if attachment_id in seen or attachment_id in existing_ids:
+                raise ValidationError(f"duplicate journal attachment id: {attachment_id}")
+            seen.add(attachment_id)
+            current_attachment = current_attachments.get(attachment_id)
+            normalized.append(
+                JournalAttachment(
+                    id=attachment_id,
+                    url=draft.url.strip(),
+                    captured_at=draft.captured_at,
+                    created_at=current_attachment.created_at if current_attachment else created_at,
+                    kind=draft.kind.strip(),
+                    media_type=draft.media_type.strip().lower(),
+                    caption=self._optional_text(draft.caption, "journal attachment.caption"),
+                    source=draft.source.strip(),
+                    source_entity_id=self._optional_text(
+                        draft.source_entity_id,
+                        "journal attachment.source_entity_id",
+                    ),
+                    owned_by_plantrun=draft.owned_by_plantrun,
+                    file_name=self._optional_text(draft.file_name, "journal attachment.file_name"),
+                )
+            )
+        return tuple(normalized)
+
+    @classmethod
+    def _validate_attachment(cls, attachment: JournalAttachmentDraft) -> None:
+        cls._required_text(attachment.url, "journal attachment.url")
+        if not (
+            attachment.url.startswith("/local/")
+            or attachment.url.startswith("/media/")
+            or attachment.url.startswith("media-source://")
+            or attachment.url.startswith("https://")
+        ):
+            raise ValidationError("journal attachment.url must be a Home Assistant or HTTPS URL")
+        kind = cls._required_text(attachment.kind, "journal attachment.kind")
+        if kind not in ("photo", "camera_snapshot"):
+            raise ValidationError("journal attachment.kind is unsupported")
+        media_type = cls._required_text(attachment.media_type, "journal attachment.media_type").lower()
+        if not media_type.startswith("image/"):
+            raise ValidationError("journal attachments must be images")
+        cls._aware_time(attachment.captured_at, "journal attachment.captured_at")
+        cls._required_text(attachment.source, "journal attachment.source")
+        if attachment.caption is not None:
+            if not isinstance(attachment.caption, str):
+                raise ValidationError("journal attachment.caption must be text")
+            if len(attachment.caption) > 500:
+                raise ValidationError("journal attachment.caption must be 500 characters or fewer")
+        if attachment.file_name is not None:
+            if not isinstance(attachment.file_name, str):
+                raise ValidationError("journal attachment.file_name must be text")
+            if len(attachment.file_name) > 255:
+                raise ValidationError("journal attachment.file_name must be 255 characters or fewer")
+        if not isinstance(attachment.owned_by_plantrun, bool):
+            raise ValidationError("journal attachment.owned_by_plantrun must be a boolean")
+        if attachment.owned_by_plantrun and not (
+            attachment.url.startswith("/local/plantrun_uploads/")
+            or attachment.url.startswith("/media/plantrun/")
+        ):
+            raise ValidationError("PlantRun-owned attachments must use a PlantRun media path")
+
+    def _clear_covers_for_attachments(self, attachment_ids: set[str]) -> None:
+        if not attachment_ids:
+            return
+        for plant_id, plant in self._plants.items():
+            if plant.cover_attachment_id in attachment_ids:
+                self._plants[plant_id] = replace(plant, cover_attachment_id=None)
 
     @staticmethod
     def _required_text(value: str, field_name: str) -> str:

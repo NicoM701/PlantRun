@@ -14,6 +14,7 @@ from homeassistant.helpers.storage import Store
 from .const import DOMAIN, INITIAL_PHASE_NAME, STORE_KEY, STORE_SCHEMA_VERSION, STORE_VERSION
 from .domain import (
     BindingDraft,
+    JournalAttachmentDraft,
     JournalDraft,
     PlantRunDomain,
     RunDraft,
@@ -189,6 +190,18 @@ class PlantRunStorage:
         projected: list[RunData] = []
         for raw in state["runs"]:
             plant = plants[raw["plant_id"]]
+            cover_attachment_id = plant.get("cover_attachment_id")
+            cover_image = next(
+                (
+                    attachment.get("url")
+                    for entry in entries
+                    if raw["id"] in entry.get("run_ids", [])
+                    for attachment in entry.get("attachments", [])
+                    if attachment.get("id") == cover_attachment_id
+                ),
+                None,
+            )
+            display_image = cover_image or plant.get("image")
             run_bindings = [
                 item
                 for item in bindings
@@ -229,7 +242,12 @@ class PlantRunStorage:
                 else None
             )
             notes = [
-                Note(id=item["id"], text=item["text"], timestamp=item["occurred_at"])
+                Note(
+                    id=item["id"],
+                    text=item["text"],
+                    timestamp=item["occurred_at"],
+                    attachments=copy.deepcopy(item.get("attachments", [])),
+                )
                 for item in entries
                 if raw["id"] in item.get("run_ids", [])
             ]
@@ -257,7 +275,7 @@ class PlantRunStorage:
                             name=strain.get("name"),
                             breeder=strain.get("breeder"),
                             flower_window_days=flower_window,
-                            image_url=plant.get("image"),
+                            image_url=display_image,
                             detail_url=duration.get("source"),
                         )
                         if strain
@@ -268,9 +286,10 @@ class PlantRunStorage:
                         "plant_id": plant["id"],
                         "plants": [{"id": plant["id"], "name": plant["name"]}],
                         "phase_plan": raw["stage_plan"],
+                        "cover_attachment_id": cover_attachment_id,
                     },
-                    image_url=plant.get("image"),
-                    image_source="plant",
+                    image_url=display_image,
+                    image_source="journal" if cover_attachment_id else "plant",
                 )
             )
         self.runs = projected
@@ -328,6 +347,8 @@ class PlantRunStorage:
         plants = run.base_config.get("plants") if isinstance(run.base_config, dict) else None
         raw_plant = plants[0] if isinstance(plants, list) and plants and isinstance(plants[0], dict) else {}
         plant_name = str(raw_plant.get("name") or run.friendly_name)
+        cover_id = run.base_config.get("cover_attachment_id") if isinstance(run.base_config, dict) else None
+        source_image = run.image_url if run.image_source != "journal" else None
         strain = None
         if run.cultivar and run.cultivar.name:
             strain = StrainIdentity(name=run.cultivar.name, breeder=run.cultivar.breeder)
@@ -340,7 +361,7 @@ class PlantRunStorage:
                 stage_plan=stage_plan,
                 initial_stage=initial_stage,
                 strain=strain,
-                image=run.image_url,
+                image=source_image,
                 sensor_bindings=tuple(
                     BindingDraft(
                         owner="run",
@@ -364,8 +385,15 @@ class PlantRunStorage:
                     run_ids=(created.id,),
                     text=note.text,
                     occurred_at=_aware_time(note.timestamp, planted_at),
+                    attachments=tuple(
+                        self._attachment_draft(item, planted_at)
+                        for item in (note.attachments or [])
+                        if hasattr(item, "url") or (isinstance(item, dict) and item.get("url"))
+                    ),
                 )
             )
+        if isinstance(cover_id, str) and cover_id:
+            candidate.set_plant_cover(created.id, cover_id)
         if run.status == "ended":
             candidate.finish_run(
                 created.id,
@@ -401,13 +429,27 @@ class PlantRunStorage:
                 breeder=updated_run.cultivar.breeder,
                 duration=domain_plant.strain.duration if domain_plant.strain else None,
             )
+        source_image = updated_run.image_url
+        if domain_plant.cover_attachment_id:
+            cover_url = next(
+                (
+                    attachment.url
+                    for entry in snapshot.journal_entries
+                    if updated_run.id in entry.run_ids
+                    for attachment in entry.attachments
+                    if attachment.id == domain_plant.cover_attachment_id
+                ),
+                None,
+            )
+            if source_image == cover_url:
+                source_image = domain_plant.image
         candidate.update_run(
             updated_run.id,
             run_name=updated_run.friendly_name,
             plant_name=str(raw_plant.get("name") or domain_plant.name),
             strain=strain,
             planted_at=_aware_time(updated_run.planted_date or updated_run.start_time, domain_run.planted_at),
-            image=updated_run.image_url,
+            image=source_image,
         )
 
         configured_plan = updated_run.base_config.get("phase_plan") if isinstance(updated_run.base_config, dict) else None
@@ -448,10 +490,20 @@ class PlantRunStorage:
                 occurred_at=_aware_time(note.timestamp, domain_run.planted_at),
                 details=entry.details if entry else {},
                 sensor_snapshot=entry.sensor_snapshot if entry else {},
+                attachments=tuple(
+                    self._attachment_draft(item, domain_run.planted_at)
+                    for item in (note.attachments or [])
+                    if (item.url if hasattr(item, "url") else item.get("url"))
+                ),
             )
             if entry is None:
                 candidate.add_journal_entry(draft)
-            elif entry.text != draft.text or entry.occurred_at != draft.occurred_at:
+            elif (
+                entry.text != draft.text
+                or entry.occurred_at != draft.occurred_at
+                or self._attachment_signatures(entry.attachments)
+                != self._attachment_signatures(draft.attachments)
+            ):
                 candidate.edit_journal_entry(entry.id, draft)
 
         all_bindings = {binding.id: binding for binding in candidate.snapshot().bindings}
@@ -505,3 +557,71 @@ class PlantRunStorage:
             candidate.update_harvest_details(updated_run.id, harvest_details)
 
         await self.async_commit_domain(candidate)
+
+    @staticmethod
+    def _attachment_draft(item: Any, fallback: datetime) -> JournalAttachmentDraft:
+        """Convert projected or legacy attachment records for a domain update."""
+        if hasattr(item, "url"):
+            return JournalAttachmentDraft(
+                id=item.id,
+                url=item.url,
+                captured_at=item.captured_at,
+                kind=item.kind,
+                media_type=item.media_type,
+                caption=item.caption,
+                source=item.source,
+                source_entity_id=item.source_entity_id,
+                owned_by_plantrun=item.owned_by_plantrun,
+                file_name=item.file_name,
+            )
+        return JournalAttachmentDraft(
+            id=item.get("id"),
+            url=item.get("url"),
+            captured_at=_aware_time(item.get("captured_at"), fallback),
+            kind=item.get("kind", "photo"),
+            media_type=item.get("media_type", "image/jpeg"),
+            caption=item.get("caption"),
+            source=item.get("source", "upload"),
+            source_entity_id=item.get("source_entity_id"),
+            owned_by_plantrun=item.get("owned_by_plantrun", False),
+            file_name=item.get("file_name"),
+        )
+
+    @staticmethod
+    def _attachment_signatures(items: Any) -> tuple[tuple[Any, ...], ...]:
+        """Compare attachment metadata across domain and legacy projections."""
+        if not isinstance(items, (list, tuple)):
+            return ()
+        signatures = []
+        for item in items:
+            if hasattr(item, "url"):
+                signatures.append(
+                    (
+                        item.id,
+                        item.url,
+                        item.captured_at,
+                        item.kind,
+                        item.media_type,
+                        item.caption,
+                        item.source,
+                        item.source_entity_id,
+                        item.owned_by_plantrun,
+                        item.file_name,
+                    )
+                )
+            elif isinstance(item, dict):
+                signatures.append(
+                    (
+                        item.get("id"),
+                        item.get("url"),
+                        item.get("captured_at"),
+                        item.get("kind", "photo"),
+                        item.get("media_type", "image/jpeg"),
+                        item.get("caption"),
+                        item.get("source", "upload"),
+                        item.get("source_entity_id"),
+                        item.get("owned_by_plantrun", False),
+                        item.get("file_name"),
+                    )
+                )
+        return tuple(signatures)

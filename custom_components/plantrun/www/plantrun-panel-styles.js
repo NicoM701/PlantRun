@@ -198,6 +198,14 @@ export const panelStyles = `
   .entry-copy dl { display:flex; flex-wrap:wrap; gap:12px; }
   .entry-copy dl div { display:flex; gap:5px; }
   .entry-actions { display:flex; gap:5px; }
+  .journal-attachments { display:flex; flex-wrap:wrap; gap:12px; margin-top:5px; }
+  .journal-attachment { width:138px; margin:0; display:grid; gap:7px; }
+  .journal-attachment>img { width:138px; height:104px; object-fit:cover; border-radius:var(--radius-control); background:var(--surface-2); }
+  .journal-attachment figcaption { display:grid; gap:4px; min-width:0; }
+  .journal-attachment figcaption>span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--text); font-size:11px; }
+  .journal-attachment .attachment-meta { color:var(--quiet); font-size:10px; }
+  .journal-attachment figcaption .quiet { justify-self:start; padding:0; font-size:10px; }
+  .cover-badge { color:var(--accent-strong); font-size:10px; font-weight:800; }
   .archive-list { display:grid; border-top:1px solid var(--line); }
   .archive-list article { border-bottom:1px solid var(--line); }
   .archive-list article>button { width:100%; min-height:92px; border:0; background:transparent; cursor:pointer; display:grid; grid-template-columns:64px minmax(0,1fr) 90px 90px 30px; gap:18px; align-items:center; text-align:left; }
@@ -270,6 +278,23 @@ export const panelStyles = `
   .entry-types legend { width:100%; color:var(--muted); font-size:11px; margin-bottom:4px; }
   .entry-types button { min-height:39px; border:1px solid var(--line); background:transparent; color:var(--muted); border-radius:var(--radius-control); display:flex; align-items:center; gap:5px; cursor:pointer; }
   .entry-types button.selected { background:var(--surface-3); border-color:var(--accent); color:var(--accent-strong); }
+  .journal-media { display:grid; gap:10px; padding-top:2px; border-top:1px solid var(--line); }
+  .journal-media-heading { display:flex; justify-content:space-between; align-items:end; gap:12px; }
+  .journal-media-heading>div { display:grid; gap:4px; }
+  .field-label { color:var(--muted); font-size:11px; }
+  .journal-media-heading p { font-size:10px; }
+  .attachment-upload { position:relative; display:inline-flex; align-items:center; min-height:38px; padding:0 11px; border:1px solid var(--line); border-radius:var(--radius-control); background:var(--surface-2); color:var(--accent-strong); font-size:11px; font-weight:750; cursor:pointer; white-space:nowrap; }
+  .attachment-upload span { display:flex; align-items:center; gap:5px; }
+  .attachment-upload input { position:absolute; inset:0; width:100%; height:100%; opacity:0; cursor:pointer; padding:0; min-height:0; }
+  .attachment-upload input:disabled { cursor:not-allowed; }
+  .journal-attachment-editor { display:grid; gap:8px; }
+  .journal-attachment-item { display:grid; grid-template-columns:58px minmax(0,1fr) 36px; gap:9px; align-items:center; }
+  .journal-attachment-item>img,.attachment-placeholder { width:58px; height:45px; object-fit:cover; border-radius:var(--radius-control); background:var(--surface-2); }
+  .attachment-placeholder { display:grid; place-items:center; color:var(--quiet); }
+  .attachment-placeholder ha-icon { --mdc-icon-size:20px; }
+  .journal-attachment-item>div { min-width:0; display:grid; gap:3px; }
+  .journal-attachment-item input { min-height:36px; padding:7px 9px; font-size:11px; }
+  .journal-attachment-item small { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--quiet); font-size:10px; }
   .journal-drawer>footer span { color:var(--muted); font-size:10px; }
   .busy-line { position:fixed; z-index:50; top:12px; left:50%; transform:translateX(-50%); padding:8px 12px; border-radius:999px; background:var(--surface-3); box-shadow:0 8px 30px rgba(0,0,0,.3); color:var(--text); display:flex; gap:8px; align-items:center; font-size:11px; }
   .busy-line span { width:8px; height:8px; border-radius:50%; background:var(--accent); animation:pulse 1s infinite; }
@@ -327,6 +352,7 @@ export const panelStyles = `
     .facts-strip dl { grid-template-columns:repeat(2,1fr); }
     .journal-entry,.journal-entry.compact { grid-template-columns:1fr; gap:10px; }
     .entry-actions { justify-self:end; }
+    .journal-media-heading { align-items:start; display:grid; }
     .archive-list article>button { grid-template-columns:54px 1fr 28px; }
     .archive-list article>button>span:nth-of-type(n+2) { display:none; }
     .archive-photo { width:54px; height:54px; }

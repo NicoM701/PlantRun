@@ -8,6 +8,7 @@ from typing import Any, Mapping, Protocol
 
 from .domain import (
     BindingDraft,
+    JournalAttachmentDraft,
     JournalDraft,
     PlantRunDomain,
     RunDraft,
@@ -101,6 +102,16 @@ class PlantRunApplication:
     async def execute(self, command: str, payload: Mapping[str, Any] | None) -> dict[str, Any]:
         """Apply one command to a clone, persist it, then expose it as live state."""
 
+        _before, state = await self.execute_with_previous(command, payload)
+        return state
+
+    async def execute_with_previous(
+        self,
+        command: str,
+        payload: Mapping[str, Any] | None,
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        """Execute a command and return the committed state plus its predecessor."""
+
         if not isinstance(command, str) or not command.strip():
             raise CommandError("command must not be empty")
         if payload is None:
@@ -109,13 +120,14 @@ class PlantRunApplication:
             raise CommandError("payload must be an object")
 
         async with self._command_lock:
+            before = self.state()
             candidate = PlantRunDomain.from_state(self._storage.domain.export_state())
             handler = getattr(self, f"_command_{command.strip()}", None)
             if handler is None:
                 raise CommandError(f"Unsupported command: {command}")
             handler(candidate, dict(payload))
             await self._storage.async_commit_domain(candidate)
-            return self.state()
+            return before, self.state()
 
     def _command_create_run(self, domain: PlantRunDomain, payload: dict[str, Any]) -> None:
         raw_duration = _mapping(payload.get("duration"), "duration")
@@ -206,7 +218,40 @@ class PlantRunApplication:
             )
         )
 
-    def _journal_draft(self, payload: dict[str, Any]) -> JournalDraft:
+    def _journal_attachments(self, payload: dict[str, Any]) -> tuple[JournalAttachmentDraft, ...]:
+        raw_attachments = payload.get("attachments", [])
+        if not isinstance(raw_attachments, list):
+            raise CommandError("attachments must be a list")
+        attachments: list[JournalAttachmentDraft] = []
+        for raw in raw_attachments:
+            item = _mapping(raw, "attachment")
+            attachment_id = _optional_text(item.get("id"))
+            captured_at = _iso_time(item.get("captured_at"), "attachment.captured_at")
+            owned = item.get("owned_by_plantrun", False)
+            if not isinstance(owned, bool):
+                raise CommandError("attachment.owned_by_plantrun must be a boolean")
+            attachments.append(
+                JournalAttachmentDraft(
+                    id=attachment_id,
+                    url=_text(item.get("url"), "attachment.url"),
+                    captured_at=captured_at,
+                    kind=_optional_text(item.get("kind")) or "photo",
+                    media_type=_optional_text(item.get("media_type")) or "image/jpeg",
+                    caption=_optional_text(item.get("caption")),
+                    source=_optional_text(item.get("source")) or "upload",
+                    source_entity_id=_optional_text(item.get("source_entity_id")),
+                    owned_by_plantrun=owned,
+                    file_name=_optional_text(item.get("file_name")),
+                )
+            )
+        return tuple(attachments)
+
+    def _journal_draft(
+        self,
+        payload: dict[str, Any],
+        *,
+        attachments: tuple[JournalAttachmentDraft, ...] | None = None,
+    ) -> JournalDraft:
         run_ids = payload.get("run_ids", []) or []
         if not isinstance(run_ids, (list, tuple)):
             raise CommandError("run_ids must be a list")
@@ -218,19 +263,50 @@ class PlantRunApplication:
             occurred_at=_iso_time(payload.get("occurred_at"), "occurred_at"),
             details=_mapping(payload.get("details"), "details"),
             sensor_snapshot=_mapping(payload.get("sensor_snapshot"), "sensor_snapshot"),
+            attachments=self._journal_attachments(payload) if attachments is None else attachments,
         )
 
     def _command_create_journal_entry(self, domain: PlantRunDomain, payload: dict[str, Any]) -> None:
         domain.add_journal_entry(self._journal_draft(payload))
 
     def _command_update_journal_entry(self, domain: PlantRunDomain, payload: dict[str, Any]) -> None:
+        attachments: tuple[JournalAttachmentDraft, ...] | None = None
+        if "attachments" not in payload:
+            entry_id = _text(payload.get("entry_id"), "entry_id")
+            current = next(
+                (entry for entry in domain.snapshot().journal_entries if entry.id == entry_id),
+                None,
+            )
+            if current is None:
+                raise CommandError("entry_id references an unknown Journal Entry")
+            attachments = tuple(
+                JournalAttachmentDraft(
+                    id=item.id,
+                    url=item.url,
+                    captured_at=item.captured_at,
+                    kind=item.kind,
+                    media_type=item.media_type,
+                    caption=item.caption,
+                    source=item.source,
+                    source_entity_id=item.source_entity_id,
+                    owned_by_plantrun=item.owned_by_plantrun,
+                    file_name=item.file_name,
+                )
+                for item in current.attachments
+            )
         domain.edit_journal_entry(
             _text(payload.get("entry_id"), "entry_id"),
-            self._journal_draft(payload),
+            self._journal_draft(payload, attachments=attachments),
         )
 
     def _command_delete_journal_entry(self, domain: PlantRunDomain, payload: dict[str, Any]) -> None:
         domain.delete_journal_entry(_text(payload.get("entry_id"), "entry_id"))
+
+    def _command_set_plant_cover(self, domain: PlantRunDomain, payload: dict[str, Any]) -> None:
+        domain.set_plant_cover(
+            _text(payload.get("run_id"), "run_id"),
+            _optional_text(payload.get("attachment_id")),
+        )
 
     def _command_change_stage(self, domain: PlantRunDomain, payload: dict[str, Any]) -> None:
         domain.change_stage(

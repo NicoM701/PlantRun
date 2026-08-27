@@ -824,6 +824,46 @@ class StabilityLifecycleTests(unittest.TestCase):
         self.assertEqual(run.image_source, "uploaded")
         self.assertTrue((self.tmpdir / "www" / self.integration.UPLOADS_SUBDIR).exists())
 
+    def test_journal_upload_is_sniffed_and_written_as_owned_local_media(self):
+        hass = self._build_hass()
+        png = b"\x89PNG\r\n\x1a\nplant-run-test"
+        payload, created = asyncio.run(
+            self.integration._prepare_journal_attachments(
+                hass,
+                {
+                    "attachments": [
+                        {
+                            "data": base64.b64encode(png).decode("ascii"),
+                            "file_name": "seedling.png",
+                        }
+                    ]
+                },
+            )
+        )
+
+        attachment = payload["attachments"][0]
+        self.assertTrue(attachment["url"].startswith("/local/plantrun_uploads/journal_"))
+        self.assertTrue(attachment["url"].endswith(".png"))
+        self.assertTrue(attachment["owned_by_plantrun"])
+        self.assertEqual(len(created), 1)
+        self.assertEqual(created[0].read_bytes(), png)
+
+    def test_journal_upload_rejects_non_images_without_leaving_files(self):
+        hass = self._build_hass()
+        with self.assertRaisesRegex(ValueError, "Journalfoto"):
+            asyncio.run(
+                self.integration._prepare_journal_attachments(
+                    hass,
+                    {
+                        "attachments": [
+                            {"data": base64.b64encode(b"not-an-image").decode("ascii")}
+                        ]
+                    },
+                )
+            )
+        upload_dir = self.tmpdir / "www" / self.integration.UPLOADS_SUBDIR
+        self.assertFalse(upload_dir.exists())
+
 
 if __name__ == "__main__":
     unittest.main()

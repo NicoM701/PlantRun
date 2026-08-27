@@ -26,7 +26,13 @@ import {
 const e = escapeHtml;
 
 function plantImage(run) {
-  return run?.plant?.image_url
+  const coverId = run?.plant?.cover_attachment_id || run?.base_config?.cover_attachment_id;
+  const cover = (Array.isArray(run?.journal_entries) ? run.journal_entries : [])
+    .flatMap((entry) => Array.isArray(entry?.attachments) ? entry.attachments : [])
+    .find((attachment) => attachment?.id === coverId);
+  return cover?.url
+    || run?.plant?.image
+    || run?.plant?.image_url
     || run?.image_url
     || run?.plant?.cultivar?.image_url
     || run?.cultivar?.image_url
@@ -254,7 +260,15 @@ export function createPanelViewMethods() {
       const context = entry?.sensor_snapshot || entry?.sensor_context || entry?.context || {};
       const contextRows = Object.entries(context).filter(([key, value]) => key !== "captured_at" && value !== null && typeof value !== "object");
       const target = run ? plantName(run) : this._activeTent()?.name || "Growzelt";
-      return `<article class="journal-entry ${compact ? "compact" : ""}"><span class="entry-time"><b>${e(formatDate(entry?.occurred_at || entry?.created_at, true))}</b><small>${e(target)}</small></span><div class="entry-copy"><span class="entry-type">${e(this._entryTypeLabel(entry?.entry_type))}</span><p>${e(entry?.text || entry?.description || "Eintrag ohne Text")}</p>${contextRows.length ? `<details><summary>${contextRows.length} Sensorwerte angehängt</summary><dl>${contextRows.map(([key, value]) => `<div><dt>${e(key)}</dt><dd>${e(value)}</dd></div>`).join("")}</dl></details>` : ""}</div>${compact ? "" : `<div class="entry-actions">${run ? `<button class="icon-button" data-action="edit-journal-entry" data-run-id="${e(run.id)}" data-entry-id="${e(entry.id)}" type="button" aria-label="Eintrag bearbeiten"><ha-icon icon="mdi:pencil-outline"></ha-icon></button>` : ""}<button class="icon-button danger" data-action="request-delete-journal-entry" data-run-id="${e(run?.id || "")}" data-entry-id="${e(entry.id)}" type="button" aria-label="Eintrag löschen"><ha-icon icon="mdi:trash-can-outline"></ha-icon></button></div>`}</article>`;
+      const attachments = Array.isArray(entry?.attachments) ? entry.attachments : [];
+      const coverId = run?.plant?.cover_attachment_id || run?.base_config?.cover_attachment_id || "";
+      const media = attachments.length ? `<div class="journal-attachments" aria-label="Fotos im Journaleintrag">${attachments.map((attachment) => {
+        const src = attachment?.url;
+        if (!src) return "";
+        const isCover = attachment.id && attachment.id === coverId;
+        return `<figure class="journal-attachment"><img src="${e(src)}" alt="${e(attachment.caption || attachment.file_name || "Journalfoto")}" loading="lazy" /><figcaption><span>${e(attachment.caption || attachment.file_name || "Foto")}</span><small class="attachment-meta">${e(formatDate(attachment.captured_at))} · ${e(attachment.source === "upload" ? "Upload" : attachment.source || "Quelle unbekannt")}</small>${isCover ? `<small class="cover-badge">Pflanzenbild</small>` : ""}${run && attachment.id ? (isCover ? `<button class="quiet" data-action="clear-plant-cover" data-run-id="${e(run.id)}" type="button">Pflanzenbild entfernen</button>` : `<button class="quiet" data-action="set-plant-cover" data-run-id="${e(run.id)}" data-attachment-id="${e(attachment.id)}" type="button">Als Pflanzenbild verwenden</button>`) : ""}</figcaption></figure>`;
+      }).join("")}</div>` : "";
+      return `<article class="journal-entry ${compact ? "compact" : ""}"><span class="entry-time"><b>${e(formatDate(entry?.occurred_at || entry?.created_at, true))}</b><small>${e(target)}</small></span><div class="entry-copy"><span class="entry-type">${e(this._entryTypeLabel(entry?.entry_type))}</span><p>${e(entry?.text || entry?.description || "Eintrag ohne Text")}</p>${media}${contextRows.length ? `<details><summary>${contextRows.length} Sensorwerte angehängt</summary><dl>${contextRows.map(([key, value]) => `<div><dt>${e(key)}</dt><dd>${e(value)}</dd></div>`).join("")}</dl></details>` : ""}</div>${compact ? "" : `<div class="entry-actions">${run ? `<button class="icon-button" data-action="edit-journal-entry" data-run-id="${e(run.id)}" data-entry-id="${e(entry.id)}" type="button" aria-label="Eintrag bearbeiten"><ha-icon icon="mdi:pencil-outline"></ha-icon></button>` : ""}<button class="icon-button danger" data-action="request-delete-journal-entry" data-run-id="${e(run?.id || "")}" data-entry-id="${e(entry.id)}" type="button" aria-label="Eintrag löschen"><ha-icon icon="mdi:trash-can-outline"></ha-icon></button></div>`}</article>`;
     },
 
     _renderArchive() {

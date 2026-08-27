@@ -12,7 +12,7 @@ class BackendHistoryContractTests(unittest.TestCase):
         source = INIT_PY.read_text(encoding="utf-8")
         self.assertIn('{"type": "plantrun/get_state"}', source)
         self.assertIn('"type": "plantrun/command"', source)
-        self.assertIn('state = await application.execute(msg["command"]', source)
+        self.assertIn('before_state, state = await application.execute_with_previous(', source)
         self.assertIn('connection.send_error(msg["id"], "invalid_command"', source)
 
     def test_backend_exposes_binding_history_context_websocket(self):

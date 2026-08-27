@@ -130,6 +130,17 @@ class DashboardJsContractsTests(unittest.TestCase):
         self.assertIn("const tentEntries", source)
         self.assertIn("Sensorkontext wird beim Speichern angehängt", source)
 
+    def test_journal_attachments_support_upload_caption_and_cover_selection(self):
+        source = panel_source()
+        self.assertIn("data-journal-files", source)
+        self.assertIn("_handleJournalFiles(files)", source)
+        self.assertIn("attachments:", source)
+        self.assertIn('data-action="remove-journal-attachment"', source)
+        self.assertIn('data-action="set-plant-cover"', source)
+        self.assertIn('data-action="clear-plant-cover"', source)
+        self.assertIn("run?.plant?.image", source)
+        self.assertIn("cover_attachment_id", source)
+
     def test_stage_change_is_direct_and_timestamped(self):
         source = panel_source()
         self.assertIn('data-action="select-stage"', source)

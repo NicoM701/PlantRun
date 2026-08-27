@@ -86,6 +86,16 @@ class DashboardPanelInteractionRegressionTests(unittest.TestCase):
             "entry?.sensor_snapshot",
         ])
 
+    def test_journal_photo_flow_keeps_pending_data_until_authenticated_command(self):
+        assert_has_snippets(self, self.source, [
+            'target.matches("[data-journal-files]")',
+            "this._readJournalFile(file)",
+            "FileReader",
+            "canvas.toBlob",
+            "data ? { data } : {}",
+            'this._command("set_plant_cover"',
+        ])
+
     def test_snapshot_capture_time_is_metadata_not_a_sensor_value(self):
         assert_has_snippets(self, self.source, [
             'key !== "captured_at"',
