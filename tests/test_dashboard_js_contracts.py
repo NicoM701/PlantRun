@@ -47,9 +47,16 @@ class DashboardJsContractsTests(unittest.TestCase):
     def test_logo_contains_the_development_version_peek(self):
         source = PANEL_ENTRY_JS.read_text(encoding="utf-8")
         views = PANEL_VIEWS_JS.read_text(encoding="utf-8")
+        styles = PANEL_STYLES_JS.read_text(encoding="utf-8")
         self.assertIn('new URL(import.meta.url).searchParams.get("v")', source)
         self.assertIn('class="brand-version"', views)
         self.assertIn('class="rail-brand ${this._versionPeek ? "version-peek" : ""}"', views)
+        self.assertIn('class="brand-flip"', views)
+        self.assertIn('class="brand-face brand-front"', views)
+        self.assertIn('class="brand-face brand-back"', views)
+        self.assertIn('<span class="brand-name">PlantRun</span>', views)
+        self.assertIn("rotateY(180deg)", styles)
+        self.assertIn("backface-visibility:hidden", styles)
 
     def test_state_normalizer_supports_first_class_and_embedded_records(self):
         source = PANEL_DOMAIN_JS.read_text(encoding="utf-8")

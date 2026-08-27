@@ -67,14 +67,18 @@ export const panelStyles = `
     z-index:5;
   }
   .rail-brand,.nav-button,.rail-utility { border:0; background:transparent; cursor:pointer; }
-  .rail-brand { display:grid; justify-items:center; gap:8px; padding:4px 0 30px; font-size:12px; font-weight:750; letter-spacing:.02em; }
+  .rail-brand { position:relative; width:100%; height:100px; padding:4px 0 30px; display:grid; justify-items:center; gap:8px; font-size:12px; font-weight:750; letter-spacing:.02em; perspective:900px; }
+  .brand-flip { position:relative; display:block; width:100%; height:44px; transform-style:preserve-3d; transform-origin:center; transition:transform .42s cubic-bezier(.2,.7,.2,1); will-change:transform; }
+  .rail-brand.version-peek .brand-flip { transform:rotateY(180deg); }
+  .brand-face { position:absolute; inset:0; display:grid; justify-items:center; align-content:start; backface-visibility:hidden; -webkit-backface-visibility:hidden; }
+  .brand-front { align-content:start; }
+  .brand-back { align-content:center; gap:4px; overflow:hidden; border:1px solid color-mix(in srgb,var(--accent) 70%,var(--line)); border-radius:16px; background:var(--accent-ink); color:var(--accent-strong); box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--accent) 12%,transparent); transform:rotateY(180deg); }
   .brand-leaf { width:44px; height:44px; display:grid; place-items:center; border-radius:16px; background:var(--accent); color:var(--accent-ink); }
   .brand-leaf ha-icon { --mdc-icon-size:25px; }
-  .brand-version { display:none; min-height:44px; min-width:92px; align-content:center; gap:3px; text-align:center; color:var(--accent-strong); }
-  .brand-version b { font-size:13px; letter-spacing:.03em; }
-  .brand-version small { color:var(--muted); font-size:8px; letter-spacing:.08em; text-transform:uppercase; }
-  .rail-brand.version-peek .brand-leaf,.rail-brand.version-peek .brand-name { display:none; }
-  .rail-brand.version-peek .brand-version { display:grid; }
+  .brand-version { display:grid; width:100%; height:100%; align-content:center; gap:2px; text-align:center; }
+  .brand-version b { font-size:12px; line-height:1; letter-spacing:.03em; }
+  .brand-version small { color:var(--muted); font-size:7px; line-height:1; letter-spacing:.06em; text-transform:uppercase; white-space:nowrap; }
+  .brand-name { white-space:nowrap; }
   .desktop-rail nav { display:grid; gap:8px; }
   .nav-button { min-height:70px; padding:10px 5px; border-radius:16px; color:var(--muted); display:grid; place-items:center; gap:5px; font-size:11px; }
   .nav-button ha-icon { --mdc-icon-size:23px; }

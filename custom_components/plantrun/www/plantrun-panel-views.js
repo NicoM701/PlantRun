@@ -62,7 +62,10 @@ export function createPanelViewMethods() {
       return `<div class="app theme-${e(this._theme)}">
         <aside class="desktop-rail" aria-label="PlantRun Navigation">
           <button class="rail-brand ${this._versionPeek ? "version-peek" : ""}" data-action="navigate" data-screen="overview" type="button" aria-label="${e(this._versionPeek ? `PlantRun ${this._versionLabel()}` : "PlantRun Startseite")}">
-            <span class="brand-leaf"><ha-icon icon="mdi:sprout"></ha-icon></span><span class="brand-name">PlantRun</span><span class="brand-version" aria-hidden="${this._versionPeek ? "false" : "true"}"><b>${e(this._versionLabel())}</b><small>${e(this._versionBuildLabel())}</small></span>
+            <span class="brand-flip">
+              <span class="brand-face brand-front" aria-hidden="${this._versionPeek ? "true" : "false"}"><span class="brand-leaf"><ha-icon icon="mdi:sprout"></ha-icon></span></span>
+              <span class="brand-face brand-back" aria-hidden="${this._versionPeek ? "false" : "true"}"><span class="brand-version"><b>${e(this._versionLabel())}</b><small>${e(this._versionBuildLabel())}</small></span></span>
+            </span><span class="brand-name">PlantRun</span>
           </button>
           <nav>
             ${this._navButton("overview", "mdi:greenhouse", tentName)}
