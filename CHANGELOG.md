@@ -1,10 +1,14 @@
 # Changelog
 
+## 0.8.1
+
+- Polished the logo version peek into a fixed-size 3D flip tile. The PlantRun wordmark stays visible, and a second right-click restores the logo immediately.
+
 ## 0.8.0
 
 - Added Journal photo attachments with browser-side compression, captions, capture metadata, and visible source information.
 - Added explicit Plant Cover selection from Journal photos, including safe cleanup of PlantRun-owned files after deletion.
-- Added a development Easter egg: right-click the PlantRun logo to inspect the installed version and frontend build until the pointer leaves the logo.
+- Added a development Easter egg: right-click the PlantRun logo to inspect the installed version and frontend build until the pointer leaves the logo or a second right-click restores it.
 - Added additive compatibility handling for existing v3 stores and contract coverage for media persistence and version reporting.
 
 ## 0.7.0

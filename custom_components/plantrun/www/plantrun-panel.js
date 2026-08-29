@@ -1,5 +1,5 @@
-import { PlantRunApi } from "./plantrun-panel-api.js?v=0.8.0";
-import { createPanelDialogMethods } from "./plantrun-panel-dialogs.js?v=0.8.0";
+import { PlantRunApi } from "./plantrun-panel-api.js?v=0.8.1";
+import { createPanelDialogMethods } from "./plantrun-panel-dialogs.js?v=0.8.1";
 import {
   bindingForMetric,
   bindingsFor,
@@ -14,9 +14,9 @@ import {
   runStart,
   stagePlan,
   toIso,
-} from "./plantrun-panel-domain.js?v=0.8.0";
-import { panelStyles } from "./plantrun-panel-styles.js?v=0.8.0";
-import { createPanelViewMethods } from "./plantrun-panel-views.js?v=0.8.0";
+} from "./plantrun-panel-domain.js?v=0.8.1";
+import { panelStyles } from "./plantrun-panel-styles.js?v=0.8.1";
+import { createPanelViewMethods } from "./plantrun-panel-views.js?v=0.8.1";
 
 (() => {
   const TAG = "plantrun-dashboard-panel";
@@ -160,14 +160,23 @@ import { createPanelViewMethods } from "./plantrun-panel-views.js?v=0.8.0";
       return build ? `Build ${build.slice(0, 8)}` : "Entwicklungsstand";
     }
 
+    _setVersionPeek(brand, enabled) {
+      this._versionPeek = enabled;
+      if (enabled) {
+        brand.classList.add("version-peek");
+      } else {
+        brand.classList.remove("version-peek");
+      }
+      brand.setAttribute("aria-label", `PlantRun ${enabled ? this._versionLabel() : "Startseite"}`);
+      brand.querySelector(".brand-front")?.setAttribute("aria-hidden", String(enabled));
+      brand.querySelector(".brand-back")?.setAttribute("aria-hidden", String(!enabled));
+    }
+
     _handleContextMenu(event) {
       const brand = this._brandFromEvent(event);
       if (!brand) return;
       event.preventDefault();
-      this._versionPeek = true;
-      brand.classList.add("version-peek");
-      brand.setAttribute("aria-label", `PlantRun ${this._versionLabel()}`);
-      brand.querySelector(".brand-version")?.setAttribute("aria-hidden", "false");
+      this._setVersionPeek(brand, !this._versionPeek);
     }
 
     _handlePointerOut(event) {
@@ -176,10 +185,7 @@ import { createPanelViewMethods } from "./plantrun-panel-views.js?v=0.8.0";
       if (!brand) return;
       const relatedTarget = event.relatedTarget;
       if (relatedTarget && brand.contains?.(relatedTarget)) return;
-      this._versionPeek = false;
-      brand.classList.remove("version-peek");
-      brand.setAttribute("aria-label", "PlantRun Startseite");
-      brand.querySelector(".brand-version")?.setAttribute("aria-hidden", "true");
+      this._setVersionPeek(brand, false);
     }
 
     _runName(run) {

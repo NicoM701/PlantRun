@@ -4,7 +4,7 @@
 
 PlantRun is a Home Assistant custom integration for tracking cultivation runs end to end.
 
-Version 0.8.0 is the first feature release after the usable rebuild. Its
+Version 0.8.1 is the current polish release after the usable rebuild. Its
 production sidebar follows the accepted one-plant-per-run model, three-step
 creation flow, history-first Journal, direct Stage changes, Recorder workspace,
 Archive, and warned Permanent

@@ -21,7 +21,7 @@ import {
   runStart,
   stagePlan,
   targetFor,
-} from "./plantrun-panel-domain.js?v=0.8.0";
+} from "./plantrun-panel-domain.js?v=0.8.1";
 
 const e = escapeHtml;
 

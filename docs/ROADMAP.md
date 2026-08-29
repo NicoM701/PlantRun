@@ -8,9 +8,9 @@ The first target is deliberately narrow: record the cultivation cycle that has a
 
 ## Current truth
 
-- GitHub and HACS publish `v0.8.0` as the current feature release after the first usable rebuild.
+- GitHub and HACS publish `v0.8.1` as the current polish release after the first usable rebuild.
 - The current branch now contains the first Journal media slice: authenticated photo upload, caption/source metadata, safe PlantRun-owned file cleanup, and explicit Plant Cover selection. Its Home Assistant live gate is still pending.
-- Home Assistant runs `v0.7.0` with the PlantRun config entry loaded.
+- Home Assistant runs `v0.8.1` with the PlantRun config entry loaded.
 - The live v3 store contains one Growzelt, the Diesel Auto and Tangerine Dream Auto Runs, and five accepted Journal Entries from August 25, 2026.
 - A second Home Assistant restart preserved the complete v3 state and the rebuilt sidebar rendered both Plants afterward.
 - The authenticated live SeedFinder search returns matching results for Diesel Automatic by Royal Queen Seeds and Tangerine Dream Automatic by Zamnesia. The current live responses do not yet include a duration or image, and the imported acceptance Runs do not prove the full create-flow interaction.
