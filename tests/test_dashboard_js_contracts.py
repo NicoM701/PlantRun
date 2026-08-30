@@ -40,6 +40,9 @@ class DashboardJsContractsTests(unittest.TestCase):
         )["version"]
         for module in ("api", "dialogs", "domain", "styles", "views"):
             self.assertIn(f'from "./plantrun-panel-{module}.js?v={manifest_version}"', source)
+        for path in (PANEL_DIALOGS_JS, PANEL_VIEWS_JS):
+            sibling = path.read_text(encoding="utf-8")
+            self.assertIn(f'from "./plantrun-panel-domain.js?v={manifest_version}"', sibling)
         self.assertNotIn('from "./prototype/', source.lower())
         self.assertNotIn("Tangerine Dream Auto", source)
         self.assertNotIn("Diesel Auto", source)

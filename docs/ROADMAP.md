@@ -8,14 +8,15 @@ The first target is deliberately narrow: record the cultivation cycle that has a
 
 ## Current truth
 
-- GitHub and HACS publish `v0.8.1` as the current polish release after the first usable rebuild.
+- GitHub and HACS publish `v0.8.2` as the current release after the first usable rebuild.
+- `v0.8.2` prunes leftover legacy PlantRun device-registry shells on setup or reload and allows Home Assistant to delete orphan run devices.
 - The current branch now contains the first Journal media slice: authenticated photo upload, caption/source metadata, safe PlantRun-owned file cleanup, and explicit Plant Cover selection. Its Home Assistant live gate is still pending.
-- Home Assistant runs `v0.8.1` with the PlantRun config entry loaded.
+- Home Assistant runs `v0.8.2` with the PlantRun config entry loaded.
 - The live v3 store contains one Growzelt, the Diesel Auto and Tangerine Dream Auto Runs, and five accepted Journal Entries from August 25, 2026.
 - A second Home Assistant restart preserved the complete v3 state and the rebuilt sidebar rendered both Plants afterward.
 - The authenticated live SeedFinder search returns matching results for Diesel Automatic by Royal Queen Seeds and Tangerine Dream Automatic by Zamnesia. The current live responses do not yet include a duration or image, and the imported acceptance Runs do not prove the full create-flow interaction.
 - Home Assistant currently exposes the Growzelt light through an enabled 20:00 on automation, an enabled 14:00 off automation, the SmartPlug switch, a power sensor in W, and an accumulated energy sensor in kWh. The former 16:00 off automation still exists but is disabled.
-- The former Amnesia and Purple Cookie Kush records remain in the hidden legacy bucket and the full Home Assistant backup `Before_PlantRun_v0.7.0_rebuild_2026-08-26`. They do not appear in the rebuilt sidebar.
+- The former Amnesia and Purple Cookie Kush records remain only in the hidden legacy bucket and the full Home Assistant backup `Before_PlantRun_v0.7.0_rebuild_2026-08-26`. Their leftover device-registry shells were removed in `v0.8.2`; they do not appear in the rebuilt sidebar.
 - The permanent-deletion flow remains the only supported way for a user to remove a rebuilt Run.
 
 ## Working rule
