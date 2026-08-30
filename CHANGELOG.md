@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.2
+
+- Prune leftover legacy PlantRun device-registry shells on setup or reload.
+- Allow Home Assistant to delete orphan run devices without unloading the config entry.
+
 ## 0.8.1
 
 - Polished the logo version peek into a fixed-size 3D flip tile. The PlantRun wordmark stays visible, and a second right-click restores the logo immediately.
