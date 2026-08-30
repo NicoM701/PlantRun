@@ -12,7 +12,7 @@
 - [ ] `README.md` → opening “Version X.Y.Z …” sentence
 - [ ] `docs/ROADMAP.md` → “Current truth” GitHub/HACS tag and live Home Assistant version lines
 - [ ] `tests/frontend_harness.html` → mock `version` field
-- [ ] GitHub release tag `vX.Y.Z` points at the commit that contains the bump
+- [ ] GitHub release tag `vX.Y.Z` points at the commit that contains the bump (re-tag if the manifest commit landed after the first tag push)
 
 Automated gate:
 
