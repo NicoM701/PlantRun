@@ -189,13 +189,29 @@ def _install_homeassistant_stubs() -> None:
     def async_entries_for_config_entry(registry, entry_id):
         return [entry for entry in registry.entries.values() if entry.config_entry_id == entry_id]
 
+    device_registry_mod = types.ModuleType("homeassistant.helpers.device_registry")
+
+    def async_get_devices(hass):
+        return hass.device_registry
+
+    def async_device_entries_for_config_entry(registry, entry_id):
+        return [
+            device
+            for device in registry.devices.values()
+            if entry_id in device.config_entries
+        ]
+
     helpers_mod.__path__ = []
     helpers_mod.entity_registry = entity_registry_mod
+    helpers_mod.device_registry = device_registry_mod
     sys.modules["homeassistant.helpers"] = helpers_mod
     sys.modules["homeassistant.helpers.selector"] = selector_mod
     entity_registry_mod.async_get = async_get
     entity_registry_mod.async_entries_for_config_entry = async_entries_for_config_entry
     sys.modules["homeassistant.helpers.entity_registry"] = entity_registry_mod
+    device_registry_mod.async_get = async_get_devices
+    device_registry_mod.async_entries_for_config_entry = async_device_entries_for_config_entry
+    sys.modules["homeassistant.helpers.device_registry"] = device_registry_mod
 
     aiohttp_client = types.ModuleType("homeassistant.helpers.aiohttp_client")
     aiohttp_client._session = object()
@@ -217,9 +233,10 @@ def _install_homeassistant_stubs() -> None:
 
 class FakeStorage:
     instances = []
+    seed_runs = []
 
     def __init__(self, _hass=None):
-        self.runs = []
+        self.runs = list(FakeStorage.seed_runs)
         self.active_run_id = None
         self.saved_runs = []
         self.calls = []
@@ -328,6 +345,24 @@ class FakeEntityRegistry:
             self.entries.pop(entity_id, None)
 
 
+class FakeDevice:
+    def __init__(self, device_id: str, identifiers, config_entries):
+        self.id = device_id
+        self.identifiers = set(identifiers)
+        self.config_entries = set(config_entries)
+
+
+class FakeDeviceRegistry:
+    def __init__(self, devices=None):
+        self.devices = {device.id: device for device in (devices or [])}
+        self.removed = []
+
+    def async_remove_device(self, device_id: str) -> None:
+        if device_id in self.devices:
+            self.removed.append(device_id)
+            self.devices.pop(device_id, None)
+
+
 class StabilityLifecycleTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -395,6 +430,7 @@ class StabilityLifecycleTests(unittest.TestCase):
     def setUp(self):
         self.providers.calls.clear()
         FakeStorage.instances.clear()
+        FakeStorage.seed_runs = []
         self.tmpdir = Path(tempfile.mkdtemp(prefix="plantrun-test-"))
 
     def tearDown(self):
@@ -416,6 +452,7 @@ class StabilityLifecycleTests(unittest.TestCase):
             config_entries=FakeConfigEntries(),
             async_add_executor_job=async_add_executor_job,
             entity_registry=FakeEntityRegistry(),
+            device_registry=FakeDeviceRegistry(),
         )
         hass._executor_calls = executor_calls
         return hass
@@ -498,6 +535,81 @@ class StabilityLifecycleTests(unittest.TestCase):
         self.assertIn("sensor.plantrun_total_plant_runs", hass.entity_registry.entries)
         self.assertIn("sensor.plantrun_active_phase_other_entry", hass.entity_registry.entries)
         self.assertIn("sensor.plantrun_active_phase_run123", hass.entity_registry.entries)
+
+    def test_remove_config_entry_device_allows_orphan_and_refuses_live(self):
+        hass = self._build_hass()
+        entry = sys.modules["homeassistant.config_entries"].ConfigEntry("entry-devices")
+        live_run_id = "run_2df887ffb2a4456389d1c05a3c66125c"
+        FakeStorage.seed_runs = [
+            self.models.RunData(
+                friendly_name="Diesel Auto RQS",
+                start_time="2026-08-25T00:00:00+00:00",
+                id=live_run_id,
+            )
+        ]
+        asyncio.run(self.integration.async_setup_entry(hass, entry))
+
+        orphan = FakeDevice(
+            "0ba35f45b515117a8d3145580e6e6aeb",
+            {("plantrun", "0b46f385bb4541c0a862f1fdf70570be")},
+            {entry.entry_id},
+        )
+        live = FakeDevice("live-device", {("plantrun", live_run_id)}, {entry.entry_id})
+        foreign = FakeDevice("foreign-device", {("hue", "abc123")}, {entry.entry_id})
+
+        allowed = asyncio.run(
+            self.integration.async_remove_config_entry_device(hass, entry, orphan)
+        )
+        refused_live = asyncio.run(
+            self.integration.async_remove_config_entry_device(hass, entry, live)
+        )
+        refused_foreign = asyncio.run(
+            self.integration.async_remove_config_entry_device(hass, entry, foreign)
+        )
+
+        self.assertTrue(allowed)
+        self.assertFalse(refused_live)
+        self.assertFalse(refused_foreign)
+
+    def test_setup_entry_prunes_orphan_device_shells(self):
+        hass = self._build_hass()
+        entry = sys.modules["homeassistant.config_entries"].ConfigEntry("entry-devices")
+        live_run_id = "run_2df887ffb2a4456389d1c05a3c66125c"
+        FakeStorage.seed_runs = [
+            self.models.RunData(
+                friendly_name="Diesel Auto RQS",
+                start_time="2026-08-25T00:00:00+00:00",
+                id=live_run_id,
+            )
+        ]
+        hass.device_registry = FakeDeviceRegistry(
+            [
+                FakeDevice(
+                    "0ba35f45b515117a8d3145580e6e6aeb",
+                    {("plantrun", "0b46f385bb4541c0a862f1fdf70570be")},
+                    {entry.entry_id},
+                ),
+                FakeDevice(
+                    "2add613e0385d5f9695f1501312d94fc",
+                    {("plantrun", "68b5f27b118a48e2a2cf302d0f3c5e72")},
+                    {entry.entry_id},
+                ),
+                FakeDevice("live-device", {("plantrun", live_run_id)}, {entry.entry_id}),
+                FakeDevice("foreign-device", {("hue", "abc123")}, {entry.entry_id}),
+            ]
+        )
+
+        asyncio.run(self.integration.async_setup_entry(hass, entry))
+
+        self.assertEqual(
+            hass.device_registry.removed,
+            [
+                "0ba35f45b515117a8d3145580e6e6aeb",
+                "2add613e0385d5f9695f1501312d94fc",
+            ],
+        )
+        self.assertIn("live-device", hass.device_registry.devices)
+        self.assertIn("foreign-device", hass.device_registry.devices)
 
     def test_setup_entry_cleanup_is_idempotent(self):
         hass = self._build_hass()

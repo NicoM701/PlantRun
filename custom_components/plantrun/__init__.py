@@ -36,6 +36,11 @@ from .const import (
     UNSUPPORTED_BINDING_METRIC_TYPES,
 )
 from .coordinator import PlantRunCoordinator
+from .device_cleanup import (
+    async_prune_orphan_devices,
+    device_may_be_removed,
+    live_run_ids,
+)
 from .domain import DomainError
 from .history_context import build_binding_history_context
 from .models import Binding, CultivarSnapshot, Note, Phase, RunData
@@ -540,6 +545,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             "Removed %s obsolete legacy PlantRun sensor registry entr%s during setup.",
             removed_legacy_entities,
             "y" if removed_legacy_entities == 1 else "ies",
+        )
+
+    removed_orphan_devices = async_prune_orphan_devices(
+        hass, entry, live_run_ids(storage)
+    )
+    if removed_orphan_devices:
+        _LOGGER.info(
+            "Removed %s leftover PlantRun device-registry shell%s during setup.",
+            removed_orphan_devices,
+            "" if removed_orphan_devices == 1 else "s",
         )
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
@@ -1109,6 +1124,21 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
 
     return True
+
+
+async def async_remove_config_entry_device(
+    hass: HomeAssistant,
+    config_entry: ConfigEntry,
+    device_entry: Any,
+) -> bool:
+    """Allow deleting leftover run devices without unloading the config entry."""
+    runtime = hass.data.get(DOMAIN, {}).get(config_entry.entry_id)
+    if not isinstance(runtime, dict):
+        return False
+    storage = runtime.get("storage")
+    if storage is None:
+        return False
+    return device_may_be_removed(device_entry, live_run_ids(storage))
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
