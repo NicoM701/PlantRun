@@ -9,8 +9,42 @@
 <body>
   <plantrun-dashboard-panel></plantrun-dashboard-panel>
   <script type="module">
+    const MDI_ICONS = {
+      "mdi:sprout": "M20 4C11 4 5 8.5 5 15c0 2.8 2.2 5 5 5 6.5 0 10-7 10-16Z M4 21c2.5-6 6-9.5 12-13",
+      "mdi:sprout-outline": "M20 4C11 4 5 8.5 5 15c0 2.8 2.2 5 5 5 6.5 0 10-7 10-16Z M4 21c2.5-6 6-9.5 12-13",
+      "mdi:greenhouse": "M12 3L2 12h3v8h14v-8h3L12 3zm0 2.84L18 11.2V18H6v-6.8l6-5.36z M8 12h3v4H8v-4zm5 0h3v4h-3v-4z",
+      "mdi:notebook-outline": "M17 4v6l-2-1-2 1V4H9v16h10V4h-2zm2-2a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h14zM5 4h2v16H5V4z",
+      "mdi:archive-outline": "M20 21H4V10h16v11zM3 3h18v4H3V3zm3 9v2h12v-2H6z",
+      "mdi:white-balance-sunny": "M12 7a5 5 0 1 0 0 10 5 5 0 0 0 0-10zm0-5a1 1 0 0 1 1 1v2a1 1 0 0 1-2 0V3a1 1 0 0 1 1-1zm0 18a1 1 0 0 1 1 1v2a1 1 0 0 1-2 0v-2a1 1 0 0 1 1-1zM4.22 4.22a1 1 0 0 1 1.42 0l1.41 1.41a1 1 0 0 1-1.41 1.42L4.22 5.64a1 1 0 0 1 0-1.42zm12.73 12.73a1 1 0 0 1 1.41 0l1.42 1.41a1 1 0 0 1-1.42 1.42l-1.41-1.42a1 1 0 0 1 0-1.41zM2 12a1 1 0 0 1 1-1h2a1 1 0 0 1 0 2H3a1 1 0 0 1-1-1zm18 0a1 1 0 0 1 1-1h2a1 1 0 0 1 0 2h-2a1 1 0 0 1-1-1zM5.64 18.36a1 1 0 0 1 0-1.41l1.41-1.42a1 1 0 0 1 1.42 1.42l-1.42 1.41a1 1 0 0 1-1.41 0zm12.73-12.73a1 1 0 0 1 0-1.41l1.41-1.42a1 1 0 1 1 1.42 1.42l-1.42 1.41a1 1 0 0 1-1.41 0z",
+      "mdi:weather-night": "M17.75 4.09L15.22 1.56L13.81 2.97L15.22 4.38L12.7 6.9L14.11 8.31L16.63 5.79L18.04 7.2L19.45 5.79L18.04 4.38L19.45 2.97L18.04 1.56L17.75 4.09ZM9.37 6.51C9.07 7.6 9 8.78 9 10C9 14.97 13.03 19 18 19C19.22 19 20.4 18.93 21.49 18.63C20.08 21.28 17.26 23 14 23C9.03 23 5 18.97 5 14C5 10.74 6.72 7.92 9.37 6.51Z",
+      "mdi:plus": "M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z",
+      "mdi:arrow-right": "M4 11h12.17l-5.59-5.59L12 4l8 8-8 8-1.41-1.41L16.17 13H4v-2z",
+      "mdi:arrow-left": "M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z",
+      "mdi:thermometer": "M15 13V5a3 3 0 0 0-6 0v8a5 5 0 1 0 6 0zm-3-10a1 1 0 0 1 1 1v5h-2V4a1 1 0 0 1 1-1zm0 15a3 3 0 0 1-1.5-5.6V9h3v3.4A3 3 0 0 1 12 18z",
+      "mdi:water-percent": "M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z M9.5 11a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zm5 4a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zm-5.5 3.5l6-6",
+      "mdi:water": "M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z",
+      "mdi:flash-outline": "M7 2v11h3v9l7-12h-4l4-8z",
+      "mdi:flash": "M7 2v11h3v9l7-12h-4l4-8z",
+      "mdi:calendar": "M19 4h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20a2 2 0 0 0 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zM9 14H7v-2h2v2zm4 0h-2v-2h2v2zm4 0h-2v-2h2v2z",
+      "mdi:pencil-outline": "M14.06 9.02l.92.92L5.92 19H5v-.92l9.06-9.06M17.66 3c-.25 0-.51.1-.7.29l-1.83 1.83 3.75 3.75 1.83-1.83a.996.996 0 0 0 0-1.41l-2.34-2.34c-.2-.2-.45-.29-.71-.29zm-3.6 3.19L3 17.25V21h3.75L17.81 9.94l-3.75-3.75z",
+      "mdi:trash-can-outline": "M9 3v1H4v2h1v13a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V6h1V4h-5V3H9m0 5h2v9H9V8m4 0h2v9h-2V8z",
+      "mdi:close": "M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z",
+      "mdi:loading": "M12 4V2A10 10 0 0 0 2 12h2a8 8 0 0 1 8-8z",
+      "mdi:camera-plus-outline": "M20 4h-3.17L15 2H9L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 14H4V6h4.05l1.83-2h4.24l1.83 2H20v12zM12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zm0 8c-1.65 0-3-1.35-3-3s1.35-3 3-3 3 1.35 3 3-1.35 3-3 3z",
+      "mdi:image-outline": "M19 5v14H5V5h14m0-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-4.86 8.86l-3 3.87L9 13.14 6 17h12l-3.86-5.14z",
+      "mdi:notebook-plus-outline": "M17 4v6l-2-1-2 1V4H9v16h10V4h-2zm2-2a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h14zM11 11h2v-2h2v2h2v2h-2v2h-2v-2h-2v-2z",
+      "mdi:cloud-alert-outline": "M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM19 18H6c-2.21 0-4-1.79-4-4 0-2.05 1.53-3.76 3.56-3.97l1.07-.11.5-.95C8.08 7.14 9.94 6 12 6c2.62 0 4.88 1.86 5.39 4.43l.3 1.5 1.53.11c1.56.1 2.78 1.41 2.78 2.96 0 1.65-1.35 3-3 3zm-8-7h2v4h-2zm0 6h2v2h-2z"
+    };
+
     class HaIcon extends HTMLElement {
-      connectedCallback() { this.setAttribute("aria-hidden", "true"); }
+      static get observedAttributes() { return ["icon"]; }
+      connectedCallback() { this._render(); }
+      attributeChangedCallback() { this._render(); }
+      _render() {
+        const name = this.getAttribute("icon") || "";
+        const path = MDI_ICONS[name] || "M12 2A10 10 0 1 0 22 12 10 10 0 0 0 12 2zm1 15h-2v-2h2zm0-4h-2V7h2z";
+        this.innerHTML = `<svg viewBox="0 0 24 24" style="width:var(--mdc-icon-size, 24px);height:var(--mdc-icon-size, 24px);display:inline-block;fill:currentColor;vertical-align:middle;flex-shrink:0;" aria-hidden="true"><path d="${path}"></path></svg>`;
+      }
     }
     customElements.define("ha-icon", HaIcon);
     customElements.define("ha-panel-lovelace", class extends HTMLElement {});
@@ -27,25 +61,45 @@
         light_schedule: "20:00 bis 14:00, 18/6",
       }],
       plants: [
-        { id: "plant-diesel", tent_id: "tent-growzelt", name: "Diesel Auto", strain: { name: "Diesel Auto", breeder: "Royal Queen Seeds", duration: null }, image: null, container: "7 L Endtopf", substrate: "All-Mix Erde" },
-        { id: "plant-tangerine", tent_id: "tent-growzelt", name: "Tangerine Dream Auto", strain: { name: "Tangerine Dream Auto", breeder: "Zamnesia", duration: null }, image: null, container: "7 L Endtopf", substrate: "All-Mix Erde" },
+        { id: "plant-diesel", tent_id: "tent-growzelt", name: "Diesel Auto", strain: { name: "Diesel Auto", breeder: "Royal Queen Seeds", duration: { min_days: 65, max_days: 70 } }, image: "/custom_components/plantrun/www/prototype/assets/diesel-auto-breeder.jpg", container: "11 L Stofftopf", substrate: "Plagron Promix" },
+        { id: "plant-tangerine", tent_id: "tent-growzelt", name: "Tangerine Dream Auto", strain: { name: "Tangerine Dream Auto", breeder: "Zamnesia", duration: { min_days: 70, max_days: 75 } }, image: "/custom_components/plantrun/www/prototype/assets/tangerine-dream-breeder.jpg", container: "11 L Stofftopf", substrate: "BioBizz Light-Mix" },
       ],
       runs: [
-        { id: "run-diesel", name: "Diesel Auto RQS", tent_id: "tent-growzelt", plant_id: "plant-diesel", planted_at: plantedAt, stage_plan: ["Germination","Seedling","Vegetative","Flowering","Harvested"], current_stage: "Germination", stage_history: [{ id: "stage-diesel", from_stage: null, to_stage: "Germination", occurred_at: plantedAt, created_at: plantedAt }], status: "active", ended_at: null, harvest_details: {} },
-        { id: "run-tangerine", name: "Tangerine Dream Auto Zamnesia", tent_id: "tent-growzelt", plant_id: "plant-tangerine", planted_at: plantedAt, stage_plan: ["Germination","Seedling","Vegetative","Flowering","Harvested"], current_stage: "Germination", stage_history: [{ id: "stage-tangerine", from_stage: null, to_stage: "Germination", occurred_at: plantedAt, created_at: plantedAt }], status: "active", ended_at: null, harvest_details: {} },
+        { id: "run-diesel", name: "Diesel Auto", tent_id: "tent-growzelt", plant_id: "plant-diesel", planted_at: plantedAt, stage_plan: ["Keimung","Sämling","Vegetativ","Blüte","Ernte"], current_stage: "Sämling", stage_history: [{ id: "stage-diesel-1", from_stage: null, to_stage: "Keimung", occurred_at: plantedAt, created_at: plantedAt }, { id: "stage-diesel-2", from_stage: "Keimung", to_stage: "Sämling", occurred_at: "2026-08-28T10:00:00+02:00", created_at: "2026-08-28T10:00:00+02:00" }], status: "active", ended_at: null, harvest_details: {} },
+        { id: "run-tangerine", name: "Tangerine Dream Auto", tent_id: "tent-growzelt", plant_id: "plant-tangerine", planted_at: plantedAt, stage_plan: ["Keimung","Sämling","Vegetativ","Blüte","Ernte"], current_stage: "Sämling", stage_history: [{ id: "stage-tangerine-1", from_stage: null, to_stage: "Keimung", occurred_at: plantedAt, created_at: plantedAt }, { id: "stage-tangerine-2", from_stage: "Keimung", to_stage: "Sämling", occurred_at: "2026-08-28T10:00:00+02:00", created_at: "2026-08-28T10:00:00+02:00" }], status: "active", ended_at: null, harvest_details: {} },
       ],
       journal_entries: [
-        { id: "journal-diesel-plant", tent_id: "tent-growzelt", run_ids: ["run-diesel"], entry_type: "Planting", text: "Trockenen Samen direkt aus der Packung in All-Mix Erde im 7 L Endtopf gesetzt.", occurred_at: plantedAt, created_at: plantedAt, updated_at: plantedAt, details: { time_is_approximate: true }, sensor_snapshot: {} },
-        { id: "journal-diesel-water", tent_id: "tent-growzelt", run_ids: ["run-diesel"], entry_type: "Water", text: "Frische Erde angefeuchtet und etwas zusätzliches Wasser über den Samen gesprenkelt. Menge nicht gemessen.", occurred_at: plantedAt, created_at: plantedAt, updated_at: plantedAt, details: { amount: null, measured: false }, sensor_snapshot: {} },
-        { id: "journal-tangerine-plant", tent_id: "tent-growzelt", run_ids: ["run-tangerine"], entry_type: "Planting", text: "Trockenen Samen direkt aus der Packung in All-Mix Erde im 7 L Endtopf gesetzt.", occurred_at: plantedAt, created_at: plantedAt, updated_at: plantedAt, details: { time_is_approximate: true }, sensor_snapshot: {} },
-        { id: "journal-tangerine-water", tent_id: "tent-growzelt", run_ids: ["run-tangerine"], entry_type: "Water", text: "Frische Erde angefeuchtet und etwas zusätzliches Wasser über den Samen gesprenkelt. Menge nicht gemessen.", occurred_at: plantedAt, created_at: plantedAt, updated_at: plantedAt, details: { amount: null, measured: false }, sensor_snapshot: {} },
-        { id: "journal-light", tent_id: "tent-growzelt", run_ids: [], entry_type: "Lighting", text: "Erstes planmäßiges Einschalten. Lichtzyklus 20:00 bis 14:00, 18/6.", occurred_at: "2026-08-25T20:00:00+02:00", created_at: "2026-08-25T20:00:00+02:00", updated_at: "2026-08-25T20:00:00+02:00", details: {}, sensor_snapshot: {} },
+        { id: "journal-diesel-water", tent_id: "tent-growzelt", run_ids: ["run-diesel"], entry_type: "Water", text: "Vor 18 Std. gegossen (350 ml). Erde gleichmäßig feucht.", occurred_at: "2026-08-30T14:00:00+02:00", created_at: "2026-08-30T14:00:00+02:00", updated_at: "2026-08-30T14:00:00+02:00", details: { amount: 350, measured: true }, sensor_snapshot: {} },
+        { id: "journal-tangerine-water", tent_id: "tent-growzelt", run_ids: ["run-tangerine"], entry_type: "Water", text: "Vor 18 Std. gegossen (350 ml). Erde gleichmäßig feucht.", occurred_at: "2026-08-30T14:00:00+02:00", created_at: "2026-08-30T14:00:00+02:00", updated_at: "2026-08-30T14:00:00+02:00", details: { amount: 350, measured: true }, sensor_snapshot: {} },
+        { id: "journal-light", tent_id: "tent-growzelt", run_ids: [], entry_type: "Lighting", text: "Lichtzyklus 20:00 bis 14:00, 18/6.", occurred_at: "2026-08-25T20:00:00+02:00", created_at: "2026-08-25T20:00:00+02:00", updated_at: "2026-08-25T20:00:00+02:00", details: {}, sensor_snapshot: {} },
       ],
-      sensor_bindings: [],
+      sensor_bindings: [
+        { id: "bind-tent-temp", owner_type: "tent", owner_id: "tent-growzelt", metric_type: "temperature", entity_id: "sensor.growzelt_temperature" },
+        { id: "bind-tent-hum", owner_type: "tent", owner_id: "tent-growzelt", metric_type: "humidity", entity_id: "sensor.growzelt_humidity" },
+        { id: "bind-tent-light", owner_type: "tent", owner_id: "tent-growzelt", metric_type: "light", entity_id: "sensor.growzelt_illuminance" },
+        { id: "bind-tent-energy", owner_type: "tent", owner_id: "tent-growzelt", metric_type: "energy", entity_id: "sensor.growzelt_power" },
+        { id: "bind-diesel-moist", owner_type: "plant", owner_id: "run-diesel", metric_type: "soil_moisture", entity_id: "sensor.diesel_moisture" },
+        { id: "bind-diesel-temp", owner_type: "plant", owner_id: "run-diesel", metric_type: "temperature", entity_id: "sensor.diesel_temp" },
+        { id: "bind-diesel-ec", owner_type: "plant", owner_id: "run-diesel", metric_type: "conductivity", entity_id: "sensor.diesel_ec" },
+        { id: "bind-tangerine-moist", owner_type: "plant", owner_id: "run-tangerine", metric_type: "soil_moisture", entity_id: "sensor.tangerine_moisture" },
+        { id: "bind-tangerine-temp", owner_type: "plant", owner_id: "run-tangerine", metric_type: "temperature", entity_id: "sensor.tangerine_temp" },
+        { id: "bind-tangerine-ec", owner_type: "plant", owner_id: "run-tangerine", metric_type: "conductivity", entity_id: "sensor.tangerine_ec" },
+      ],
     };
 
     const hass = {
-      states: {},
+      states: {
+        "sensor.growzelt_temperature": { state: "26.9", attributes: { unit_of_measurement: "°C" } },
+        "sensor.growzelt_humidity": { state: "69.5", attributes: { unit_of_measurement: "%" } },
+        "sensor.growzelt_illuminance": { state: "56.5", attributes: { unit_of_measurement: "klx" } },
+        "sensor.growzelt_power": { state: "280", attributes: { unit_of_measurement: "W" } },
+        "sensor.diesel_moisture": { state: "52", attributes: { unit_of_measurement: "%" } },
+        "sensor.diesel_temp": { state: "24.1", attributes: { unit_of_measurement: "°C" } },
+        "sensor.diesel_ec": { state: "1.1", attributes: { unit_of_measurement: "mS/cm" } },
+        "sensor.tangerine_moisture": { state: "58", attributes: { unit_of_measurement: "%" } },
+        "sensor.tangerine_temp": { state: "23.8", attributes: { unit_of_measurement: "°C" } },
+        "sensor.tangerine_ec": { state: "1.2", attributes: { unit_of_measurement: "mS/cm" } },
+      },
       async callWS(message) {
         if (message.type === "plantrun/get_state") return structuredClone(state);
         if (message.type === "plantrun/search_cultivar") return { results: [] };
@@ -54,6 +108,11 @@
       },
       async callApi() { return [[]]; },
     };
+
+    const urlTheme = new URLSearchParams(window.location.search).get("theme");
+    if (urlTheme) {
+      localStorage.setItem("plantrun.theme.v3", urlTheme);
+    }
 
     await import("../custom_components/plantrun/www/plantrun-panel.js");
     document.querySelector("plantrun-dashboard-panel").hass = hass;
