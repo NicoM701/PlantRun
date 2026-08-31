@@ -111,28 +111,78 @@ export const panelStyles = `
   .page-heading { display:flex; justify-content:space-between; gap:30px; align-items:end; margin-bottom:28px; }
   .page-heading>div { display:grid; gap:9px; max-width:730px; }
   .page-heading p { max-width:660px; }
-  .tent-strip { border-top:1px solid var(--line); border-bottom:1px solid var(--line); display:grid; grid-template-columns:repeat(4,1fr); margin:0 0 34px; }
-  .tent-reading { min-width:0; padding:18px 20px; display:grid; gap:5px; border-right:1px solid var(--line); }
-  .tent-reading:last-child { border:0; }
-  .tent-reading span,.tent-reading small { color:var(--muted); }
-  .tent-reading span { font-size:12px; }
-  .tent-reading strong { font-size:22px; overflow:hidden; text-overflow:ellipsis; }
-  .tent-reading small { font-size:10px; }
-  .plant-gallery { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:clamp(20px,3vw,36px); }
-  .plant-card { min-width:0; background:var(--surface); border:1px solid var(--line-soft); border-radius:var(--radius-work); overflow:hidden; position:relative; }
-  .plant-card-main { width:100%; border:0; padding:0; background:transparent; color:inherit; cursor:pointer; text-align:left; display:grid; grid-template-columns:minmax(180px,42%) 1fr; }
-  .plant-card-photo { width:100%; height:330px; object-fit:cover; background:var(--surface-2); }
-  .photo-empty { display:grid; place-items:center; align-content:center; gap:10px; color:var(--quiet); }
-  .photo-empty ha-icon { --mdc-icon-size:54px; }
-  .photo-empty span { font-size:12px; }
-  .plant-card-body { padding:30px; display:flex; flex-direction:column; align-items:flex-start; min-width:0; }
-  .plant-card-body>strong { font-size:clamp(24px,3vw,38px); line-height:1.05; letter-spacing:-.035em; margin:12px 0 6px; }
-  .plant-card-body>small { color:var(--muted); }
-  .stage-label { display:inline-flex; align-items:center; min-height:29px; padding:0 10px; border:1px solid color-mix(in srgb,var(--accent) 55%,var(--line)); border-radius:999px; color:var(--accent-strong); font-size:11px; font-weight:800; }
-  .plant-card-meta { margin-top:auto; padding-top:25px; border-top:1px solid var(--line); width:100%; display:grid; grid-template-columns:auto 1fr; gap:22px; color:var(--muted); font-size:12px; }
-  .plant-card-meta>span:last-child { display:grid; gap:3px; }
-  .plant-card-meta b { color:var(--text); font-size:10px; text-transform:uppercase; letter-spacing:.08em; }
-  .journal-direct { position:absolute; right:18px; bottom:18px; min-height:39px; padding:0 13px; display:flex; align-items:center; gap:6px; border-radius:var(--radius-control); background:var(--accent-strong); color:var(--accent-ink); font-weight:760; }
+  .modern-sensor-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:12px; margin:0 0 28px; }
+  .sensor-card { background:var(--surface); border:1px solid var(--line-soft); border-radius:var(--radius-group); padding:14px 16px; display:flex; flex-direction:column; gap:8px; transition:border-color .2s, transform .2s; }
+  .sensor-card:hover { border-color:var(--line); transform:translateY(-1px); }
+  .sensor-card-head { display:flex; align-items:center; justify-content:space-between; gap:6px; }
+  .sensor-card-title { display:flex; align-items:center; gap:7px; color:var(--muted); font-size:11.5px; font-weight:600; }
+  .sensor-card-icon { width:26px; height:26px; border-radius:7px; background:var(--surface-2); color:var(--accent-strong); display:grid; place-items:center; }
+  .sensor-card-icon ha-icon { --mdc-icon-size:16px; }
+  .sensor-card-val { font-size:21px; font-weight:750; letter-spacing:-.02em; color:var(--text); line-height:1.1; margin:2px 0 0; }
+  .sensor-card-sub { font-size:10px; color:var(--muted); display:flex; justify-content:space-between; align-items:center; margin-top:2px; }
+
+  /* Zone badge styling */
+  .zone-badge { display:inline-flex; align-items:center; gap:5px; font-size:10.5px; font-weight:700; padding:2.5px 8px; border-radius:6px; line-height:1.2; }
+  .zone-badge.good { background:rgba(52, 211, 153, 0.12); color:#34d399; border:1px solid rgba(52, 211, 153, 0.28); }
+  .zone-badge.warn { background:rgba(251, 191, 36, 0.12); color:#fbbf24; border:1px solid rgba(251, 191, 36, 0.28); }
+  .zone-badge.bad { background:rgba(248, 113, 113, 0.12); color:#f87171; border:1px solid rgba(248, 113, 113, 0.28); }
+  .zone-badge.neutral { background:rgba(255, 255, 255, 0.06); color:var(--muted); border:1px solid var(--line-soft); }
+  .zone-dot { width:5px; height:5px; border-radius:50%; background:currentColor; }
+
+  /* Range Gauge Bar */
+  .range-gauge-wrap { display:flex; flex-direction:column; gap:4px; width:100%; margin-top:5px; }
+  .range-gauge-track { position:relative; width:100%; height:5px; border-radius:5px; background:rgba(255, 255, 255, 0.08); overflow:visible; }
+  .theme-light .range-gauge-track { background:rgba(0, 0, 0, 0.08); }
+  .range-gauge-zone { position:absolute; top:0; bottom:0; background:linear-gradient(90deg, rgba(52, 211, 153, 0.35), rgba(74, 222, 128, 0.65)); border-radius:3px; }
+  .range-gauge-needle { position:absolute; top:50%; transform:translate(-50%, -50%); width:10px; height:10px; display:grid; place-items:center; z-index:2; }
+  .range-needle-dot { width:7px; height:7px; border-radius:50%; background:#ffffff; border:1.5px solid #10b981; box-shadow:0 0 5px rgba(255, 255, 255, 0.85); }
+  .range-gauge-labels { display:flex; justify-content:space-between; align-items:center; font-size:9px; color:var(--muted); }
+  .range-target-label { color:#34d399; font-weight:600; }
+  .theme-light .range-target-label { color:#15803d; }
+
+  /* Modern Plant Cards */
+  .plant-gallery { display:grid; grid-template-columns:repeat(auto-fit, minmax(380px, 1fr)); gap:clamp(16px, 2.5vw, 24px); }
+  .modern-plant-card { background:var(--surface); border:1px solid var(--line-soft); border-radius:var(--radius-work); padding:20px; display:flex; flex-direction:column; gap:14px; position:relative; transition:border-color .2s; }
+  .modern-plant-card:hover { border-color:var(--line); }
+  .plant-card-header { display:grid; grid-template-columns:116px 1fr; gap:16px; align-items:start; }
+  .plant-thumb-btn { position:relative; width:116px; height:116px; border-radius:var(--radius-control); overflow:hidden; background:var(--surface-2); border:0; padding:0; cursor:pointer; }
+  .plant-thumb-img { width:100%; height:100%; object-fit:cover; display:block; }
+  .plant-breeder-tag { position:absolute; bottom:5px; left:5px; right:5px; padding:2px 5px; border-radius:5px; background:rgba(5, 12, 7, 0.85); backdrop-filter:blur(4px); color:#d1fae5; font-size:9px; font-weight:700; text-align:center; border:1px solid rgba(255, 255, 255, 0.15); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .plant-info-block { display:flex; flex-direction:column; gap:5px; min-width:0; }
+  .plant-title-row { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .plant-stage-badge { display:inline-flex; align-items:center; gap:5px; padding:3px 8px; border-radius:6px; background:rgba(52, 211, 153, 0.12); color:#34d399; border:1px solid rgba(52, 211, 153, 0.28); font-size:10.5px; font-weight:750; width:fit-content; }
+  .pulse-dot { width:6px; height:6px; border-radius:50%; background:#34d399; box-shadow:0 0 6px #34d399; }
+  .plant-title-btn { border:0; background:transparent; padding:0; cursor:pointer; color:var(--text); font-size:21px; font-weight:750; letter-spacing:-.025em; text-align:left; line-height:1.2; }
+  .plant-title-btn:hover { color:var(--accent-strong); }
+  .plant-genetics-sub { color:var(--muted); font-size:11.5px; margin:0; line-height:1.35; }
+  .plant-harvest-pill { display:inline-flex; align-items:center; gap:5px; padding:3px 8px; border-radius:6px; background:var(--surface-2); color:var(--muted); font-size:10.5px; width:fit-content; margin-top:2px; }
+  .plant-harvest-pill ha-icon { --mdc-icon-size:13px; color:var(--muted); }
+  .plant-harvest-pill strong { color:var(--text); }
+
+  /* Stage timeline */
+  .stage-timeline { display:grid; grid-template-columns:repeat(5, 1fr); gap:6px; margin:4px 0 8px; }
+  .stage-step { display:flex; flex-direction:column; gap:4px; }
+  .stage-step-bar { height:4px; border-radius:3px; background:var(--line); }
+  .stage-step.done .stage-step-bar { background:rgba(74, 222, 128, 0.6); }
+  .stage-step.active .stage-step-bar { background:var(--accent-strong); box-shadow:0 0 8px rgba(74, 222, 128, 0.35); }
+  .stage-step small { font-size:9.5px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .stage-step.active small { color:var(--text); font-weight:700; }
+
+  /* Plant Telemetry 3-col Grid */
+  .plant-telemetry-grid { display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; padding:12px; background:var(--surface-2); border-radius:var(--radius-control); border:1px solid var(--line-soft); }
+  .telemetry-cell { display:flex; flex-direction:column; gap:4px; min-width:0; }
+  .telemetry-cell-head { display:flex; align-items:center; justify-content:space-between; color:var(--muted); font-size:10.5px; font-weight:600; gap:4px; }
+  .telemetry-cell-title { display:inline-flex; align-items:center; gap:5px; }
+  .telemetry-cell-title ha-icon { --mdc-icon-size:14px; opacity:.85; color:var(--accent-strong); }
+  .telemetry-cell-val { font-size:17px; font-weight:750; color:var(--text); line-height:1.1; }
+
+  /* Card Bottom Action Bar */
+  .plant-card-foot { display:flex; align-items:center; justify-content:space-between; gap:12px; padding-top:6px; border-top:1px solid var(--line-soft); flex-wrap:wrap; }
+  .plant-care-status { display:flex; align-items:center; gap:6px; color:var(--muted); font-size:11px; }
+  .plant-care-status ha-icon { --mdc-icon-size:14px; color:var(--accent-strong); }
+  .plant-card-actions { display:flex; align-items:center; gap:8px; }
+  .plant-card-actions .primary { min-height:34px; padding:0 12px; font-size:12px; }
+  .plant-card-actions .secondary { min-height:34px; padding:0 10px; font-size:12px; }
   .empty-garden,.system-state,.empty-journal { min-height:360px; border:1px dashed var(--line); border-radius:var(--radius-work); display:grid; align-content:center; justify-items:center; gap:12px; text-align:center; padding:34px; }
   .empty-garden ha-icon,.system-state ha-icon { --mdc-icon-size:52px; color:var(--accent); }
   .empty-garden p,.system-state p,.empty-journal p { max-width:500px; }

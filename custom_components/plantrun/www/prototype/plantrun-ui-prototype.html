@@ -89,83 +89,126 @@
     .fact dt { color: var(--muted); }
     .fact dd { margin: 0; font-weight: 700; text-align: right; }
 
-    /* A. Two equal, image-first plants. */
+    /* A. Two equal, image-first plants - Modernized */
     .focus {
       min-height: 100vh;
-      --bg: #f1f7ef;
-      --surface: #f8fbf6;
-      --surface-2: #e5efdf;
-      --surface-3: #dbe8d5;
-      --text: #172018;
-      --muted: #69746a;
-      --line: rgba(31, 55, 34, .12);
-      --line-strong: rgba(31, 55, 34, .21);
-      --accent: #72b94f;
-      --accent-soft: #4c8039;
-      --accent-ink: #f8fff4;
-      --shadow: none;
+      --bg: #070d09;
+      --surface: #0f1912;
+      --surface-2: #152219;
+      --surface-3: #1d3023;
+      --text: #f0f7f2;
+      --muted: #8fa596;
+      --line: rgba(144, 238, 144, 0.09);
+      --line-strong: rgba(144, 238, 144, 0.2);
+      --accent: #4ade80;
+      --accent-soft: #86efac;
+      --accent-ink: #07190d;
+      --accent-glow: rgba(74, 222, 128, 0.25);
+      --shadow: 0 16px 48px rgba(0, 0, 0, .45);
       background: var(--bg);
       color: var(--text);
     }
-    html[data-theme="dark"] .focus {
-      --bg: #141713;
-      --surface: #191e18;
-      --surface-2: #232a21;
-      --surface-3: #2b3429;
-      --text: #eff2ea;
-      --muted: #9ba397;
-      --line: rgba(225, 235, 219, .12);
-      --line-strong: rgba(225, 235, 219, .21);
-      --accent: #7ea268;
-      --accent-soft: #acc69d;
-      --accent-ink: #11180e;
+    html[data-theme="light"] .focus {
+      --bg: #f2f7f2;
+      --surface: #ffffff;
+      --surface-2: #eaf2e9;
+      --surface-3: #ddeadd;
+      --text: #132217;
+      --muted: #5e7364;
+      --line: rgba(22, 54, 29, .1);
+      --line-strong: rgba(22, 54, 29, .22);
+      --accent: #2e9e50;
+      --accent-soft: #237b3e;
+      --accent-ink: #f0fbf2;
+      --accent-glow: rgba(46, 158, 80, 0.2);
     }
     .focus-shell { display: grid; grid-template-columns: 82px minmax(0, 1fr); min-height: 100vh; }
-    .focus .side-nav { background: transparent; }
-    .focus .brand { border: 1px solid var(--line-strong); border-radius: 5px; background: transparent; color: var(--accent-soft); }
-    .focus .nav-link { border-radius: 0; background: transparent; }
-    .focus .nav-link.active { box-shadow: inset 2px 0 var(--accent); background: transparent; color: var(--text); }
-    .focus-main { padding: 26px clamp(22px, 3.6vw, 58px) 120px; }
-    .focus .page-header h1 { font-size: clamp(27px, 2.5vw, 36px); font-weight: 620; }
-    .focus .button, .focus .icon-button, .focus .language { border-radius: 6px; }
-    .focus .language button { border-radius: 3px; }
-    .focus .header-controls .button.primary { border: 1px solid var(--line-strong); background: transparent; color: var(--text); font-weight: 620; }
-    .focus .sensor-ribbon { gap: 0; margin: 22px 0 30px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
-    .focus .sensor-pill { border: 0; border-right: 1px solid var(--line); border-radius: 0; background: transparent; }
-    .focus .sensor-pill:last-child { border-right: 0; }
-    .focus .sensor-icon { background: transparent; color: var(--muted); }
-    .focus .sensor-pill strong { font-weight: 600; }
-    .focus-layout { display: grid; grid-template-columns: minmax(0, 1fr) 290px; gap: 0; }
-    .focus-plants { display: grid; grid-template-columns: 1fr 1fr; gap: 0; min-width: 0; }
-    .focus-card { min-width: 0; padding: 0 clamp(18px, 2.5vw, 36px); border-right: 1px solid var(--line); background: transparent; }
-    .focus-card:first-child { padding-left: 0; }
-    .focus-card:last-child { border-right: 0; }
-    .focus-image { position: relative; display: block; width: 100%; height: clamp(260px, 29vw, 390px); overflow: hidden; padding: 0; border-radius: 22px; background: transparent; text-align: left; }
-    .focus-image img { width: 100%; height: 100%; object-fit: contain; transition: transform .25s ease; }
-    html[data-theme="light"] .focus-image img { mix-blend-mode: multiply; }
-    .focus-card:hover .focus-image img { transform: scale(1.015); }
-    .focus-title { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; margin-bottom: 15px; }
-    .focus-title h2 { margin: 6px 0 3px; font-size: clamp(20px, 2vw, 27px); letter-spacing: -.025em; }
-    .focus-title h2, .focus-title strong { font-weight: 620; }
-    .focus-title p { margin: 0; color: var(--muted); font-size: 12px; }
-    .focus .status-chip { min-height: 0; padding: 0; background: transparent; color: var(--accent-soft); font-weight: 600; }
-    .focus-body { padding: 16px 0 20px; }
-    .focus-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
-    .focus-stat { padding: 11px 11px 11px 0; background: transparent; }
-    .focus-stat + .focus-stat { padding-left: 11px; border-left: 1px solid var(--line); }
-    .focus-stat small, .focus-stat strong { display: block; }
-    .focus-stat small { color: var(--muted); font-size: 9px; }
-    .focus-stat strong { margin-top: 4px; font-size: 12px; font-weight: 600; }
-    .focus-card-actions { display: grid; grid-template-columns: 1fr auto; gap: 8px; margin-top: 15px; }
-    .focus .focus-card-actions .button.primary { border: 1px solid var(--line-strong); background: transparent; color: var(--text); }
-    .today-panel { align-self: start; padding: 0 0 0 26px; border: 0; border-left: 1px solid var(--line); border-radius: 0; background: transparent; }
-    .today-panel h2 { margin: 0; font-size: 18px; }
-    .today-item { display: grid; grid-template-columns: 39px 1fr; gap: 11px; padding: 15px 0; border-bottom: 1px solid var(--line); }
+    .focus .side-nav { background: var(--surface); border-right: 1px solid var(--line); }
+    .focus .brand { border: 1px solid var(--line-strong); border-radius: 12px; background: var(--accent); color: var(--accent-ink); }
+    .focus .nav-link { border-radius: 12px; }
+    .focus .nav-link.active { background: var(--surface-3); color: var(--accent-soft); }
+    .focus-main { padding: 26px clamp(24px, 3.8vw, 64px) 120px; }
+    .focus .page-header h1 { font-size: clamp(28px, 2.8vw, 40px); font-weight: 750; letter-spacing: -.035em; }
+    .focus .button, .focus .icon-button, .focus .language { border-radius: 10px; }
+    .focus .language button { border-radius: 6px; }
+    .focus .header-controls .button.primary { border: 0; background: var(--accent); color: var(--accent-ink); font-weight: 720; }
+
+    /* Zone badge styling */
+    .zone-badge { display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px; font-weight: 700; padding: 2.5px 8px; border-radius: 6px; line-height: 1.2; }
+    .zone-badge.good { background: rgba(52, 211, 153, 0.12); color: #34d399; border: 1px solid rgba(52, 211, 153, 0.28); }
+    .zone-badge.warn { background: rgba(251, 191, 36, 0.12); color: #fbbf24; border: 1px solid rgba(251, 191, 36, 0.28); }
+    .zone-badge.bad { background: rgba(248, 113, 113, 0.12); color: #f87171; border: 1px solid rgba(248, 113, 113, 0.28); }
+    .zone-badge.neutral { background: rgba(255, 255, 255, 0.06); color: var(--muted); border: 1px solid var(--line); }
+    .zone-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+
+    /* Range Gauge Bar */
+    .range-gauge-wrap { display: flex; flex-direction: column; gap: 4px; width: 100%; margin-top: 5px; }
+    .range-gauge-track { position: relative; width: 100%; height: 5px; border-radius: 5px; background: rgba(255, 255, 255, 0.08); overflow: visible; }
+    html[data-theme="light"] .range-gauge-track { background: rgba(0, 0, 0, 0.08); }
+    .range-gauge-zone { position: absolute; top: 0; bottom: 0; background: linear-gradient(90deg, rgba(52, 211, 153, 0.35), rgba(74, 222, 128, 0.65)); border-radius: 3px; }
+    .range-gauge-needle { position: absolute; top: 50%; transform: translate(-50%, -50%); width: 10px; height: 10px; display: grid; place-items: center; z-index: 2; }
+    .range-needle-dot { width: 7px; height: 7px; border-radius: 50%; background: #ffffff; border: 1.5px solid #10b981; box-shadow: 0 0 5px rgba(255, 255, 255, 0.85); }
+    .range-gauge-labels { display: flex; justify-content: space-between; align-items: center; font-size: 9px; color: var(--muted); }
+    .range-target-label { color: #34d399; font-weight: 600; }
+    html[data-theme="light"] .range-target-label { color: #15803d; }
+
+    /* Stage lifecycle progress bar */
+    .stage-timeline { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin: 12px 0; }
+    .stage-step { display: flex; flex-direction: column; gap: 4px; }
+    .stage-step-bar { height: 4px; border-radius: 3px; background: var(--line-strong); }
+    .stage-step.done .stage-step-bar { background: rgba(74, 222, 128, 0.6); }
+    .stage-step.active .stage-step-bar { background: var(--accent); box-shadow: 0 0 8px var(--accent-glow); }
+    .stage-step small { font-size: 9.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .stage-step.active small { color: var(--text); font-weight: 700; }
+
+    /* Modern Tent Sensor Cards */
+    .modern-sensor-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; margin: 20px 0 28px; }
+    .sensor-card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; transition: border-color .2s, transform .2s; }
+    .sensor-card:hover { border-color: var(--line-strong); transform: translateY(-1px); }
+    .sensor-card-head { display: flex; align-items: center; justify-content: space-between; }
+    .sensor-card-title { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 11.5px; font-weight: 600; }
+    .sensor-card-icon { width: 26px; height: 26px; border-radius: 7px; background: var(--surface-2); color: var(--accent-soft); display: grid; place-items: center; }
+    .sensor-card-val { font-size: 21px; font-weight: 750; letter-spacing: -.02em; color: var(--text); line-height: 1.1; margin: 2px 0 0; }
+    .sensor-card-sub { font-size: 10px; color: var(--muted); display: flex; justify-content: space-between; align-items: center; margin-top: 2px; }
+
+    /* Modern Layout */
+    .focus-plants { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 20px; width: 100%; }
+
+    /* Modern Plant Cards */
+    .modern-plant-card { background: var(--surface); border: 1px solid var(--line); border-radius: 20px; padding: 20px; display: flex; flex-direction: column; gap: 14px; box-shadow: var(--shadow); position: relative; transition: border-color .2s; }
+    .modern-plant-card:hover { border-color: var(--line-strong); }
+    .plant-card-header { display: grid; grid-template-columns: 116px 1fr; gap: 16px; align-items: start; }
+    .plant-thumb-wrap { position: relative; width: 116px; height: 116px; border-radius: 14px; overflow: hidden; background: var(--surface-2); }
+    .plant-thumb-wrap img { width: 100%; height: 100%; object-fit: cover; }
+    .plant-breeder-tag { position: absolute; bottom: 5px; left: 5px; right: 5px; padding: 2px 5px; border-radius: 5px; background: rgba(5, 12, 7, 0.85); backdrop-filter: blur(4px); color: #d1fae5; font-size: 9px; font-weight: 700; text-align: center; border: 1px solid rgba(255, 255, 255, 0.15); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .plant-info-block { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+    .plant-stage-badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; border-radius: 6px; background: rgba(52, 211, 153, 0.12); color: #34d399; border: 1px solid rgba(52, 211, 153, 0.28); font-size: 10.5px; font-weight: 750; width: fit-content; }
+    .pulse-dot { width: 6px; height: 6px; border-radius: 50%; background: #34d399; box-shadow: 0 0 6px #34d399; }
+    .plant-info-block h2 { margin: 0; font-size: 21px; font-weight: 750; letter-spacing: -.025em; color: var(--text); }
+    .plant-genetics-sub { color: var(--muted); font-size: 11.5px; margin: 0; line-height: 1.35; }
+    .plant-harvest-pill { display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; border-radius: 6px; background: var(--surface-2); color: var(--muted); font-size: 10.5px; width: fit-content; margin-top: 2px; }
+    .plant-harvest-pill strong { color: var(--text); }
+
+    /* Plant Telemetry 3-col Grid */
+    .plant-telemetry-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 12px; background: var(--surface-2); border-radius: 12px; border: 1px solid var(--line); }
+    .telemetry-cell { display: flex; flex-direction: column; gap: 4px; }
+    .telemetry-cell-head { display: flex; align-items: center; justify-content: space-between; color: var(--muted); font-size: 10.5px; font-weight: 600; }
+    .telemetry-cell-val { font-size: 17px; font-weight: 750; color: var(--text); line-height: 1.1; }
+
+    /* Card Bottom Action Bar */
+    .plant-card-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 6px; border-top: 1px solid var(--line); }
+    .plant-care-status { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 11px; }
+    .plant-card-actions { display: flex; align-items: center; gap: 8px; }
+    .plant-card-actions .button.primary { min-height: 34px; padding: 0 12px; font-size: 12px; }
+    .plant-card-actions .button.outline { min-height: 34px; padding: 0 10px; font-size: 12px; }
+
+    .today-panel { align-self: start; padding: 18px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); }
+    .today-panel h2 { margin: 0 0 12px; font-size: 17px; font-weight: 700; }
+    .today-item { display: grid; grid-template-columns: 34px 1fr; gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--line); }
     .today-item:last-of-type { border-bottom: 0; }
-    .today-icon { display: grid; width: 39px; height: 39px; place-items: center; border-radius: 0; background: transparent; color: var(--muted); }
-    .focus .today-item strong, .focus .today-panel h2 { font-weight: 620; }
-    .today-item strong, .today-item small { display: block; }
-    .today-item small { margin-top: 4px; color: var(--muted); line-height: 1.35; }
+    .today-icon { display: grid; width: 34px; height: 34px; place-items: center; border-radius: 8px; background: var(--surface-2); color: var(--accent-soft); }
+    .today-item strong { font-size: 12px; font-weight: 650; display: block; }
+    .today-item small { margin-top: 2px; color: var(--muted); line-height: 1.3; display: block; font-size: 10.5px; }
 
     /* B. One selected plant becomes the workspace. */
     .workspace { min-height: 100vh; background: var(--bg); }
@@ -911,7 +954,48 @@
     const createCopy={de:{createRuns:"Neue Pflanze anlegen",createIntro:"Eine Pflanze wird als eigener Lauf angelegt. Danach kannst du direkt die nächste Pflanze anlegen.",stepPlant:"Pflanze",stepSetup:"Phasen & Sensoren",stepReview:"Prüfen",chooseStrain:"Strain suchen",chooseStrainHint:"Suche wie in der bisherigen Version nach Breeder und Strain. Die Auswahl hilft beim ersten Erntekorridor und bleibt vollständig änderbar.",nickname:"Spitzname",nicknameOptional:"Optional",plantDate:"Pflanzdatum",breederDuration:"Breeder-Angabe",harvestEstimate:"Erster Erntekorridor",stages:"Phasen",customPhase:"Eigene Phase hinzufügen",setup:"Sensoren zuordnen",setupHint:"Nur Pflanzensensoren sind exklusiv. Zeltwerte dürfen gemeinsam genutzt werden.",soilSensor:"Bodensensor",sharedClimate:"Klima",lightSensor:"Helligkeit",doorSensor:"Zelttür",later:"Später zuordnen",sensorA:"Bodensensor A · Feuchte, Temperatur, EC",sensorB:"Bodensensor B · Feuchte, Temperatur, Luftfeuchte",averageSensors:"Mittelwert aus 3 Quellen",sharedTent:"Gemeinsamer Zeltwert",continue:"Weiter",back:"Zurück",review:"Lauf prüfen",createRun:"Pflanze anlegen",runCreated:"Pflanze im Prototyp angelegt",prototypeOnly:"Nur Prototyp · noch keine Daten werden gespeichert",plantSpecific:"Je Pflanze",selected:"Ausgewählt",notAssigned:"Noch nicht zugeordnet",createdNext:"Als Nächstes kannst du den Lauf öffnen und direkt den ersten Eintrag erfassen.",openPrototype:"Zur Pflanzenansicht",allEditable:"Jeder Wert bleibt auch nach dem Anlegen änderbar.",summary:"Zusammenfassung",runSingular:"1 Pflanze · 1 Lauf",strainQuery:"Strain",strainQueryPlaceholder:"z. B. Northern Lights Automatic",breederQuery:"Breeder",breederQueryPlaceholder:"z. B. Royal Queen Seeds",search:"Suchen",searchFirst:"Gib Breeder und Strain ein. Die spätere HA-Version verwendet dafür wieder die vorhandene SeedFinder-Suche.",sampleResults:"SeedFinder-Vorschau · Beispieldaten",noResults:"Keine passenden Beispieltreffer. Du kannst die Angaben trotzdem manuell erfassen.",manualEntry:"Strain manuell eingeben",manualActive:"Manuelle Angaben",manualName:"Strainname",manualBreeder:"Breeder",manualDuration:"Dauer ab Pflanzdatum",daysFrom:"von Tagen",daysTo:"bis Tage",imagePending:"Breeder-Bild wird bei der echten Suche geladen",providerContract:"Produktion: authentifizierte HA-Suche · Fallback blockiert das Anlegen nie",searchNeedsBoth:"Breeder und Strain werden für die Suche benötigt."},en:{createRuns:"Add new plant",createIntro:"Each plant is created as its own run. You can add the next plant immediately afterwards.",stepPlant:"Plant",stepSetup:"Stages & sensors",stepReview:"Review",chooseStrain:"Search strain",chooseStrainHint:"Search by breeder and strain as in the previous version. The selection helps set the initial harvest window and remains fully editable.",nickname:"Nickname",nicknameOptional:"Optional",plantDate:"Planting date",breederDuration:"Breeder estimate",harvestEstimate:"Initial harvest window",stages:"Stages",customPhase:"Add custom stage",setup:"Assign sensors",setupHint:"Only plant sensors are exclusive. Tent values may be shared.",soilSensor:"Soil sensor",sharedClimate:"Climate",lightSensor:"Illuminance",doorSensor:"Tent door",later:"Assign later",sensorA:"Soil sensor A · moisture, temperature, EC",sensorB:"Soil sensor B · moisture, temperature, humidity",averageSensors:"Average of 3 sources",sharedTent:"Shared tent value",continue:"Continue",back:"Back",review:"Review run",createRun:"Add plant",runCreated:"Plant created in the prototype",prototypeOnly:"Prototype only · no data is saved yet",plantSpecific:"Per plant",selected:"Selected",notAssigned:"Not assigned yet",createdNext:"Next, open the run and capture the first entry directly.",openPrototype:"Open plant view",allEditable:"Every value remains editable after creation.",summary:"Summary",runSingular:"1 plant · 1 run",strainQuery:"Strain",strainQueryPlaceholder:"e.g. Northern Lights Automatic",breederQuery:"Breeder",breederQueryPlaceholder:"e.g. Royal Queen Seeds",search:"Search",searchFirst:"Enter breeder and strain. The HA build will reuse the existing SeedFinder search.",sampleResults:"SeedFinder preview · sample data",noResults:"No matching sample results. You can still enter the details manually.",manualEntry:"Enter strain manually",manualActive:"Manual details",manualName:"Strain name",manualBreeder:"Breeder",manualDuration:"Duration from planting",daysFrom:"from days",daysTo:"to days",imagePending:"Breeder image loads through the real search",providerContract:"Production: authenticated HA search · fallback never blocks creation",searchNeedsBoth:"Breeder and strain are required for search."}};
     const params=new URLSearchParams(location.search);
     const state={variant:params.get("variant")||"A",detailVariant:params.get("detail")||"A",createVariant:"A",createStep:Math.min(3,Math.max(1,Number(params.get("step"))||1)),view:params.get("view")||"overview",lang:params.get("lang")||"de",theme:params.get("theme")||"dark",selectedPlant:params.get("plant")||"tangerine",selectedAction:"freeText",cleanMetric:params.get("metric")||"moisture",modal:null,entries:[],createdRuns:[],customPhases:[],strainQuery:"",breederQuery:"",strainSearchSubmitted:false,manualStrain:false,createDraft:{strainId:params.get("strain")||"",nickname:"",planted:"2026-08-21",schedule:"18/6",soilSensor:"later",climate:"average",light:"shared",door:"shared",manualName:"",manualBreeder:"",manualLow:"",manualHigh:""}};
-    const plants={tangerine:{id:"tangerine",name:"Tangerine Dream Auto",breeder:"Zamnesia",stage:"seedling",day:1,image:"./assets/tangerine-dream-breeder.jpg",moisture:"46 %",conductivity:"—",harvestDe:"29. Okt. – 5. Nov.",harvestEn:"Oct 29 – Nov 5"},diesel:{id:"diesel",name:"Diesel Auto",breeder:"Royal Queen Seeds",stage:"seedling",day:1,image:"./assets/diesel-auto-breeder.jpg",moisture:"52 %",conductivity:"0 µS/cm",harvestDe:"18. – 23. Nov.",harvestEn:"Nov 18 – 23"}};
+    const plants={
+      tangerine:{
+        id:"tangerine",
+        name:"Tangerine Dream Auto",
+        breeder:"Zamnesia",
+        stage:"seedling",
+        day:5,
+        genetics:"Autoflower · Feminisiert",
+        container:"11L Stofftopf (BioBizz Light-Mix)",
+        image:"./assets/tangerine-dream-breeder.jpg",
+        moistureVal:58,
+        moisture:"58 %",
+        tempVal:23.8,
+        temp:"23,8 °C",
+        ecVal:1.2,
+        conductivity:"1,2 mS/cm",
+        harvestDe:"29. Okt. – 5. Nov.",
+        harvestEn:"Oct 29 – Nov 5",
+        harvestDaysLeft:65,
+        lastWatering:"Vor 18 Std. gegossen (350 ml)"
+      },
+      diesel:{
+        id:"diesel",
+        name:"Diesel Auto",
+        breeder:"Royal Queen Seeds",
+        stage:"seedling",
+        day:5,
+        genetics:"Autoflower · Feminisiert",
+        container:"11L Stofftopf (Plagron Promix)",
+        image:"./assets/diesel-auto-breeder.jpg",
+        moistureVal:52,
+        moisture:"52 %",
+        tempVal:24.1,
+        temp:"24,1 °C",
+        ecVal:1.1,
+        conductivity:"1,1 mS/cm",
+        harvestDe:"18. – 23. Nov.",
+        harvestEn:"Nov 18 – 23",
+        harvestDaysLeft:68,
+        lastWatering:"Vor 18 Std. gegossen (350 ml)"
+      }
+    };
     const strainCatalog=[
       {id:"tangerine",name:"Tangerine Dream Auto",breeder:"Zamnesia",duration:[70,77],image:"./assets/tangerine-dream-breeder.jpg"},
       {id:"diesel",name:"Diesel Auto",breeder:"Royal Queen Seeds",duration:[90,95],image:"./assets/diesel-auto-breeder.jpg"},
@@ -931,11 +1015,198 @@
     function sideNav(){return `<nav class="side-nav" aria-label="PlantRun"><span class="brand">${icon("leaf")}</span><button class="nav-link active" data-home title="${t("overview")}">${icon("home")}</button><button class="nav-link" data-open="entry" title="${t("journal")}">${icon("book")}</button><button class="nav-link" data-open="archive" title="${t("history")}">${icon("history")}</button><button class="nav-link bottom" title="${t("settings")}">${icon("settings")}</button></nav>`}
     function mobileNav(){return `<nav class="mobile-nav" aria-label="PlantRun"><button class="nav-link active" data-home>${icon("home")}</button><button class="nav-link" data-open="entry">${icon("book")}</button><button class="nav-link" data-open="archive">${icon("history")}</button><button class="nav-link">${icon("settings")}</button></nav>`}
     function pageHeader(){return `<header class="page-header"><div><h1>${t("tent")}</h1><p>${t("activePlants")} · 18/6</p><p class="prototype-copy">${t("prototype")}</p></div>${headerControls()}</header>`}
-    function sensorRibbon(){const s=[["temp",t("temperature"),"24,2 °C"],["drop",t("humidity"),"63,5 %"],["sun",t("light"),"138 lx"],["power",t("lamp"),t("on")],["door",t("door"),t("closed")],["chart",t("energy"),"489,03 kWh"]];return `<section class="sensor-ribbon">${s.map(([i,l,v])=>`<div class="sensor-pill"><span class="sensor-icon">${icon(i,true)}</span><span><small>${l}</small><strong class="numeral">${v}</strong></span></div>`).join("")}</section>`}
+    function renderRangeBar(value, min, max, targetLow, targetHigh, unit = "") {
+      const targetLowPct = Math.max(0, Math.min(100, ((targetLow - min) / (max - min)) * 100));
+      const targetWidthPct = Math.max(2, Math.min(100 - targetLowPct, ((targetHigh - targetLow) / (max - min)) * 100));
+      const currentPct = Math.max(0, Math.min(100, ((value - min) / (max - min)) * 100));
+      return `<div class="range-gauge-wrap">
+        <div class="range-gauge-track">
+          <div class="range-gauge-zone" style="left:${targetLowPct}%;width:${targetWidthPct}%;"></div>
+          <div class="range-gauge-needle" style="left:${currentPct}%;">
+            <span class="range-needle-dot"></span>
+          </div>
+        </div>
+        <div class="range-gauge-labels">
+          <span>${min}${unit}</span>
+          <span class="range-target-label">Ziel ${targetLow}–${targetHigh}${unit}</span>
+          <span>${max}${unit}</span>
+        </div>
+      </div>`;
+    }
+
+    function renderStatusBadge(value, targetLow, targetHigh, targetText) {
+      let status = "good";
+      let label = targetText || "Optimal";
+      if (value < targetLow) {
+        status = "warn";
+        label = "Niedrig";
+      } else if (value > targetHigh) {
+        status = "warn";
+        label = "Erhöht";
+      }
+      return `<span class="zone-badge ${status}"><span class="zone-dot"></span>${label}</span>`;
+    }
+
+    function sensorRibbon() {
+      const cards = [
+        {
+          icon: "temp",
+          label: t("temperature"),
+          val: "26,9 °C",
+          numeric: 26.9,
+          min: 18,
+          max: 34,
+          targetLow: 24,
+          targetHigh: 28,
+          unit: "°C",
+          badge: "Optimal",
+          sub: "Min 22,4 °C · Max 27,2 °C"
+        },
+        {
+          icon: "drop",
+          label: t("humidity"),
+          val: "69,5 %",
+          numeric: 69.5,
+          min: 40,
+          max: 90,
+          targetLow: 65,
+          targetHigh: 75,
+          unit: "%",
+          badge: "Sämling · Ideal",
+          sub: "Min 61,0 % · Max 72,0 %"
+        },
+        {
+          icon: "eye",
+          label: "VPD (Dampfdruck)",
+          val: "0,94 kPa",
+          numeric: 0.94,
+          min: 0.4,
+          max: 1.8,
+          targetLow: 0.8,
+          targetHigh: 1.1,
+          unit: " kPa",
+          badge: "Ideal",
+          sub: "Ideale Transpiration"
+        },
+        {
+          icon: "sun",
+          label: "Licht & DLI",
+          val: "56,5 klx",
+          numeric: 56.5,
+          min: 0,
+          max: 80,
+          targetLow: 40,
+          targetHigh: 65,
+          unit: " klx",
+          badge: "18/6h An",
+          sub: "DLI 37,6 mol/m²d · 78%"
+        },
+        {
+          icon: "chart",
+          label: t("energy") + " & Last",
+          val: "497,8 kWh",
+          numeric: 280,
+          min: 0,
+          max: 400,
+          targetLow: 200,
+          targetHigh: 320,
+          unit: " W",
+          badge: "Live",
+          sub: "280 W Gesamtlast (~0,84 €/d)"
+        }
+      ];
+
+      return `<section class="modern-sensor-grid" aria-label="Geteilte Zeltwerte">
+        ${cards.map(c => `
+          <div class="sensor-card">
+            <div class="sensor-card-head">
+              <span class="sensor-card-title"><span class="sensor-card-icon">${icon(c.icon, true)}</span>${c.label}</span>
+            </div>
+            <div class="sensor-card-val numeral">${c.val}</div>
+            ${renderRangeBar(c.numeric, c.min, c.max, c.targetLow, c.targetHigh, c.unit)}
+            <div class="sensor-card-sub">${c.sub}</div>
+          </div>
+        `).join("")}
+      </section>`;
+    }
+
     function stageTrack(){return `<div class="stage-track">${["seedling","vegetative","flowering","harvested"].map((k,i)=>`<span class="stage-segment ${i===0?"current":""}"><i></i><small>${t(k)}</small></span>`).join("")}</div>`}
-    function focusCard(p){return `<article class="focus-card"><button class="plant-card focus-image" data-plant="${p.id}" data-open="plant"><img src="${p.image}" alt="${p.name} ${t("breederImage")}"/><span class="breeder-label">${icon("leaf",true)}${t("breederImage")}</span></button><div class="focus-body"><header class="focus-title"><div><span class="status-chip">${t(p.stage)} · ${t("day")} ${p.day}</span><h2>${p.name}</h2><p>${p.breeder}</p></div></header><div class="focus-summary"><span class="focus-stat"><small>${t("moisture")}</small><strong>${p.moisture}</strong></span><span class="focus-stat"><small>${t("harvestWindow")}</small><strong>${harvestWindow(p)}</strong></span><span class="focus-stat"><small>${t("next")}</small><strong>${t("plantToday")}</strong></span></div>${stageTrack()}<div class="focus-card-actions"><button class="button primary" data-plant="${p.id}" data-open="entry">${icon("plus",true)}${t("entry")}</button><button class="icon-button" data-plant="${p.id}" data-open="plant">${icon("chevron")}</button></div></div></article>`}
+
+    function focusCard(p) {
+      const stage = p.stage || "seedling";
+      const day = p.day || 5;
+      const stageLabel = t(stage);
+      const moistureVal = p.moistureVal || 52;
+      const tempVal = p.tempVal || 24.1;
+      const ecVal = p.ecVal || 1.1;
+      const stages = [
+        { key: "germination", label: "Keimung", state: "done" },
+        { key: "seedling", label: "Sämling", state: "active" },
+        { key: "vegetative", label: "Vegetativ", state: "future" },
+        { key: "flowering", label: "Blüte", state: "future" },
+        { key: "harvested", label: "Ernte", state: "future" }
+      ];
+
+      return `<article class="modern-plant-card">
+        <div class="plant-card-header">
+          <div class="plant-thumb-wrap">
+            <img src="${p.image}" alt="${p.name}"/>
+            <span class="plant-breeder-tag">${p.breeder}</span>
+          </div>
+          <div class="plant-info-block">
+            <div class="plant-title-row">
+              <span class="plant-stage-badge"><span class="pulse-dot"></span>${stageLabel} · ${t("day")} ${day}</span>
+            </div>
+            <h2>${p.name}</h2>
+            <p class="plant-genetics-sub">${p.breeder} · ${p.genetics || "Autoflower"} · ${p.container || "11L Topf"}</p>
+            <span class="plant-harvest-pill"><span>📅 Erntefenster:</span><strong>${harvestWindow(p)}</strong><small>(in ~${p.harvestDaysLeft || 65} T.)</small></span>
+          </div>
+        </div>
+
+        <div class="stage-timeline">
+          ${stages.map(s => `
+            <div class="stage-step ${s.state}">
+              <div class="stage-step-bar"></div>
+              <small>${s.label}</small>
+            </div>
+          `).join("")}
+        </div>
+
+        <div class="plant-telemetry-grid">
+          <div class="telemetry-cell">
+            <div class="telemetry-cell-head">
+              <span>${t("moisture")}</span>
+            </div>
+            <div class="telemetry-cell-val numeral">${moistureVal} %</div>
+            ${renderRangeBar(moistureVal, 20, 80, 45, 65, "%")}
+          </div>
+          <div class="telemetry-cell">
+            <div class="telemetry-cell-head">
+              <span>Substrat-Temp</span>
+            </div>
+            <div class="telemetry-cell-val numeral">${tempVal.toFixed(1).replace(".", ",")} °C</div>
+            ${renderRangeBar(tempVal, 15, 32, 20, 26, "°C")}
+          </div>
+          <div class="telemetry-cell">
+            <div class="telemetry-cell-head">
+              <span>Leitfähigkeit (EC)</span>
+            </div>
+            <div class="telemetry-cell-val numeral">${ecVal.toFixed(1).replace(".", ",")} mS/cm</div>
+            ${renderRangeBar(ecVal, 0.0, 2.4, 0.8, 1.4, " mS")}
+          </div>
+        </div>
+
+        <div class="plant-card-foot">
+          <span class="plant-care-status">💧 ${p.lastWatering || "Vor 18 Std. gegossen (350 ml)"}</span>
+          <div class="plant-card-actions">
+            <button class="button primary compact" data-plant="${p.id}" data-open="entry">${icon("plus", true)} ${t("entry")}</button>
+            <button class="button outline compact" data-plant="${p.id}" data-open="plant">Öffnen →</button>
+          </div>
+        </div>
+      </article>`;
+    }
     function todayPanel(){return `<aside class="today-panel"><p class="eyebrow">${t("today")}</p><h2>${t("whatToday")}</h2><div class="today-item"><span class="today-icon">${icon("calendar")}</span><span><strong>${t("plantToday")}</strong><small>Tangerine Dream Auto + Diesel Auto</small></span></div><div class="today-item"><span class="today-icon">${icon("drop")}</span><span><strong>${t("assign")}</strong><small>Sensor A → Tangerine · Sensor B → Diesel</small></span></div><div class="today-item"><span class="today-icon">${icon("history")}</span><span><strong>${t("harvestWindow")}</strong><small>Tangerine: ${harvestWindow(plants.tangerine)}</small></span></div><button class="button outline" data-start-create>${t("createRuns")}</button></aside>`}
-    function renderA(){return `<section class="focus"><div class="focus-shell">${sideNav()}<main class="focus-main">${pageHeader()}${sensorRibbon()}<div class="focus-layout"><section class="focus-plants">${Object.values(plants).map(focusCard).join("")}</section>${todayPanel()}</div></main></div>${mobileNav()}</section>`}
+    function renderA(){return `<section class="focus"><div class="focus-shell">${sideNav()}<main class="focus-main">${pageHeader()}${sensorRibbon()}<section class="focus-plants">${Object.values(plants).map(focusCard).join("")}</section></main></div>${mobileNav()}</section>`}
     function facts(p){return `<dl class="facts"><div class="fact"><dt>${t("stage")}</dt><dd>${t(p.stage)} · ${t("day")} ${p.day}</dd></div><div class="fact"><dt>${t("planted")}</dt><dd>20.08.2026</dd></div><div class="fact"><dt>${t("harvestWindow")}</dt><dd>${harvestWindow(p)}</dd></div><div class="fact"><dt>${t("schedule")}</dt><dd>18/6</dd></div><div class="fact"><dt>${t("moisture")}</dt><dd>${p.moisture}</dd></div><div class="fact"><dt>${t("conductivity")}</dt><dd>${p.conductivity}</dd></div></dl>`}
     function workspaceTop(){return `<header class="workspace-top"><div class="workspace-brand"><span class="brand">${icon("leaf")}</span><strong>PlantRun</strong></div><nav class="workspace-links"><button class="workspace-link active">${t("overview")}</button><button class="workspace-link" data-open="entry">${t("journal")}</button><button class="workspace-link" data-open="archive">${t("history")}</button></nav>${headerControls()}</header>`}
     function renderB(){const p=selected(),o=other();return `<section class="workspace">${workspaceTop()}<main class="workspace-main"><header class="workspace-heading"><div><p class="eyebrow">${t("selectedPlant")}</p><h1>${p.name}</h1><p>${p.breeder} · ${t("prototype")}</p></div><button class="button primary" data-open="entry">${icon("plus",true)}${t("entry")}</button></header><div class="workspace-grid"><section class="workspace-hero"><img src="${p.image}" alt="${p.name} ${t("breederImage")}"/><span class="breeder-label">${icon("leaf",true)}${t("breederImage")}</span><div class="workspace-hero-copy"><span class="status-chip">${t(p.stage)} · ${t("day")} ${p.day}</span><h2>${p.name}</h2><p>${t("harvestWindow")}: ${harvestWindow(p)}</p>${stageTrack()}</div></section><aside class="workspace-detail"><section class="workspace-card"><h3>${t("details")}</h3>${facts(p)}</section><section class="workspace-card"><h3>${t("otherPlant")}</h3><button class="mini-plant" data-plant="${o.id}"><img src="${o.image}" alt=""/><span><strong>${o.name}</strong><small>${o.breeder} · ${t(o.stage)}</small></span>${icon("chevron")}</button></section><section class="workspace-card"><h3>${t("latestEntries")}</h3><div class="mini-journal"><time>20.08.</time><p>${t("noEntries")}</p></div>${state.entries.map(e=>`<div class="mini-journal"><time>${e.time}</time><p>${escapeHtml(e.text)}</p></div>`).join("")}<div class="workspace-actions"><button class="button primary compact" data-open="entry">${t("entry")}</button><button class="button outline compact" data-open="archive">${t("history")}</button></div></section></aside></div>${sensorRibbon()}</main>${mobileNav()}</section>`}

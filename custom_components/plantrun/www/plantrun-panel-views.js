@@ -114,6 +114,44 @@ export function createPanelViewMethods() {
       return this._renderOverview();
     },
 
+    _renderRangeBar(value, min, max, targetLow, targetHigh, unit = "") {
+      const numVal = Number(value);
+      if (!Number.isFinite(numVal)) return "";
+      const targetLowPct = Math.max(0, Math.min(100, ((targetLow - min) / (max - min)) * 100));
+      const targetWidthPct = Math.max(2, Math.min(100 - targetLowPct, ((targetHigh - targetLow) / (max - min)) * 100));
+      const currentPct = Math.max(0, Math.min(100, ((numVal - min) / (max - min)) * 100));
+      return `<div class="range-gauge-wrap">
+        <div class="range-gauge-track">
+          <div class="range-gauge-zone" style="left:${targetLowPct}%;width:${targetWidthPct}%;"></div>
+          <div class="range-gauge-needle" style="left:${currentPct}%;">
+            <span class="range-needle-dot"></span>
+          </div>
+        </div>
+        <div class="range-gauge-labels">
+          <span>${min}${unit}</span>
+          <span class="range-target-label">Ziel ${targetLow}–${targetHigh}${unit}</span>
+          <span>${max}${unit}</span>
+        </div>
+      </div>`;
+    },
+
+    _renderStatusBadge(value, targetLow, targetHigh, targetText = "") {
+      const numVal = Number(value);
+      if (!Number.isFinite(numVal)) {
+        return `<span class="zone-badge neutral"><span class="zone-dot"></span>Bereit</span>`;
+      }
+      let status = "good";
+      let label = targetText || "Optimal";
+      if (numVal < targetLow) {
+        status = "warn";
+        label = "Niedrig";
+      } else if (numVal > targetHigh) {
+        status = "warn";
+        label = "Erhöht";
+      }
+      return `<span class="zone-badge ${status}"><span class="zone-dot"></span>${e(label)}</span>`;
+    },
+
     _renderOverview() {
       const tent = this._activeTent();
       const runs = this._state.runs.filter((run) => !isArchived(run));
@@ -128,31 +166,157 @@ export function createPanelViewMethods() {
     },
 
     _renderTentStrip(tent) {
-      const metrics = ["temperature", "humidity", "light", "energy"];
+      const metricConfigs = [
+        {
+          key: "temperature",
+          label: "Temperatur",
+          icon: "mdi:thermometer",
+          min: 18,
+          max: 34,
+          targetLow: 24,
+          targetHigh: 28,
+          unit: "°C",
+          fallbackSub: "Min 22,4 °C · Max 27,2 °C"
+        },
+        {
+          key: "humidity",
+          label: "Luftfeuchte",
+          icon: "mdi:water-percent",
+          min: 40,
+          max: 90,
+          targetLow: 65,
+          targetHigh: 75,
+          unit: "%",
+          fallbackSub: "Min 61,0 % · Max 72,0 %"
+        },
+        {
+          key: "light",
+          label: "Licht",
+          icon: "mdi:white-balance-sunny",
+          min: 0,
+          max: 80,
+          targetLow: 40,
+          targetHigh: 65,
+          unit: " klx",
+          fallbackSub: "18/6h Lichtplan"
+        },
+        {
+          key: "energy",
+          label: "Energie",
+          icon: "mdi:flash-outline",
+          min: 0,
+          max: 400,
+          targetLow: 200,
+          targetHigh: 320,
+          unit: " W",
+          fallbackSub: "Laufender Verbrauch"
+        }
+      ];
+
       const bindings = Array.isArray(tent?.bindings) ? tent.bindings : [];
-      const rows = metrics.map((metric) => {
-        const binding = bindings.find((item) => item?.metric_type === metric && !item?.ended_at);
+      const cards = metricConfigs.map((cfg) => {
+        const binding = bindings.find((item) => item?.metric_type === cfg.key && !item?.ended_at);
         const entityId = entityIdFor(binding);
         const live = this._entityDisplay(entityId);
-        const label = metric === "temperature" ? "Temperatur" : metric === "humidity" ? "Luftfeuchte" : metric === "light" ? "Licht" : "Energie";
-        return `<div class="tent-reading"><span>${label}</span><strong>${e(live.value)}</strong><small>${entityId ? e(live.status) : "Nicht zugeordnet"}</small></div>`;
+        const numeric = Number(live.raw);
+        const hasLive = Number.isFinite(numeric);
+        return `<div class="sensor-card">
+          <div class="sensor-card-head">
+            <span class="sensor-card-title"><span class="sensor-card-icon"><ha-icon icon="${cfg.icon}"></ha-icon></span>${cfg.label}</span>
+            ${!entityId ? `<small class="sensor-unbound">Nicht zugeordnet</small>` : ""}
+          </div>
+          <div class="sensor-card-val numeral">${e(live.value)}</div>
+          ${hasLive ? this._renderRangeBar(numeric, cfg.min, cfg.max, cfg.targetLow, cfg.targetHigh, cfg.unit) : ""}
+          <div class="sensor-card-sub">${entityId ? e(live.status) : cfg.fallbackSub}</div>
+        </div>`;
       });
-      return `<section class="tent-strip" aria-label="Geteilte Zeltwerte">${rows.join("")}</section>`;
+
+      return `<section class="modern-sensor-grid" aria-label="Geteilte Zeltwerte">${cards.join("")}</section>`;
     },
 
     _renderPlantCard(run) {
       const stage = currentStage(run);
-      return `<article class="plant-card">
-        <button class="plant-card-main" data-action="open-run" data-run-id="${e(run.id)}" type="button">
-          ${imageMarkup(run, "plant-card-photo")}
-          <span class="plant-card-body">
-            <span class="stage-label">${e(stage)}</span>
-            <strong>${e(plantName(run))}</strong>
-            <small>${e(cultivarName(run))}${breederName(run) ? ` · ${e(breederName(run))}` : ""}</small>
-            <span class="plant-card-meta"><span>Tag ${daysSince(runStart(run))}</span><span><b>Nächste Schätzung</b>${e(harvestEstimate(run))}</span></span>
-          </span>
-        </button>
-        <button class="journal-direct" data-action="open-journal-editor" data-run-id="${e(run.id)}" type="button"><ha-icon icon="mdi:plus"></ha-icon> Eintrag</button>
+      const day = daysSince(runStart(run));
+      const stages = ["Keimung", "Sämling", "Vegetativ", "Blüte", "Ernte"];
+      const plan = stagePlan(run);
+      const recorded = recordedStages(run);
+      const breeder = breederName(run);
+      const cultivar = cultivarName(run);
+      const container = typeof run?.plant?.container === "string" ? run.plant.container : run?.plant?.container?.label || run?.container;
+      const substrate = run?.plant?.substrate || run?.substrate || "";
+
+      const tent = this._activeTent();
+      const moistureBinding = bindingForMetric(run, tent, "soil_moisture");
+      const tempBinding = bindingForMetric(run, tent, "temperature");
+      const ecBinding = bindingForMetric(run, tent, "conductivity");
+
+      const moistureLive = this._entityDisplay(entityIdFor(moistureBinding));
+      const tempLive = this._entityDisplay(entityIdFor(tempBinding));
+      const ecLive = this._entityDisplay(entityIdFor(ecBinding));
+
+      const moistureVal = Number(moistureLive.raw);
+      const tempVal = Number(tempLive.raw);
+      const ecVal = Number(ecLive.raw);
+
+      return `<article class="modern-plant-card">
+        <div class="plant-card-header">
+          <button class="plant-thumb-btn" data-action="open-run" data-run-id="${e(run.id)}" type="button">
+            ${imageMarkup(run, "plant-thumb-img")}
+            ${breeder ? `<span class="plant-breeder-tag">${e(breeder)}</span>` : ""}
+          </button>
+          <div class="plant-info-block">
+            <div class="plant-title-row">
+              <span class="plant-stage-badge"><span class="pulse-dot"></span>${e(stage)} · Tag ${day}</span>
+            </div>
+            <h2><button class="plant-title-btn" data-action="open-run" data-run-id="${e(run.id)}" type="button">${e(plantName(run))}</button></h2>
+            <p class="plant-genetics-sub">${e(cultivar)}${breeder ? ` · ${e(breeder)}` : ""}${container ? ` · ${e(container)}` : ""}${substrate ? ` (${e(substrate)})` : ""}</p>
+            <span class="plant-harvest-pill"><ha-icon icon="mdi:calendar"></ha-icon><span>Nächste Schätzung:</span><strong>${e(harvestEstimate(run))}</strong></span>
+          </div>
+        </div>
+
+        <div class="stage-timeline">
+          ${(plan.length ? plan : stages).map((stg) => {
+            const isCurrent = stg.toLowerCase() === stage.toLowerCase();
+            const isPast = recorded.has(stg.toLowerCase());
+            const cls = isCurrent ? "active" : isPast ? "done" : "future";
+            return `<div class="stage-step ${cls}">
+              <div class="stage-step-bar"></div>
+              <small>${e(stg)}</small>
+            </div>`;
+          }).join("")}
+        </div>
+
+        <div class="plant-telemetry-grid">
+          <div class="telemetry-cell">
+            <div class="telemetry-cell-head">
+              <span class="telemetry-cell-title"><ha-icon icon="mdi:water-percent"></ha-icon> Bodenfeuchte</span>
+            </div>
+            <div class="telemetry-cell-val numeral">${e(moistureLive.value)}</div>
+            ${Number.isFinite(moistureVal) ? this._renderRangeBar(moistureVal, 20, 80, 45, 65, "%") : `<div class="telemetry-unassigned">${moistureLive.value !== "–" ? e(moistureLive.value) : "Kein Sensor zugeordnet"}</div>`}
+          </div>
+          <div class="telemetry-cell">
+            <div class="telemetry-cell-head">
+              <span class="telemetry-cell-title"><ha-icon icon="mdi:thermometer"></ha-icon> Substrat-Temp</span>
+            </div>
+            <div class="telemetry-cell-val numeral">${e(tempLive.value)}</div>
+            ${Number.isFinite(tempVal) ? this._renderRangeBar(tempVal, 15, 32, 20, 26, "°C") : `<div class="telemetry-unassigned">${tempLive.value !== "–" ? e(tempLive.value) : "Kein Sensor zugeordnet"}</div>`}
+          </div>
+          <div class="telemetry-cell">
+            <div class="telemetry-cell-head">
+              <span class="telemetry-cell-title"><ha-icon icon="mdi:flash-outline"></ha-icon> Leitfähigkeit (EC)</span>
+            </div>
+            <div class="telemetry-cell-val numeral">${e(ecLive.value)}</div>
+            ${Number.isFinite(ecVal) ? this._renderRangeBar(ecVal, 0.0, 2.4, 0.8, 1.4, " mS") : `<div class="telemetry-unassigned">${ecLive.value !== "–" ? e(ecLive.value) : "Kein Sensor zugeordnet"}</div>`}
+          </div>
+        </div>
+
+        <div class="plant-card-foot">
+          <span class="plant-care-status"><ha-icon icon="mdi:water"></ha-icon> ${run.journal_entries?.[0] ? `Letzter Eintrag: ${e(formatDate(run.journal_entries[0].occurred_at, true))}` : "Bereit für ersten Eintrag"}</span>
+          <div class="plant-card-actions">
+            <button class="primary" data-action="open-journal-editor" data-run-id="${e(run.id)}" type="button"><ha-icon icon="mdi:plus"></ha-icon> Eintrag</button>
+            <button class="secondary" data-action="open-run" data-run-id="${e(run.id)}" type="button">Öffnen →</button>
+          </div>
+        </div>
       </article>`;
     },
 
